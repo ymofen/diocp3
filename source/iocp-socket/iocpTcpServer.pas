@@ -140,13 +140,13 @@ type
     FOwner: TIocpTcpServer;
 
     FClientContext:TIocpClientContext;
-    
+
+    FNext:TIocpSendRequest;
   protected
     /// <summary>
     ///   iocp reply request, run in iocp thread
     /// </summary>
     procedure HandleResponse; override;
-
 
     /// <summary>
     ///   post send buffer to iocp queue

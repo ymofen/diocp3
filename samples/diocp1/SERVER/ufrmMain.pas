@@ -4,7 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, iocpTcpServer, uIOCPCentre, ExtCtrls;
+  Dialogs, StdCtrls, ActnList, iocpTcpServer, uIOCPCentre, ExtCtrls,
+  System.Actions;
 
 type
   TfrmMain = class(TForm)
