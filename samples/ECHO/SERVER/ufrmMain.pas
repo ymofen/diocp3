@@ -4,7 +4,9 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls;
+  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls,
+  iocpUILogger,
+  System.Actions;
 
 type
   TfrmMain = class(TForm)
@@ -14,8 +16,13 @@ type
     actOpen: TAction;
     actStop: TAction;
     pnlMonitor: TPanel;
+    Button1: TButton;
+    Button2: TButton;
+    mmoLog: TMemo;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
   private
     { Private declarations }
     FTcpServer: TIocpTcpServer;
@@ -34,7 +41,7 @@ var
 implementation
 
 uses
-  uFMMonitor;
+  uFMMonitor, iocpEngine;
 
 {$R *.dfm}
 
@@ -45,6 +52,8 @@ begin
   FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.createDataMonitor;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
+
+  uiLogger.setLogLines(mmoLog.Lines);
 end;
 
 destructor TfrmMain.Destroy;
@@ -66,6 +75,7 @@ end;
 procedure TfrmMain.actOpenExecute(Sender: TObject);
 begin
   FTcpServer.Port := StrToInt(edtPort.Text);
+  FTcpServer.SetWorkerCount(2);
   FTcpServer.Active := true;
   refreshState;
 end;
@@ -76,6 +86,39 @@ begin
   refreshState;
 end;
 
+procedure TfrmMain.Button1Click(Sender: TObject);
+begin
+  FTcpServer.DisConnectAll();
+end;
+
+procedure TfrmMain.Button2Click(Sender: TObject);
+var
+  lvLink:TIocpRequestSingleLink;
+  lvRequest:TIocpSendRequest;
+  i: Integer;
+begin
+  lvLink := TIocpRequestSingleLink.Create(20000);
+
+  for i := 0 to 10000 do
+  begin
+    lvRequest := TIocpSendRequest.Create;
+    lvLink.Push(lvRequest);
+  end;
+
+
+  for i := 0 to 10000 do
+  begin
+    lvRequest := TIocpSendRequest(lvLink.Pop);
+    lvRequest.Free;
+  end;
+
+  lvLink.Free;
+
+
+
+
+end;
+
 procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;
     buf:Pointer; len:cardinal; errCode:Integer);
 begin
@@ -84,7 +127,7 @@ begin
     pvClientContext.PostWSASendRequest(buf, len);
   end else
   begin
-    pvClientContext.Disconnect;
+    pvClientContext.DoDisconnect;
   end;
 end;
 

@@ -86,7 +86,7 @@ begin
      ]
     );
 
-  lblSend.Caption := Format('post:%d, response:%d, size:%d/%d',
+  lblSend.Caption := Format('post:%d, response:%u, size:%u/%u',
      [
        FIocpTcpServer.DataMoniter.PostWSASendCounter,
        FIocpTcpServer.DataMoniter.ResponseWSASendCounter,

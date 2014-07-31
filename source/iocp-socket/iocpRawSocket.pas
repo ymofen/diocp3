@@ -5,7 +5,18 @@ interface
 uses
   windows, SysUtils, iocpWinsock2;
 
+const
+  SIO_KEEPALIVE_VALS = IOC_IN or IOC_VENDOR or 4;
+
 type
+  TKeepAlive = record
+    OnOff: Integer;
+    KeepAliveTime: Integer;
+    KeepAliveInterval: Integer;
+  end;
+  TTCP_KEEPALIVE = TKeepAlive;
+  PTCP_KEEPALIVE = ^TKeepAlive;
+  
   /// <summary>
   ///   raw socket object
   ///     thanks my friend(ryan)
@@ -27,7 +38,12 @@ type
 
     function Recv(var data; const len: Integer): Integer;
     function Send(const data; const len: Integer): Integer;
-    
+
+    /// <summary>
+    ///   default 5000 check alive
+    /// </summary>
+    function setKeepAliveOption(pvKeepAliveTime: Integer = 5000): Boolean;
+
     property SocketHandle: TSocket read FSocketHandle;
   end;
 
@@ -108,6 +124,36 @@ end;
 function TRawSocket.Send(const data; const len: Integer): Integer;
 begin
   Result := iocpWinsock2.Send(FSocketHandle, data, len, 0);
+end;
+
+function TRawSocket.setKeepAliveOption(pvKeepAliveTime: Integer = 5000):
+    Boolean;
+var
+  Opt, insize, outsize: integer;
+  outByte: DWORD;
+  inKeepAlive, outKeepAlive: TTCP_KEEPALIVE;
+begin
+  Result := false;
+  Opt := 1;
+  if SetSockopt(FSocketHandle, SOL_SOCKET, SO_KEEPALIVE,
+     @Opt, sizeof(Opt)) = SOCKET_ERROR then exit;
+
+  inKeepAlive.OnOff := 1;
+  
+  inKeepAlive.KeepAliveTime := pvKeepAliveTime;
+
+  inKeepAlive.KeepAliveInterval := 1;
+  insize := sizeof(TTCP_KEEPALIVE);
+  outsize := sizeof(TTCP_KEEPALIVE);
+
+  if WSAIoctl(FSocketHandle,
+     SIO_KEEPALIVE_VALS,
+     @inKeepAlive, insize,
+     @outKeepAlive,
+    outsize, outByte, nil, nil) <> SOCKET_ERROR then
+  begin
+    Result := true;
+  end;
 end;
 
 end.

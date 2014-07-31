@@ -2,7 +2,7 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   BorderIcons = [biSystemMenu]
-  Caption = 'diocp3 echo server'
+  Caption = 'diocp3 server for diocp1'
   ClientHeight = 350
   ClientWidth = 582
   Color = clBtnFace
@@ -36,6 +36,8 @@ object frmMain: TfrmMain
     Top = 48
     Width = 561
     Height = 297
+    BevelKind = bkTile
+    BevelOuter = bvNone
     TabOrder = 2
   end
   object actlstMain: TActionList

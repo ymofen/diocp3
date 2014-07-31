@@ -75,6 +75,7 @@ type
     procedure PostATask(pvTaskWorkProc: TOnTaskWorkProc; pvTaskData: Pointer = nil;
         pvRunInMainThread: Boolean = False; pvRunType: TRunInMainThreadType =
         rtSync); overload;
+
        
     property Active: Boolean read FActive write SetActive;
     

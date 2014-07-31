@@ -41,7 +41,8 @@ type
 
     function size:Integer;
 
-    function Pop: Pointer;
+    function Pop: Pointer;overload;
+    function Pop(var outPointer:Pointer):Boolean;overload;
     procedure Push(AData: Pointer);
 
     /// <summary>
@@ -138,9 +139,20 @@ var
 begin
   while True do
   begin
-    lvData := self.Pop;
-    if lvData = nil then Break;
-    TObject(lvData).Free;      
+    lvData := nil;
+    if Pop(lvData) then
+    begin
+      if lvData = nil then
+      begin
+        lvData := nil;
+      end else
+      begin
+        TObject(lvData).Free;
+      end;
+    end else
+    begin
+      Break;
+    end;
   end;
 end;
 
@@ -159,6 +171,20 @@ begin
   begin
     Result := lvTemp.Data;
     queueDataPool.Push(lvTemp);
+  end;
+end;
+
+function TBaseQueue.Pop(var outPointer: Pointer): Boolean;
+var
+  lvTemp:PQueueData;
+begin
+  Result := false;
+  lvTemp := innerPop;
+  if lvTemp <> nil then
+  begin
+    outPointer := lvTemp.Data;
+    queueDataPool.Push(lvTemp);
+    Result := true;
   end;
 end;
 

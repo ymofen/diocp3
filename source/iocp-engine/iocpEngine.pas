@@ -12,9 +12,7 @@ interface
 
 uses
   Windows, iocpProtocol, SysUtils, Classes, SyncObjs
-  , ComObj, ActiveX
-
-  ;
+  , ComObj, ActiveX;
 {$DEFINE __DEBUG}
 
 {$IF CompilerVersion>= 23}
@@ -38,6 +36,9 @@ type
   TIocpRequest = class(TObject)
   private
     FiocpWorker: TIocpWorker;
+
+    // next Request
+    FNext: TIocpRequest;
   protected
     //post request to iocp queue.
     FOverlapped: OVERLAPPEDEx;
@@ -52,6 +53,24 @@ type
     constructor Create;
 
     property iocpWorker: TIocpWorker read FiocpWorker;
+  end;
+
+  /// <summary>
+  ///  request single link
+  /// </summary>
+  TIocpRequestSingleLink = class(TObject)
+  private
+    FLocker: TCriticalSection;
+    FCount: Integer;
+    FHead:TIocpRequest;
+    FTail:TIocpRequest;
+    FMaxSize:Integer;
+  public
+    constructor Create(pvMaxSize: Integer = 1024);
+    destructor Destroy; override;
+    function Push(pvRequest:TIocpRequest): Boolean;
+    function Pop:TIocpRequest;
+    property Count: Integer read FCount;
   end;
 
   /// <summary>
@@ -508,6 +527,63 @@ begin
   FOverlapped.iocpRequest := self;
 end;
 
+constructor TIocpRequestSingleLink.Create(pvMaxSize: Integer = 1024);
+begin
+  inherited Create;
+  FLocker := TCriticalSection.Create();
+  FMaxSize := pvMaxSize;
+end;
+
+destructor TIocpRequestSingleLink.Destroy;
+begin
+  FLocker.Free;
+  inherited Destroy;
+end;
+
+
+function TIocpRequestSingleLink.Pop: TIocpRequest;
+begin
+  Result := nil;
+  FLocker.Enter;
+  try
+    if FHead <> nil then
+    begin
+      Result := FHead;
+      FHead := FHead.FNext;
+      if FHead = nil then FTail := nil;
+
+      Dec(FCount);
+    end;
+  finally
+    FLocker.Leave;
+  end;
+end;
+
+function TIocpRequestSingleLink.Push(pvRequest:TIocpRequest): Boolean;
+begin
+  FLocker.Enter;
+  try
+    if FCount < FMaxSize then
+    begin
+      pvRequest.FNext := nil;
+
+      if FHead = nil then
+        FHead := pvRequest
+      else
+        FTail.FNext := pvRequest;
+
+      FTail := pvRequest;
+
+      Inc(FCount);
+      Result := true;
+    end else
+    begin
+      Result := false;
+    end;
+  finally
+    FLocker.Leave;
+  end;
+end;
 
 initialization
 {$IFDEF __DEBUG}

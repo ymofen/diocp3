@@ -4,7 +4,7 @@ object frmMain: TfrmMain
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 echo server'
   ClientHeight = 350
-  ClientWidth = 582
+  ClientWidth = 730
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -32,15 +32,44 @@ object frmMain: TfrmMain
     TabOrder = 1
   end
   object pnlMonitor: TPanel
-    Left = 8
-    Top = 48
-    Width = 561
-    Height = 297
+    Left = 13
+    Top = 34
+    Width = 340
+    Height = 308
+    BevelKind = bkTile
+    BevelOuter = bvNone
     TabOrder = 2
   end
+  object Button1: TButton
+    Left = 248
+    Top = 4
+    Width = 75
+    Height = 25
+    Caption = 'Button1'
+    TabOrder = 3
+    OnClick = Button1Click
+  end
+  object Button2: TButton
+    Left = 344
+    Top = 4
+    Width = 75
+    Height = 25
+    Caption = 'Button2'
+    TabOrder = 4
+    OnClick = Button2Click
+  end
+  object mmoLog: TMemo
+    Left = 359
+    Top = 35
+    Width = 354
+    Height = 307
+    Lines.Strings = (
+      'mmoLog')
+    TabOrder = 5
+  end
   object actlstMain: TActionList
-    Left = 432
-    Top = 8
+    Left = 248
+    Top = 104
     object actOpen: TAction
       Caption = 'start'
       OnExecute = actOpenExecute
