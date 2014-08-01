@@ -491,7 +491,7 @@ begin
     FWorkerList.Add(AWorker);
 
     // set worker use processor
-    SetThreadIdealProcessor(AWorker.Handle, i mod lvCpuCount);
+    //SetThreadIdealProcessor(AWorker.Handle, i mod lvCpuCount);
   end;
   FActive := true;
 end;

@@ -47,57 +47,57 @@ object FMMonitor: TFMMonitor
     Caption = 'lblSend'
   end
   object Label4: TLabel
-    Left = 16
-    Top = 88
+    Left = 18
+    Top = 136
     Width = 48
     Height = 13
     Caption = 'acceptex:'
   end
   object lblAcceptEx: TLabel
-    Left = 96
-    Top = 88
+    Left = 98
+    Top = 136
     Width = 55
     Height = 13
     Caption = 'lblAcceptEx'
   end
   object lblOnlineCounter: TLabel
-    Left = 96
-    Top = 108
+    Left = 98
+    Top = 156
     Width = 79
     Height = 13
     Caption = 'lblOnlineCounter'
   end
   object Label5: TLabel
-    Left = 16
-    Top = 108
+    Left = 18
+    Top = 156
     Width = 32
     Height = 13
     Caption = 'online:'
   end
   object lblRunTimeINfo: TLabel
-    Left = 96
-    Top = 164
+    Left = 98
+    Top = 196
     Width = 72
     Height = 13
     Caption = 'lblRunTimeINfo'
   end
   object Label6: TLabel
-    Left = 16
-    Top = 127
+    Left = 18
+    Top = 175
     Width = 42
     Height = 13
     Caption = 'workers:'
   end
   object lblWorkerCount: TLabel
-    Left = 96
-    Top = 127
+    Left = 98
+    Top = 175
     Width = 74
     Height = 13
     Caption = 'lblWorkerCount'
   end
   object Label7: TLabel
-    Left = 16
-    Top = 164
+    Left = 18
+    Top = 196
     Width = 43
     Height = 13
     Caption = 'run time:'

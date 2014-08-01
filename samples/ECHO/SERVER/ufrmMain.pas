@@ -4,9 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls,
-  iocpUILogger,
-  System.Actions;
+  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls, System.Actions,
+  Vcl.ComCtrls, iocpLogger;
 
 type
   TfrmMain = class(TForm)
@@ -15,14 +14,15 @@ type
     actlstMain: TActionList;
     actOpen: TAction;
     actStop: TAction;
-    pnlMonitor: TPanel;
-    Button1: TButton;
-    Button2: TButton;
+    btnDisconectAll: TButton;
+    pgcMain: TPageControl;
+    TabSheet1: TTabSheet;
+    TabSheet2: TTabSheet;
     mmoLog: TMemo;
+    pnlMonitor: TPanel;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
-    procedure Button2Click(Sender: TObject);
+    procedure btnDisconectAllClick(Sender: TObject);
   private
     { Private declarations }
     FTcpServer: TIocpTcpServer;
@@ -75,7 +75,7 @@ end;
 procedure TfrmMain.actOpenExecute(Sender: TObject);
 begin
   FTcpServer.Port := StrToInt(edtPort.Text);
-  FTcpServer.SetWorkerCount(2);
+ // FTcpServer.SetWorkerCount(2);
   FTcpServer.Active := true;
   refreshState;
 end;
@@ -86,37 +86,9 @@ begin
   refreshState;
 end;
 
-procedure TfrmMain.Button1Click(Sender: TObject);
+procedure TfrmMain.btnDisconectAllClick(Sender: TObject);
 begin
   FTcpServer.DisConnectAll();
-end;
-
-procedure TfrmMain.Button2Click(Sender: TObject);
-var
-  lvLink:TIocpRequestSingleLink;
-  lvRequest:TIocpSendRequest;
-  i: Integer;
-begin
-  lvLink := TIocpRequestSingleLink.Create(20000);
-
-  for i := 0 to 10000 do
-  begin
-    lvRequest := TIocpSendRequest.Create;
-    lvLink.Push(lvRequest);
-  end;
-
-
-  for i := 0 to 10000 do
-  begin
-    lvRequest := TIocpSendRequest(lvLink.Pop);
-    lvRequest.Free;
-  end;
-
-  lvLink.Free;
-
-
-
-
 end;
 
 procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;

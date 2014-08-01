@@ -47,20 +47,14 @@ end;
 
 procedure TIocpLocker.lock;
 begin
-  if EnterCount > 0 then
-  begin
-    Name := Name;
-  end;
-  OutputDebugString(PChar(Format('%d:%s start lock', [GetCurrentThreadID, Name])));
   EnterCriticalSection(FSection);
-  OutputDebugString(PChar(Format('%d:%s locked', [GetCurrentThreadID, Name])));
 end;
 
 procedure TIocpLocker.unLock;
 begin
   LeaveCriticalSection(FSection);
-  OutputDebugString(PChar(Format('%d:%s unlock', [GetCurrentThreadID, Name])));
-  FEnterINfo := '';
+  //OutputDebugString(PChar(Format('%d:%s unlock', [GetCurrentThreadID, Name])));
+  //FEnterINfo := '';
 end;
 
 end.

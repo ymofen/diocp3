@@ -12,11 +12,18 @@ unit iocpTcpServer;
 
 interface
 
+{$DEFINE LOGGER_ON}
+{$DEFINE DEBUG_MSG_ON}
+
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
   iocpWinsock2,
   iocpRawSocket, SyncObjs, Windows, SysUtils,
-  BaseQueue, iocpLocker, FileLogger, iocpUILogger;
+  {$IFDEF LOGGER_ON}
+    iocpLogger,
+  {$ENDIF}
+
+  BaseQueue, iocpLocker;
 
 const
   buf_size = 1024 * 50;
@@ -70,6 +77,8 @@ type
     FOwner: TIocpTcpServer;
 
     FRecvRequest:TIocpRecvRequest;
+
+    FcurrSendRequest:TIocpSendRequest;
 
     /// sendRequest link
     FSendRequestLink: TIocpRequestSingleLink;
@@ -145,7 +154,7 @@ type
   TIocpRecvRequest = class(TIocpRequest)
   private
     FInnerBuffer: iocpWinsock2.TWsaBuf;
-    FPostBuffer: iocpWinsock2.TWsaBuf;
+    FRecvBuffer: iocpWinsock2.TWsaBuf;
     FRecvdFlag: Cardinal;
     FOwner: TIocpTcpServer;
     FClientContext:TIocpClientContext;
@@ -175,13 +184,16 @@ type
   /// </summary>
   TIocpSendRequest = class(TIocpRequest)
   private
+    // for singlelinked
+    FNext:TIocpSendRequest;
+
+    FIsBusying:Boolean;
+
     FAlive: Boolean;
 
     FBytesSize:Cardinal;
 
-    FSendCounter:Integer;
-
-    FReponseCounter:Integer;
+    FCopyBuf:TWsaBuf;
 
     // send buf record
     FWSABuf:TWsaBuf;
@@ -195,12 +207,12 @@ type
 
     FClientContext:TIocpClientContext;
 
-    FNext:TIocpSendRequest;
+
     FOnDataRequestCompleted: TOnDataRequestCompleted;
     /// <summary>
-    ///   start to post
+    ///   checkStart to post
     /// </summary>
-    procedure start;
+    function checkStart: Boolean;
   protected
     /// <summary>
     ///   iocp reply request, run in iocp thread
@@ -218,7 +230,7 @@ type
     /// <summary>
     ///   post send a block
     /// </summary>
-    procedure checkSendNextBlock();
+    function checkSendNextBlock: Boolean;
   public
     constructor Create;
 
@@ -227,7 +239,7 @@ type
     /// <summary>
     ///   set buf inneed to send
     /// </summary>
-    procedure setBuffer(buf:Pointer; len:Cardinal);
+    procedure setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
 
     /// <summary>
     ///   on entire buf send completed
@@ -303,6 +315,9 @@ type
     FRecvSize:Int64;
     FPostWSASendSize: Int64;
 
+    FPushSendQueueCounter: Integer;
+    FResponseSendObjectCounter:Integer;
+
     FPostWSASendCounter:Integer;
     FResponseWSASendCounter:Integer;
 
@@ -313,6 +328,7 @@ type
     FResponseWSAAcceptExCounter:Integer;
 
     FLocker: TCriticalSection;
+    FPostSendObjectCounter: Integer;
 
     procedure incSentSize(pvSize:Cardinal);
     procedure incPostWSASendSize(pvSize:Cardinal);
@@ -323,17 +339,28 @@ type
 
     procedure incPostWSARecvCounter();
     procedure incResponseWSARecvCounter;
+
+    procedure incPushSendQueueCounter;
+    procedure incPostSendObjectCounter();
+    procedure incResponseSendObjectCounter();
   public
     constructor Create;
     destructor Destroy; override;
 
     procedure clear;
 
+    property PushSendQueueCounter: Integer read FPushSendQueueCounter;
+    property PostSendObjectCounter: Integer read FPostSendObjectCounter;
+    property ResponseSendObjectCounter: Integer read FResponseSendObjectCounter;
+
     property PostWSAAcceptExCounter: Integer read FPostWSAAcceptExCounter;
     property PostWSARecvCounter: Integer read FPostWSARecvCounter;
     property PostWSASendCounter: Integer read FPostWSASendCounter;
+
+
     property PostWSASendSize: Int64 read FPostWSASendSize;
     property RecvSize: Int64 read FRecvSize;
+
     property ResponseWSAAcceptExCounter: Integer read FResponseWSAAcceptExCounter;
     property ResponseWSARecvCounter: Integer read FResponseWSARecvCounter;
     property ResponseWSASendCounter: Integer read FResponseWSASendCounter;
@@ -508,7 +535,17 @@ type
         FOnDataReceived;
   end;
 
+  
+
 implementation
+
+{$IFDEF DEBUG_MSG_ON}
+procedure logDebugMessage(pvMsg: string; const args: array of const);
+begin
+  uiLogger.logMessage(pvMsg, args);
+end;
+{$ENDIF}
+
 
 
 /// compare target, cmp_val same set target = new_val
@@ -539,9 +576,6 @@ begin
     begin
       self.Free;
     end;
-  end else
-  begin
-    FActive := FActive;
   end;
 end;
 
@@ -552,13 +586,25 @@ begin
   lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
   if lvRequest <> nil then
   begin
-    uiLogger.logMessage('Popup counter:%d', [FSendRequestLink.Count]);
-    lvRequest.start;
-
+    FcurrSendRequest := lvRequest;
+    if lvRequest.checkStart then
+    begin
+      if FOwner.FDataMoniter <> nil then
+      begin
+        FOwner.FDataMoniter.incPostSendObjectCounter;
+      end;
+    end else
+    begin
+      {$IFDEF DEBUG_MSG_ON}
+        logDebugMessage('lvRequest.checkStart false',  []);
+      {$ENDIF}
+    end;
   end else
   begin  // no request to send
-    uiLogger.logMessage('Popup empty:%d', [FSendRequestLink.Count]);
-    FSending := false;
+    if lock_cmp_exchange(True, false, FSending) = False then
+    begin
+      FSending := FSending;
+    end;
   end;
 end;
 
@@ -566,11 +612,6 @@ procedure TIocpClientContext.checkReleaseRes;
 var
   lvRequest:TIocpSendRequest;
 begin
-  if FSendRequestLink.Count > 9 then
-  begin
-    DebugINfo := Format('empty link: %d', [FSendRequestLink.Count]);
-  end;
-  //DebugINfo := Format('empty link: %d', [FSendRequestLink.Count]);
   while true do
   begin
     lvRequest :=TIocpSendRequest(FSendRequestLink.Pop);
@@ -647,7 +688,7 @@ end;
 
 procedure TIocpClientContext.DoReceiveData;
 begin
-  OnRecvBuffer(FRecvRequest.FPostBuffer.buf,
+  OnRecvBuffer(FRecvRequest.FRecvBuffer.buf,
     FRecvRequest.FBytesTransferred,
     FRecvRequest.FErrorCode);
   if FOwner <> nil then
@@ -659,6 +700,8 @@ procedure TIocpClientContext.DoSendRequestCompleted(pvRequest:
 begin
   ;
 end;
+
+
 
 procedure TIocpClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode:
     WORD);
@@ -676,17 +719,19 @@ end;
 function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal): Boolean;
 var
   lvRequest:TIocpSendRequest;
-begin
-
+begin            
   lvRequest := FOwner.getSendRequest;
   Assert(lvRequest <> nil);
-
   lvRequest.FClientContext := self;
   lvRequest.setBuffer(buf, len);
 
-  uiLogger.logMessage('will push :%d', [FSendRequestLink.Count]);
   if FSendRequestLink.Push(lvRequest) then
   begin
+    if FOwner.FDataMoniter <> nil then
+    begin
+      FOwner.FDataMoniter.incPushSendQueueCounter;
+    end;  
+
     Result := true;
 
     if lock_cmp_exchange(False, True, FSending) = False then
@@ -696,7 +741,11 @@ begin
     end;
   end else
   begin
-    self.DebugINfo := 'PostWSASendRequest push fail';
+    {$IFDEF DEBUG_MSG_ON}
+      logDebugMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+         [FSendRequestLink.Count]);
+    {$ENDIF}
+    
     FOwner.releaseSendRequest(lvRequest);
     DoDisconnect;
     Result := false;
@@ -706,7 +755,6 @@ end;
 procedure TIocpClientContext.SetDebugINfo(const Value: string);
 begin
   FDebugINfo := Value;
-  uiLogger.logMessage(FDebugINfo);
 end;
 
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
@@ -773,6 +821,8 @@ begin
     lvContinue := true;
     if FKeepAlive then
     begin
+      pvRequest.FClientContext.FRawSocket.setNoDelayOption(True);
+
       if not pvRequest.FClientContext.FRawSocket.setKeepAliveOption() then
       begin       // set option fail
         lvErrCode := GetLastError;
@@ -790,6 +840,7 @@ begin
 
     if lvContinue then
     begin
+
       lvRet := FIocpEngine.IocpCore.bind2IOCPHandle(pvRequest.FClientContext.FRawSocket.SocketHandle, 0);
       if lvRet = 0 then
       begin     // binding error
@@ -831,7 +882,7 @@ procedure TIocpTcpServer.doReceiveData(pvIocpClientContext: TIocpClientContext;
 begin
   if Assigned(FOnDataReceived) then
     FOnDataReceived(pvIocpClientContext,
-      pvRequest.FPostBuffer.buf, pvRequest.FPostBuffer.len,
+      pvRequest.FRecvBuffer.buf, pvRequest.FBytesTransferred,
       pvRequest.FErrorCode);
 end;
 
@@ -966,7 +1017,7 @@ end;
 
 function TIocpTcpServer.GetClientCount: Integer;
 begin
-  Result := FOnlineContextList.FCount;
+  Result := FOnlineContextList.Count;
 end;
 
 function TIocpTcpServer.getSendRequest: TIocpSendRequest;
@@ -976,9 +1027,9 @@ begin
   begin
     Result := TIocpSendRequest.Create;
   end;
-//  if Result.FAlive then
+//  if Result.FIsBusying then
 //  begin
-//    Result.FAlive := true;
+//    Result.FIsBusying := true;
 //  end;
   Result.FAlive := true;
   Result.DoCleanup;
@@ -1171,7 +1222,6 @@ end;
 
 procedure TIocpRecvRequest.HandleResponse;
 begin
-  FClientContext.DebugINfo := 'TIocpRecvRequest.HandleResponse starting';
 
   if FOwner = nil then
   begin
@@ -1185,24 +1235,29 @@ begin
 
   if FErrorCode <> 0 then
   begin
-    FClientContext.DebugINfo := 'TIocpRecvRequest.HandleResponse FErrorCode <> 0';
+    {$IFDEF DEBUG_MSG_ON}
+      logDebugMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
+    {$ENDIF}
     if FOwner <> nil then
     begin
       FOwner.DoClientContextError(FClientContext, FErrorCode);
       FClientContext.DoDisconnect;
+    end else
+    begin
+      Self.Free;
     end;
   end else if (FBytesTransferred = 0) then
   begin      // no data recvd, socket is break
-    FClientContext.DebugINfo := 'TIocpRecvRequest.HandleResponse FBytesTransferred = 0';
+    {$IFDEF DEBUG_MSG_ON}
+      logDebugMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
+    {$ENDIF}
     FClientContext.DoDisconnect;
   end else
   begin
     try
-      FClientContext.DebugINfo := 'TIocpRecvRequest.HandleResponse DoReceiveData';
       FClientContext.DoReceiveData;
     finally
       // post recv request
-      FClientContext.DebugINfo := 'TIocpRecvRequest.HandleResponse DoReceiveData ending';
       if FOwner = nil then
       begin
         FClientContext.Free;
@@ -1215,11 +1270,13 @@ begin
         end;
       end else
       begin
+        {$IFDEF DEBUG_MSG_ON}
+          logDebugMessage('IocpRecvRequest response Owner is deactive',  []);
+        {$ENDIF}
         FClientContext.DoDisconnect;
       end;
     end;
   end;
-  FClientContext.DebugINfo := 'TIocpRecvRequest.HandleResponse ending';
 end;
 
 function TIocpRecvRequest.PostRequest(pvBuffer: PAnsiChar;
@@ -1231,11 +1288,11 @@ begin
   lpNumberOfBytesRecvd := 0;
   FRecvdFlag := 0;
 
-  FPostBuffer.buf := pvBuffer;
-  FPostBuffer.len := len;
+  FRecvBuffer.buf := pvBuffer;
+  FRecvBuffer.len := len;
 
   lvRet := iocpWinsock2.WSARecv(FClientContext.FRawSocket.SocketHandle,
-     @FPostBuffer,
+     @FRecvBuffer,
      1,
      lpNumberOfBytesRecvd,
      FRecvdFlag,
@@ -1248,6 +1305,10 @@ begin
     Result := lvRet = WSA_IO_PENDING;
     if not Result then
     begin
+      {$IFDEF DEBUG_MSG_ON}
+        logDebugMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
+      {$ENDIF}
+
       // trigger error event
       FOwner.DoClientContextError(FClientContext, lvRet);
 
@@ -1278,7 +1339,7 @@ begin
   Result := PostRequest(FInnerBuffer.buf, FInnerBuffer.len);
 end;
 
-procedure TIocpSendRequest.checkSendNextBlock;
+function TIocpSendRequest.checkSendNextBlock: Boolean;
 var
   l:Cardinal;
 begin
@@ -1286,27 +1347,32 @@ begin
   begin
     l := FLen - FPosition;
     if l > MAX_SEND_BLOCK_SIZE then l := MAX_SEND_BLOCK_SIZE;
-    InnerPostRequest(Pointer(IntPtr(FBuf) + IntPtr(FPosition)), l);
+
+    Result := InnerPostRequest(Pointer(IntPtr(FBuf) + IntPtr(FPosition)), l)
+
+  end else
+  begin
+    Result := false;
   end;
 end;
 
 constructor TIocpSendRequest.Create;
 begin
   inherited Create;
-  FReponseCounter := 0;
-  FSendCounter := 0;
 end;
 
 destructor TIocpSendRequest.Destroy;
 begin
+  if FCopyBuf.len <> 0 then
+  begin
+    FreeMem(FCopyBuf.buf);
+  end;
   inherited Destroy;
 end;
 
 procedure TIocpSendRequest.DoCleanUp;
 begin
   FBytesSize := 0;
-  FSendCounter := 0;
-  FReponseCounter := 0;
   FNext := nil;
   FOwner := nil;
   FClientContext := nil;
@@ -1317,36 +1383,52 @@ end;
 
 procedure TIocpSendRequest.HandleResponse;
 begin
+  FIsBusying := false;
   if FOwner = nil then
   begin
     FClientContext.Free;
     Self.Free;
     exit;
   end else if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
-  begin
-
-    ///    if FBytesTransferred <> FWSABuf.len then  /// error
-    FOwner.FDataMoniter.incSentSize(FWSABuf.len);
+  begin                                                       
+    if (FErrorCode = 0) and (FBytesTransferred <> FWSABuf.len) then  /// error
+    begin
+       FBytesTransferred := FBytesTransferred;
+    end;
+    FOwner.FDataMoniter.incSentSize(FBytesTransferred);
     FOwner.FDataMoniter.incResponseWSASendCounter;
+
   end;
 
   if FErrorCode <> 0 then
   begin
+    {$IFDEF DEBUG_MSG_ON}
+      logDebugMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
+    {$ENDIF}
     FOwner.DoClientContextError(FClientContext, FErrorCode);
     FClientContext.DoDisconnect;
+
+    // release request
+    FOwner.releaseSendRequest(Self);
   end else
   begin
     Inc(FPosition, FBytesTransferred);
     if FPosition = FLen then
     begin        // all sent ?
+
+      if FOwner.FDataMoniter <> nil then
+      begin
+        FOwner.FDataMoniter.incResponseSendObjectCounter;
+      end;
+
+      FClientContext.checkNextSendRequest;
+
       if Assigned(FOnDataRequestCompleted) then
       begin
         FOnDataRequestCompleted(FClientContext, Self);
       end;
 
       FClientContext.DoSendRequestCompleted(Self);
-
-      FClientContext.checkNextSendRequest;
 
       // release request
       FOwner.releaseSendRequest(Self);
@@ -1355,7 +1437,6 @@ begin
       checkSendNextBlock;
     end;
   end;
-  FClientContext.DebugINfo := 'TIocpSendRequest.HandleResponse end';
 end;
 
 function TIocpSendRequest.InnerPostRequest(buf: Pointer; len: Cardinal):
@@ -1365,6 +1446,7 @@ var
   dwFlag: Cardinal;
   lpNumberOfBytesSent:Cardinal;
 begin
+  FIsBusying := True;
   FBytesSize := len;
   FWSABuf.buf := buf;
   FWSABuf.len := len;
@@ -1384,10 +1466,17 @@ begin
     Result := lvRet = WSA_IO_PENDING;
     if not Result then
     begin
+       FIsBusying := False;
+    {$IFDEF DEBUG_MSG_ON}
+       logDebugMessage('TIocpSendRequest.InnerPostRequest Error:%d',  [lvRet]);
+    {$ENDIF}
+
        FOwner.DoClientContextError(FClientContext, lvRet);
 
        /// kick out the clientContext
        FClientContext.DoDisconnect;
+
+       FOwner.releaseSendRequest(Self);
     end else
     begin
       if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
@@ -1407,16 +1496,29 @@ begin
   end;
 end;
 
-procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal);
+procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
+    Boolean = true);
 begin
-  FBuf := buf;
-  FLen := len;
+  if pvCopyBuf then
+  begin
+    if FCopyBuf.len > 0 then FreeMem(FCopyBuf.buf);
+
+    FCopyBuf.len := len;
+    GetMem(FCopyBuf.buf, FCopyBuf.len);
+    Move(buf^, FCopyBuf.buf^, FCopyBuf.len);
+    FBuf := FCopyBuf.buf;
+    FLen := FCopyBuf.len;
+  end else
+  begin
+    FBuf := buf;
+    FLen := len;
+  end;
   FPosition := 0;
 end;
 
-procedure TIocpSendRequest.start;
+function TIocpSendRequest.checkStart: Boolean;
 begin
-  checkSendNextBlock;
+  Result := checkSendNextBlock;
 end;
 
 procedure TIocpDataMonitor.clear;
@@ -1433,6 +1535,9 @@ begin
     FPostWSARecvCounter:=0;
     FResponseWSARecvCounter:=0;
 
+    FPushSendQueueCounter := 0;
+    FResponseSendObjectCounter := 0;
+    
     FPostWSAAcceptExCounter:=0;
     FResponseWSAAcceptExCounter:=0;
   finally
@@ -1450,6 +1555,16 @@ destructor TIocpDataMonitor.Destroy;
 begin
   FLocker.Free;
   inherited Destroy;
+end;
+
+procedure TIocpDataMonitor.incPushSendQueueCounter;
+begin
+  InterlockedIncrement(FPushSendQueueCounter);
+end;
+
+procedure TIocpDataMonitor.incPostSendObjectCounter;
+begin
+  InterlockedIncrement(FPostSendObjectCounter);
 end;
 
 procedure TIocpDataMonitor.incPostWSARecvCounter;
@@ -1480,6 +1595,11 @@ begin
   finally
     FLocker.Leave;
   end;
+end;
+
+procedure TIocpDataMonitor.incResponseSendObjectCounter;
+begin
+  InterlockedIncrement(FResponseSendObjectCounter);
 end;
 
 procedure TIocpDataMonitor.incResponseWSARecvCounter;

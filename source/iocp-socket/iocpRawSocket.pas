@@ -44,6 +44,8 @@ type
     /// </summary>
     function setKeepAliveOption(pvKeepAliveTime: Integer = 5000): Boolean;
 
+    function setNoDelayOption(pvOption:Boolean): Boolean;
+
     property SocketHandle: TSocket read FSocketHandle;
   end;
 
@@ -154,6 +156,14 @@ begin
   begin
     Result := true;
   end;
+end;
+
+function TRawSocket.setNoDelayOption(pvOption:Boolean): Boolean;
+var
+  bNoDelay: BOOL;
+begin
+  bNoDelay := pvOption;
+  Result := setsockopt(FSocketHandle, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay)) <> SOCKET_ERROR;
 end;
 
 end.

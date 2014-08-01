@@ -86,12 +86,19 @@ begin
      ]
     );
 
-  lblSend.Caption := Format('post:%d, response:%u, size:%u/%u',
+  lblSend.Caption := Format('post:%d, response:%u, size:%u/%u'#10#13+
+                            'pushSendingQueueCounter:%d'#10#13+
+                            'postSendObjectCounter:%d'#10#13+
+                            'responseSendingObject:%d',
      [
        FIocpTcpServer.DataMoniter.PostWSASendCounter,
        FIocpTcpServer.DataMoniter.ResponseWSASendCounter,
        FIocpTcpServer.DataMoniter.PostWSASendSize,
-       FIocpTcpServer.DataMoniter.SentSize
+       FIocpTcpServer.DataMoniter.SentSize,
+
+       FIocpTcpServer.DataMoniter.PushSendQueueCounter,
+       FIocpTcpServer.DataMoniter.PostSendObjectCounter,
+       FIocpTcpServer.DataMoniter.ResponseSendObjectCounter
      ]
     );
 

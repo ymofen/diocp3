@@ -3,8 +3,8 @@ object frmMain: TfrmMain
   Top = 0
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 echo server'
-  ClientHeight = 350
-  ClientWidth = 730
+  ClientHeight = 373
+  ClientWidth = 626
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -31,41 +31,63 @@ object frmMain: TfrmMain
     Action = actOpen
     TabOrder = 1
   end
-  object pnlMonitor: TPanel
-    Left = 13
-    Top = 34
-    Width = 340
-    Height = 308
-    BevelKind = bkTile
-    BevelOuter = bvNone
-    TabOrder = 2
-  end
-  object Button1: TButton
+  object btnDisconectAll: TButton
     Left = 248
     Top = 4
-    Width = 75
+    Width = 113
     Height = 25
-    Caption = 'Button1'
-    TabOrder = 3
-    OnClick = Button1Click
+    Caption = 'btnDisconectAll'
+    TabOrder = 2
+    OnClick = btnDisconectAllClick
   end
-  object Button2: TButton
-    Left = 344
-    Top = 4
-    Width = 75
-    Height = 25
-    Caption = 'Button2'
-    TabOrder = 4
-    OnClick = Button2Click
-  end
-  object mmoLog: TMemo
-    Left = 359
+  object pgcMain: TPageControl
+    Left = 8
     Top = 35
-    Width = 354
-    Height = 307
-    Lines.Strings = (
-      'mmoLog')
-    TabOrder = 5
+    Width = 610
+    Height = 330
+    ActivePage = TabSheet1
+    TabOrder = 3
+    object TabSheet1: TTabSheet
+      Caption = 'moniter'
+      ExplicitWidth = 281
+      ExplicitHeight = 165
+      object pnlMonitor: TPanel
+        Left = 0
+        Top = 0
+        Width = 602
+        Height = 302
+        Align = alClient
+        BevelKind = bkTile
+        BevelOuter = bvNone
+        TabOrder = 0
+        ExplicitLeft = -168
+        ExplicitTop = -143
+        ExplicitWidth = 449
+        ExplicitHeight = 308
+      end
+    end
+    object TabSheet2: TTabSheet
+      Caption = 'log'
+      ImageIndex = 1
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
+      object mmoLog: TMemo
+        Left = 0
+        Top = 0
+        Width = 602
+        Height = 302
+        Align = alClient
+        Lines.Strings = (
+          'mmoLog')
+        TabOrder = 0
+        ExplicitLeft = 15
+        ExplicitTop = -134
+        ExplicitWidth = 250
+        ExplicitHeight = 307
+      end
+    end
   end
   object actlstMain: TActionList
     Left = 248
