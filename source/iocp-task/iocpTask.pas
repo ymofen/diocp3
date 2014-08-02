@@ -352,7 +352,7 @@ end;
 initialization
   requestPool := TBaseQueue.Create;
   requestPool.Name := 'taskRequestPool';
-  checkInitializeTaskManager();
+  checkInitializeTaskManager(2);
 
 
 finalization

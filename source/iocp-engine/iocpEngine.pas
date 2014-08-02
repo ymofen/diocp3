@@ -173,6 +173,11 @@ type
     // set worker count
     FWorkerCount: Integer;
 
+    /// <summary>
+    ///   check worker thread is alive
+    /// </summary>
+    function workersIsAlive():Boolean;
+
     procedure incAliveWorker;
     procedure decAliveWorker;
   public
@@ -439,12 +444,22 @@ var
 begin
   if FActive then
   begin
-    for i := 0 to FWorkerList.Count -1 do
+    if workersIsAlive then
     begin
-      if not FIocpCore.postIOExitRequest then
+      for i := 0 to FWorkerList.Count -1 do
       begin
-        RaiseLastOSError;
+        if not FIocpCore.postIOExitRequest then
+        begin
+          RaiseLastOSError;
+        end;
       end;
+    end else
+    begin
+      // all worker thread is dead
+
+      FWorkerList.Clear;
+      workerCounter := 0;
+      if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
     end;
 
     if FSafeStopSign <> nil then
@@ -491,7 +506,7 @@ begin
     FWorkerList.Add(AWorker);
 
     // set worker use processor
-    //SetThreadIdealProcessor(AWorker.Handle, i mod lvCpuCount);
+    SetThreadIdealProcessor(AWorker.Handle, i mod lvCpuCount);
   end;
   FActive := true;
 end;
@@ -519,6 +534,26 @@ begin
 
     FActive := false;
   end;
+end;
+
+function TIocpEngine.workersIsAlive: Boolean;
+var
+  i: Integer;
+  lvCode:Cardinal;
+begin
+  Result := false;
+  for i := FWorkerList.Count -1 downto 0 do
+  begin
+    if GetExitCodeThread(TThread(FWorkerList[i]).Handle, lvCode) then
+    begin
+      if lvCode=STILL_ACTIVE then
+      begin
+        Result := true;
+        Break;
+      end;
+    end;
+  end;
+
 end;
 
 constructor TIocpRequest.Create;
