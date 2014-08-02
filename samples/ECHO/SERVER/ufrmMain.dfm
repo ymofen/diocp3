@@ -49,8 +49,6 @@ object frmMain: TfrmMain
     TabOrder = 3
     object TabSheet1: TTabSheet
       Caption = 'moniter'
-      ExplicitWidth = 281
-      ExplicitHeight = 165
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -60,10 +58,6 @@ object frmMain: TfrmMain
         BevelKind = bkTile
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitLeft = -168
-        ExplicitTop = -143
-        ExplicitWidth = 449
-        ExplicitHeight = 308
       end
     end
     object TabSheet2: TTabSheet
@@ -82,10 +76,6 @@ object frmMain: TfrmMain
         Lines.Strings = (
           'mmoLog')
         TabOrder = 0
-        ExplicitLeft = 15
-        ExplicitTop = -134
-        ExplicitWidth = 250
-        ExplicitHeight = 307
       end
     end
   end

@@ -26,8 +26,6 @@ uses
   BaseQueue, iocpLocker;
 
 const
-  buf_size = 1024 * 50;
-
   MAX_SEND_BLOCK_SIZE = 1024 * 50;
 
 type
@@ -60,7 +58,7 @@ type
   private
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
-  public
+  protected
     FAlive:Boolean;
 
     // link
@@ -116,7 +114,7 @@ type
     /// </example>
     procedure checkReleaseRes;
 
-  public
+  protected
     procedure DoConnected;
 
     procedure DoCleanUp;virtual;
@@ -170,7 +168,7 @@ type
     function PostRequest: Boolean; overload;
 
     /// <summary>
-    ///   
+    ///
     /// </summary>
     function PostRequest(pvBuffer:PAnsiChar; len:Cardinal): Boolean; overload;
 
@@ -380,13 +378,18 @@ type
     procedure add(pvContext:TIocpClientContext);
     procedure remove(pvContext:TIocpClientContext);
 
+    function Pop:TIocpClientContext;
+
     property Count: Integer read FCount;
 
   end;
 
 
   TIocpTcpServer = class(TComponent)
-  public
+  private
+    FWSARecvBufferSize: Integer;
+    procedure SetWSARecvBufferSize(const Value: Integer);
+  private
     // clientContext pool
     FContextPool: TBaseQueue;
 
@@ -463,7 +466,7 @@ type
 
 
     procedure doReceiveData(pvIocpClientContext:TIocpClientContext; pvRequest:TIocpRecvRequest);
-  public
+  private
     procedure DoAcceptExResponse(pvRequest: TIocpAcceptExRequest);
 
     function GetClientCount: Integer;
@@ -518,6 +521,12 @@ type
     ///   default cpu count * 2 -1
     /// </summary>
     property WorkerCount: Integer read GetWorkerCount write SetWorkerCount;
+
+
+    property WSARecvBufferSize: Integer read FWSARecvBufferSize write
+        SetWSARecvBufferSize;
+
+
 
 
     /// <summary>
@@ -774,6 +783,9 @@ begin
   FOnlineContextList := TContextDoublyLinked.Create();
   FListenSocket := TRawSocket.Create;
   FIocpAcceptorMgr := TIocpAcceptorMgr.Create(Self);
+
+  // post wsaRecv block size
+  FWSARecvBufferSize := 1024;
 end;
 
 destructor TIocpTcpServer.Destroy;
@@ -799,7 +811,20 @@ end;
 procedure TIocpTcpServer.DisconnectAll;
 var
   i:Integer;
+  lvClientContext:TIocpClientContext;
 begin
+  while True do
+  begin
+    lvClientContext := FOnlineContextList.Pop;
+    if lvClientContext <> nil then
+    begin
+      lvClientContext.DoDisconnect;
+    end else
+    begin
+      Break;
+    end;
+  end;
+  
 //  FClientContextLocker.lock;
 //  try
 //    for I := FOnlineContextList.Count -1 downto 0  do
@@ -1036,6 +1061,15 @@ begin
   Result.FOwner := Self;
 end;
 
+procedure TIocpTcpServer.SetWSARecvBufferSize(const Value: Integer);
+begin
+  FWSARecvBufferSize := Value;
+  if FWSARecvBufferSize = 0 then
+  begin
+    FWSARecvBufferSize := 1024;
+  end;
+end;
+
 procedure TIocpAcceptorMgr.checkPostRequest;
 var
   lvRequest:TIocpAcceptExRequest;
@@ -1210,13 +1244,14 @@ end;
 constructor TIocpRecvRequest.Create;
 begin
   inherited Create;
-  GetMem(FInnerBuffer.buf, buf_size);
-  FInnerBuffer.len := buf_size;
 end;
 
 destructor TIocpRecvRequest.Destroy;
 begin
-  FreeMem(FInnerBuffer.buf, buf_size);
+  if FInnerBuffer.len > 0 then
+  begin
+    FreeMem(FInnerBuffer.buf, FInnerBuffer.len);
+  end;
   inherited Destroy;
 end;
 
@@ -1329,13 +1364,17 @@ begin
     begin
       FOwner.FDataMoniter.incPostWSARecvCounter;
     end;
-  end;
-  
+  end;   
 end;
 
 function TIocpRecvRequest.PostRequest: Boolean;
 begin
-  FInnerBuffer.len := buf_size;
+  if FInnerBuffer.len <> FOwner.FWSARecvBufferSize then
+  begin
+    if FInnerBuffer.len > 0 then FreeMem(FInnerBuffer.buf);
+    FInnerBuffer.len := FOwner.FWSARecvBufferSize;
+    GetMem(FInnerBuffer.buf, FInnerBuffer.len);
+  end;
   Result := PostRequest(FInnerBuffer.buf, FInnerBuffer.len);
 end;
 
@@ -1659,8 +1698,27 @@ begin
   inherited Destroy;
 end;
 
+function TContextDoublyLinked.Pop: TIocpClientContext;
+begin
+  FLocker.lock;
+  try
+    Result := FHead;
+    if FHead <> nil then
+    begin
+      FHead := FHead.FNext;
+      if FHead = nil then FTail := nil;
+      Dec(FCount);
+      Result.FPre := nil;
+      Result.FNext := nil;  
+    end;  
+  finally
+    FLocker.unLock;
+  end;
+end;
+
 procedure TContextDoublyLinked.remove(pvContext: TIocpClientContext);
 begin
+  if (pvContext.FPre = nil) and (pvContext.FNext = nil) then exit;
   FLocker.lock;
   try
     if pvContext.FPre <> nil then
