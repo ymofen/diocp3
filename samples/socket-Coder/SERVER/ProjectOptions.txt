@@ -1,2 +1,0 @@
-search path:
-  $(DIOCP3_HOME)\Source\iocp-engine;$(DIOCP3_HOME)\Source\iocp-socket;$(DIOCP3_HOME)\Source\iocp-socket-coder;$(DIOCP3_HOME)\Source\utils;$(DIOCP3_HOME)\Source\iocp-task;

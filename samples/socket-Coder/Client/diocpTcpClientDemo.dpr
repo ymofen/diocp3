@@ -11,7 +11,8 @@ uses
   uIOCPJSonStreamDecoder in '..\diocpCoders\uIOCPJSonStreamDecoder.pas',
   uIOCPJSonStreamEncoder in '..\diocpCoders\uIOCPJSonStreamEncoder.pas',
   uMyTypes in '..\diocpCoders\uMyTypes.pas',
-  uZipTools in '..\diocpCoders\uZipTools.pas';
+  uZipTools in '..\diocpCoders\uZipTools.pas',
+  uIocpCoder in '..\..\..\source\iocp-socket-coder\uIocpCoder.pas';
 
 {$R *.res}
 
