@@ -3,7 +3,7 @@ unit uIOCPJSonStreamEncoder;
 interface
 
 uses
-  uIOCPCentre, uBuffer, JSonStream, Classes,
+  uIocpCoder, uBuffer, JSonStream, Classes,
   uZipTools, SysUtils, uMyTypes, AnsiStringTools, uByteTools;
 
 type

@@ -21,6 +21,7 @@ type
 
   TOnConnected = procedure(Sender:TObject; errCode:Integer) of object;
 
+
   TOnWorkError = procedure(Sender:TObject; errCode:Integer) of object;
 
   TOnDataRecvd = procedure(Sender:TObject; buf:Pointer; len:cardinal; errCode:Integer) of object;
@@ -107,6 +108,7 @@ type
     FIOCPEngine: TIocpEngine;
     FOnConnected: TOnConnected;
     FOnDataRecvd: TOnDataRecvd;
+    FOnDisconnected: TNotifyEvent;
     FOnError: TOnWorkError;
     FonSocketStateChanged: TNotifyEvent;
     FPort: Integer;
@@ -164,7 +166,11 @@ type
 
     property Host: String read FHost write FHost;
 
+
     property Port: Integer read FPort write FPort;
+
+    property OnDisconnected: TNotifyEvent read FOnDisconnected write
+        FOnDisconnected;
 
     /// <summary>
     ///   socket current state
@@ -197,6 +203,9 @@ type
     ///    occur in post request methods or iocp worker thread
     /// </summary>
     property OnError: TOnWorkError read FOnError write FOnError;
+
+
+
   end;
 
 
@@ -205,10 +214,13 @@ implementation
 procedure TIocpTcpClient.Disconnect;
 begin
   if not isActive then Exit;
-  
   FRawSocket.close;
-  FIOCPEngine.stop;
   setSocketState(ssDisconnected);
+
+  if Assigned(FOnDisconnected) then
+  begin
+    FOnDisconnected(Self);
+  end;                      
 end;
 
 procedure TIocpTcpClient.connectASync;
@@ -252,7 +264,7 @@ begin
   setSocketState(ssDisconnected);
     
   FRawSocket.close;
-  FIOCPEngine.stop;
+  FIOCPEngine.safeStop;
   FRecvRequest.Free;
   FConnectExRequest.Free;
   FIocpSendRequest.Free;
@@ -264,22 +276,7 @@ end;
 
 procedure TIocpTcpClient.DoConnected;
 begin
-  if FConnectExRequest.FErrorCode = 0 then
-  begin
-    setSocketState(ssConnected);
-        
-    // post recv request, start to recv data
-    FRecvRequest.PostRequest;
-  end else
-  begin
-    setSocketState(ssDisconnected);
 
-    // trigger error event
-    doError(FConnectExRequest.FErrorCode);
-  end;
-
-  if Assigned(FOnConnected) then
-    FOnConnected(Self, FConnectExRequest.FErrorCode);
 end;
 
 procedure TIocpTcpClient.doError(pvErrorCode: Integer);
@@ -310,16 +307,23 @@ begin
   
   if not FIOCPEngine.Active then FIOCPEngine.start;
 
-  FRawSocket.createTcpSocket;
+  FRawSocket.createTcpOverlappedSocket;
 
-  socketBind(FRawSocket.SocketHandle, '0.0.0.0', 0);
+  if not FRawSocket.bind('0.0.0.0', 0) then
+  begin
+     RaiseLastOSError;
+  end;
 
-  
+  FIOCPEngine.IocpCore.bind2IOCPHandle(FRawSocket.SocketHandle, 0);
+
   lvAddr := getSocketAddr(FHost, FPort);
-  lvRet := iocpWinsock2.connect(FRawSocket.SocketHandle,TSockAddr(lvAddr), sizeof(TSockAddrIn));
+  lvRet := iocpWinsock2.connect(FRawSocket.SocketHandle, TSockAddr(lvAddr), sizeof(TSockAddrIn));
   if lvRet = SOCKET_ERROR then
     RaiseLastOSError;
 
+  FSocketState := ssConnected;
+
+  DoConnected;
 
   // post recv quest
   FRecvRequest.PostRequest; 
@@ -416,7 +420,22 @@ end;
 
 procedure TIocpConnectExRequest.HandleResponse;
 begin
-  FOwner.DoConnected;
+  if FErrorCode = 0 then
+  begin
+    FOwner.setSocketState(ssConnected);
+
+    // post recv request, start to recv data
+    FOwner.FRecvRequest.PostRequest;
+  end else
+  begin
+    FOwner.setSocketState(ssDisconnected);
+
+    // trigger error event
+    FOwner.doError(FErrorCode);
+  end;
+
+  if Assigned(FOwner.FOnConnected) then
+    FOwner.FOnConnected(Self, FErrorCode);
 end;
 
 function TIocpConnectExRequest.PostRequest: Boolean;
@@ -499,6 +518,7 @@ begin
     if not Result then
     begin
        FOwner.doError(lvRet);
+       FOwner.Disconnect;
     end;
   end else
   begin

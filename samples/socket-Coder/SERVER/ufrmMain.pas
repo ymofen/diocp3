@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  System.Actions;
+  System.Actions, ComObj;
 
 type
   TfrmMain = class(TForm)
@@ -90,6 +90,9 @@ begin
   try
     lvMsg := TJsonStream.Create;
     try
+      lvMsg.Json.S['id'] := CreateClassID;
+      lvMsg.Json.S['info'] := 'diocp3 push message';
+      lvMsg.Json.S['severtime'] := FormatDateTime('yyyy-MM-dd hh:nn:ss', Now());
       lvMsg.Json.S['msg'] := edtMsg.Text;
       FTcpServer.getOnlineContextList(lvList);
       for i := 0 to lvList.Count-1 do

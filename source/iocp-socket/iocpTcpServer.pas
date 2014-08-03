@@ -402,7 +402,7 @@ type
     destructor Destroy; override;
 
     procedure add(pvContext:TIocpClientContext);
-    procedure remove(pvContext:TIocpClientContext);
+    function remove(pvContext:TIocpClientContext): Boolean;
 
     function Pop:TIocpClientContext;
 
@@ -1813,9 +1813,9 @@ begin
   end;
 end;
 
-procedure TContextDoublyLinked.remove(pvContext: TIocpClientContext);
+function TContextDoublyLinked.remove(pvContext:TIocpClientContext): Boolean;
 begin
-  if (pvContext.FPre = nil) and (pvContext.FNext = nil) then exit;
+  Result := false;
   FLocker.lock;
   try
     if pvContext.FPre <> nil then
@@ -1823,20 +1823,28 @@ begin
       pvContext.FPre.FNext := pvContext.FNext;
       if pvContext.FNext <> nil then
         pvContext.FNext.FPre := pvContext.FPre;
-    end else
+    end else if pvContext.FNext <> nil then
     begin    // pre is nil, pvContext is FHead
-      if pvContext.FNext <> nil then
-        pvContext.FNext.FPre := nil;
+      pvContext.FNext.FPre := nil;
       FHead := pvContext.FNext;
+    end else
+    begin   // pre and next is nil
+      if pvContext = FHead then
+      begin
+        FHead := nil;
+      end else
+      begin
+        exit;
+      end;
     end;
     Dec(FCount);
 
     //  set pvConext.FPre is FTail
     if FTail = pvContext then FTail := pvContext.FPre;
 
-
     pvContext.FPre := nil;
     pvContext.FNext := nil;
+    Result := true;
   finally
     FLocker.unLock;
   end;

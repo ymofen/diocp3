@@ -1,7 +1,7 @@
 object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'frmMain'
+  Caption = 'diocp3 coder client'
   ClientHeight = 314
   ClientWidth = 562
   Color = clBtnFace
@@ -19,7 +19,7 @@ object frmMain: TfrmMain
     Width = 521
     Height = 257
     Lines.Strings = (
-      'mmoRecvMessage')
+      'iocp tcp client demo')
     TabOrder = 0
   end
   object btnConnect: TButton
