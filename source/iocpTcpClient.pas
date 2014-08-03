@@ -89,7 +89,8 @@ type
     /// <summary>
     ///   post send buffer to iocp queue
     /// </summary>
-    function postSendBufferRequest(buf: Pointer; len: Cardinal): Boolean;
+    function postSendBufferRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean
+        = true): Boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -492,8 +493,8 @@ begin
 end;
 
 
-function TIocpSendRequest.postSendBufferRequest(buf: Pointer; len: Cardinal):
-    Boolean;
+function TIocpSendRequest.postSendBufferRequest(buf: Pointer; len: Cardinal;
+    pvCopyBuf: Boolean = true): Boolean;
 var
   lvRet: Integer;
   dwFlag: Cardinal;

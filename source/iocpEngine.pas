@@ -15,7 +15,7 @@ uses
   , ComObj, ActiveX;
 {$DEFINE __DEBUG}
 
-{$IF CompilerVersion>= 23}
+{$IF CompilerVersion> 23}
   {$define varNativeUInt}
 {$IFEND}
 
@@ -310,7 +310,16 @@ var
   lvErrCode:Integer;
   lpOverlapped:POVERLAPPEDEx;
 
-  lpCompletionKey:{$if defined(varNativeUInt)}NativeUInt{$ELSE}cardinal{$ifend};
+  lpCompletionKey:{$IF CompilerVersion> 23}  //>XE2
+                     NativeUInt
+                  {$ELSE}
+                     {$IFDEF CompilerVersion >=21} //>=2010
+                       UIntPtr
+                     {$ELSE}
+                       Cardinal
+                     {$IFEND}
+                  {$IFEND};
+
 begin
   Result := IOCP_RESULT_OK;
 

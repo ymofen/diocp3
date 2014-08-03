@@ -45,6 +45,12 @@ type
     /// <param name="pvEncoder"> (TIOCPEncoder) </param>
     procedure registerEncoder(pvEncoder:TIOCPEncoder);
 
+
+    /// <summary>
+    ///   发送一个对象到服务端
+    /// </summary>
+    procedure writeObject(pvObject:TObject);
+
   published
 
     /// <summary>
@@ -182,5 +188,21 @@ begin
   FEncoder := pvEncoder;
 end;
 
+
+procedure TiocpCoderTcpClient.writeObject(pvObject: TObject);
+var
+  lvBufLink:TBufferLink;
+begin
+  lvBufLink := TBufferLink.Create;
+  try
+    FEncoder.Encode(pvObject, lvBufLink);
+
+    //lvBufLink.readBuffer()
+
+  finally
+    lvBufLink.Free;
+  end;
+
+end;
 
 end.
