@@ -13,7 +13,9 @@ type
     btnConnect: TButton;
     edtHost: TEdit;
     edtPort: TEdit;
+    btnSendObject: TButton;
     procedure btnConnectClick(Sender: TObject);
+    procedure btnSendObjectClick(Sender: TObject);
   private
     { Private declarations }
     FiocpCoderTcpClient:TiocpCoderTcpClient;
@@ -65,6 +67,11 @@ begin
   mmoRecvMessage.Clear;
 
   mmoRecvMessage.Lines.Add('start to recv...');
+end;
+
+procedure TfrmMain.btnSendObjectClick(Sender: TObject);
+begin
+  ;
 end;
 
 procedure TfrmMain.OnDisconnected(pvObject: TObject);

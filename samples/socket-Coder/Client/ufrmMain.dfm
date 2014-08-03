@@ -47,4 +47,13 @@ object frmMain: TfrmMain
     TabOrder = 3
     Text = '9983'
   end
+  object btnSendObject: TButton
+    Left = 384
+    Top = 8
+    Width = 105
+    Height = 25
+    Caption = 'btnSendObject'
+    TabOrder = 4
+    OnClick = btnSendObjectClick
+  end
 end
