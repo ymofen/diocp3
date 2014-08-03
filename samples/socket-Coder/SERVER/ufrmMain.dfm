@@ -40,9 +40,25 @@ object frmMain: TfrmMain
     BevelOuter = bvNone
     TabOrder = 2
   end
-  object actlstMain: TActionList
-    Left = 432
+  object edtMsg: TEdit
+    Left = 256
+    Top = 9
+    Width = 232
+    Height = 21
+    TabOrder = 3
+    Text = 'this message will push to all client'
+  end
+  object btnPushMsg: TButton
+    Left = 494
     Top = 8
+    Width = 75
+    Height = 25
+    Action = actPushMsg
+    TabOrder = 4
+  end
+  object actlstMain: TActionList
+    Left = 232
+    Top = 272
     object actOpen: TAction
       Caption = 'start'
       OnExecute = actOpenExecute
@@ -50,6 +66,10 @@ object frmMain: TfrmMain
     object actStop: TAction
       Caption = 'stop'
       OnExecute = actStopExecute
+    end
+    object actPushMsg: TAction
+      Caption = 'PushMsg'
+      OnExecute = actPushMsgExecute
     end
   end
 end

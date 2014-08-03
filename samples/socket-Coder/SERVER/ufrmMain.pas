@@ -4,7 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, iocpTcpServer, uIOCPCentre, ExtCtrls;
+  Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
+  System.Actions;
 
 type
   TfrmMain = class(TForm)
@@ -14,18 +15,20 @@ type
     actOpen: TAction;
     actStop: TAction;
     pnlMonitor: TPanel;
+    actPushMsg: TAction;
+    edtMsg: TEdit;
+    btnPushMsg: TButton;
     procedure actOpenExecute(Sender: TObject);
+    procedure actPushMsgExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
   private
     { Private declarations }
     FTcpServer: TIOCPConsole;
     procedure refreshState;
-    procedure OnRecvBuffer(pvClientContext: iocpTcpServer.TIocpClientContext; buf:Pointer;
-        len:cardinal; errCode:Integer);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    { Public declarations }
+    procedure OnRecvObject(pvClientContext:TIocpClientContext;pvObject:TObject);
   end;
 
 var
@@ -34,7 +37,7 @@ var
 implementation
 
 uses
-  uFMMonitor;
+  uFMMonitor, uIOCPJSonStreamEncoder, uIOCPJSonStreamDecoder, JSonStream;
 
 {$R *.dfm}
 
@@ -42,14 +45,21 @@ constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FTcpServer := TIOCPConsole.Create(Self);
-  FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.createDataMonitor;
+  FTcpServer.OnDataObjectReceived := OnRecvObject;
+  FTcpServer.registerCoderClass(TIOCPJSonStreamDecoder, TIOCPJSonStreamEncoder);
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
 end;
 
 destructor TfrmMain.Destroy;
 begin
   inherited Destroy;
+end;
+
+procedure TfrmMain.OnRecvObject(pvClientContext: TIocpClientContext;
+  pvObject: TObject);
+begin
+  pvClientContext.writeObject(pvObject);
 end;
 
 procedure TfrmMain.refreshState;
@@ -70,22 +80,35 @@ begin
   refreshState;
 end;
 
+procedure TfrmMain.actPushMsgExecute(Sender: TObject);
+var
+  lvList:TList;
+  i: Integer;
+  lvMsg:TJSonStream;
+begin
+  lvList := TList.Create;
+  try
+    lvMsg := TJsonStream.Create;
+    try
+      lvMsg.Json.S['msg'] := edtMsg.Text;
+      FTcpServer.getOnlineContextList(lvList);
+      for i := 0 to lvList.Count-1 do
+      begin
+        TIOCPClientContext(lvList[i]).writeObject(lvMsg);
+      end;
+    finally
+      lvMsg.Free;
+    end;
+  finally
+    lvList.Free;
+  end;
+
+end;
+
 procedure TfrmMain.actStopExecute(Sender: TObject);
 begin
   FTcpServer.safeStop;
   refreshState;
-end;
-
-procedure TfrmMain.OnRecvBuffer(pvClientContext:iocpTcpServer.TIocpClientContext;
-    buf:Pointer; len:cardinal; errCode:Integer);
-begin
-  if errCode = 0 then
-  begin
-    pvClientContext.PostWSASendRequest(buf, len);
-  end else
-  begin
-    pvClientContext.Disconnect;
-  end;
 end;
 
 end.

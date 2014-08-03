@@ -100,7 +100,6 @@ type
   private
     FSocketState:TSocketState;
     
-    FRecvRequest: TIocpRecvRequest;
     FConnectExRequest: TIocpConnectExRequest;
     FIocpSendRequest: TIocpSendRequest;
     FHost: String;
@@ -111,12 +110,16 @@ type
     FOnError: TOnWorkError;
     FonSocketStateChanged: TNotifyEvent;
     FPort: Integer;
+    FRecvRequest: TIocpRecvRequest;
+
+  protected
+
 
 
     /// <summary>
     ///   on recved data, run in iocp worker thread
     /// </summary>
-    procedure DoRecvd();
+    procedure DoRecvd(buf: Pointer; len: Cardinal; errCode: Integer); virtual;
 
     /// <summary>
     ///   on connected request response, run in iocp worker thread
@@ -285,11 +288,10 @@ begin
     FOnError(self, pvErrorCode);
 end;
 
-procedure TIocpTcpClient.DoRecvd;
+procedure TIocpTcpClient.DoRecvd(buf: Pointer; len: Cardinal; errCode: Integer);
 begin
   if Assigned(FOnDataRecvd) then
-    FOnDataRecvd(Self, FRecvRequest.FBuffer.buf,
-      FRecvRequest.FBytesTransferred, FRecvRequest.FErrorCode);
+    FOnDataRecvd(Self, buf,len, errCode);;
 
 
 end;
@@ -362,7 +364,7 @@ begin
   end else
   begin
     try
-      FOwner.DoRecvd;
+      FOwner.DoRecvd(FBuffer.buf, FBytesTransferred, FErrorCode);
     finally
       // post recv request
       FOwner.FRecvRequest.PostRequest;

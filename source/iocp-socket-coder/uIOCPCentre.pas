@@ -3,7 +3,7 @@ unit uIOCPCentre;
 interface
 
 uses
-  iocpTcpServer, uBuffer, SysUtils;
+  iocpTcpServer, uBuffer, SysUtils, Classes;
 
 type
   TIOCPDecoder = class(TObject)
@@ -33,11 +33,45 @@ type
 
   TIOCPEncoderClass = class of TIOCPEncoder;
 
+  TIocpSendRequest = class(iocpTcpServer.TIocpSendRequest)
+  private
+    FBufferLink: TBufferLink;
+
+    FBuf:Pointer;
+    FBlockSize: Integer;
+
+  protected
+    /// <summary>
+    ///   is all buf send completed?
+    /// </summary>
+    function isCompleted: Boolean; override;
+
+    /// <summary>
+    ///  on request successful
+    /// </summary>
+    procedure onSendRequestSucc; override;
+
+    /// <summary>
+    ///   post send a block
+    /// </summary>
+    function checkSendNextBlock: Boolean; override;
+
+
+    procedure DoCleanUp;override;
+  public
+    constructor Create; override;
+    procedure setBufferLink(pvBufferLink:TBufferLink);
+  end;
+
+
+
+
   TIOCPClientContext = class(iocpTcpServer.TiocpClientContext)
   private
     FrecvBuffers: TBufferLink;
     FStateINfo: String;
     function GetStateINfo: String;
+
   protected
     procedure add2Buffer(buf:PAnsiChar; len:Cardinal);
     procedure clearRecvedBuffer;
@@ -68,14 +102,21 @@ type
   end;
 
 
+
+  TOnDataObjectReceived = procedure(pvClientContext:TIocpClientContext;pvObject:TObject) of object;
+
+
   TIOCPConsole = class(TIocpTcpServer)
   private
-    FInnerEncoder:TIOCPEncoder;
+    FInnerEncoder: TIOCPEncoder;
     FInnerDecoder: TIOCPDecoder;
 
     FEncoder: TIOCPEncoder;
     FDecoder: TIOCPDecoder;
+    FOnDataObjectReceived: TOnDataObjectReceived;
   public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     /// <summary>
     ///   注册编码器和解码器类
     /// </summary>
@@ -92,6 +133,16 @@ type
     /// </summary>
     /// <param name="pvEncoder"> (TIOCPEncoder) </param>
     procedure registerEncoder(pvEncoder:TIOCPEncoder);
+
+  published
+
+    /// <summary>
+    ///   接收到一个对象
+    /// </summary>
+    property OnDataObjectReceived: TOnDataObjectReceived read FOnDataObjectReceived
+        write FOnDataObjectReceived;
+
+
   end;
 
 
@@ -169,13 +220,18 @@ begin
     if Integer(lvObject) = -1 then
     begin
       /// 错误的包格式, 关闭连接
-      Disconnect;
+      DoDisconnect;
       exit;
     end else if lvObject <> nil then
     begin
       try
         try
           self.StateINfo := '解码成功,准备调用dataReceived进行逻辑处理';
+
+
+          if Assigned(TIOCPConsole(Owner).FOnDataObjectReceived) then
+            TIOCPConsole(Owner).FOnDataObjectReceived(Self, lvObject);
+
 
           //解码成功，调用业务逻辑的处理方法
           dataReceived(lvObject);
@@ -204,45 +260,38 @@ end;
 procedure TIOCPClientContext.writeObject(const pvDataObject:TObject);
 var
   lvOutBuffer:TBufferLink;
+  lvRequest:TIocpSendRequest;
 begin
-//
-//  if FSendCache.Count > 10 then
-//  begin
-//    TIOCPFileLogger.logMessage('TIOCPClientContext.writeObject: 待发送的缓存队列超过10个, 可能客户端恶意不进行接收, 踢掉连接!', 'DIOCP_TRACE_');
-//    self.closeClientSocket;
-//    exit;
-//  end;
-//
-//  //解码
-//  lvOutBuffer := TBufferLink.Create;
-//  try
-//    self.StateINfo := 'TIOCPClientContext.writeObject,准备编码对象到lvOutBuffer';
-//    TIOCPContextFactory.instance.FEncoder.Encode(pvDataObject, lvOutBuffer);
-//  except
-//    lvOutBuffer.Free;
-//    raise;
-//  end;
-//
-//  FSendCacheLocker.Enter;
-//  try
-//    //添加到待发送的列表
-//    FSendCache.Add(lvOutBuffer);
-//
-//    if FCurrentSendBuffer = nil then
-//    begin
-//      FCurrentSendBuffer := lvOutBuffer;
-//
-//      //准备投递一块数据
-//      checkPostWSASendCache;
-//    end;
-//    //不为nil说明还有需要投递的任务
-//
-//  finally
-//    FSendCacheLocker.Leave;
-//  end;
+  lvOutBuffer := TBufferLink.Create;
+  try
+    TIocpConsole(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
+  except
+    lvOutBuffer.Free;
+    raise;
+  end;
+
+  lvRequest := TIocpSendRequest(getSendRequest);
+  lvRequest.setBufferLink(lvOutBuffer);
+
+
+  postSendRequest(lvRequest);
 
   self.StateINfo := 'TIOCPClientContext.writeObject,投递到发送缓存';
 
+end;
+
+constructor TIOCPConsole.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FClientContextClass := TIOCPClientContext;
+  FIocpSendRequestClass := TIocpSendRequest;
+end;
+
+destructor TIOCPConsole.Destroy;
+begin
+  if FInnerDecoder <> nil then FInnerDecoder.Free;
+  if FInnerEncoder <> nil then FInnerEncoder.Free;
+  inherited Destroy;
 end;
 
 procedure TIOCPConsole.registerCoderClass(pvDecoderClass: TIOCPDecoderClass;
@@ -274,6 +323,67 @@ end;
 procedure TIOCPConsole.registerEncoder(pvEncoder: TIOCPEncoder);
 begin
   FEncoder := pvEncoder;
+end;
+
+constructor TIocpSendRequest.Create;
+begin
+  inherited Create;
+  FBlockSize := 0;
+
+end;
+
+procedure TIocpSendRequest.DoCleanUp;
+begin
+  inherited;
+
+  if FBlockSize <> 0 then
+  begin
+    FreeMem(FBuf);
+    FBlockSize := 0;
+  end;
+
+  if FBufferLink <> nil then
+  begin
+    FBufferLink.clearBuffer;
+    FBufferLink.Free;
+    FBufferLink := nil;
+  end;
+end;
+
+{ TIocpSendRequest }
+
+function TIocpSendRequest.checkSendNextBlock: Boolean;
+var
+  l:Cardinal;
+begin
+  if FBlockSize = 0 then
+  begin
+    FBlockSize := Owner.WSASendBufferSize;
+    GetMem(FBuf, FBlockSize);
+  end;
+
+  l := FBufferLink.readBuffer(FBuf, FBlockSize);
+  Result := InnerPostRequest(FBuf, l);
+end;
+
+function TIocpSendRequest.isCompleted: Boolean;
+begin
+  Result := FBufferLink.validCount = 0;
+
+  if Result  then
+  begin  // release Buffer
+    FBufferLink.clearBuffer;
+  end;
+end;
+
+procedure TIocpSendRequest.onSendRequestSucc;
+begin
+  ;
+end;
+
+procedure TIocpSendRequest.setBufferLink(pvBufferLink: TBufferLink);
+begin
+  FBufferLink := pvBufferLink;
 end;
 
 end.
