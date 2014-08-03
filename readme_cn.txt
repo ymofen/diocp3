@@ -2,7 +2,7 @@
 DIOCP3_HOME=E:\workspace\diocp3
 
 工程搜索路径
-$(DIOCP3_HOME)\Source\iocp-engine;$(DIOCP3_HOME)\Source\iocp-socket;$(DIOCP3_HOME)\Source\iocp-socket-coder;$(DIOCP3_HOME)\Source\utils;$(DIOCP3_HOME)\Source\iocp-task;
+$(DIOCP3_HOME)\Source
 
 
 重写了DIOCP，版本从3开始。
