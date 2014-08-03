@@ -1,4 +1,4 @@
-package iocpXE;
+package diocp3vcl;
 
 {$R *.res}
 {$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
@@ -31,15 +31,6 @@ requires
   rtl;
 
 contains
-  iocpEngine in '..\iocp-engine\iocpEngine.pas',
-  iocpProtocol in '..\iocp-engine\iocpProtocol.pas',
-  iocpStringRes in '..\iocp-engine\iocpStringRes.pas',
-  iocpReg in 'iocpReg.pas',
-  iocpQos in '..\iocp-socket\iocpQos.pas',
-  iocpRawSocket in '..\iocp-socket\iocpRawSocket.pas',
-  iocpSocketUtils in '..\iocp-socket\iocpSocketUtils.pas',
-  iocpTcpClient in '..\iocp-socket\iocpTcpClient.pas',
-  iocpTcpServer in '..\iocp-socket\iocpTcpServer.pas',
-  iocpWinsock2 in '..\iocp-socket\iocpWinsock2.pas';
+  iocpReg in 'iocpReg.pas';
 
 end.
