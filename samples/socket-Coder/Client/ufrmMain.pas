@@ -70,7 +70,16 @@ begin
 end;
 
 procedure TfrmMain.btnSendObjectClick(Sender: TObject);
+var
+  lvJsonStream:TJsonStream;
 begin
+  lvJsonStream := TJsonStream.Create;
+  try
+    lvJsonStream.Json.s['msg'] := 'this message will send to server';
+    FiocpCoderTcpClient.writeObject(lvJsonStream);
+  finally
+    lvJsonStream.Free;
+  end;
   ;
 end;
 

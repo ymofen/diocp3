@@ -1,7 +1,7 @@
 program diocpTcpClientDemo;
 
 uses
-  Vcl.Forms,
+  Forms,
   ufrmMain in 'ufrmMain.pas' {frmMain},
   AnsiStringTools in '..\diocpCoders\AnsiStringTools.pas',
   JSonStream in '..\diocpCoders\JSonStream.pas',

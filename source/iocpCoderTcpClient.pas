@@ -1,3 +1,13 @@
+(*
+ *	 Unit owner: d10.天地弦
+ *	       blog: http://www.cnblogs.com/dksoft
+ *
+ *	 v0.1
+ *     + first release
+ *   v0.2
+ *     + add writeObject()
+ *)
+ 
 unit iocpCoderTcpClient;
 
 interface
@@ -8,6 +18,37 @@ uses
 type
 
   TOnDataObjectReceived = procedure(pvObject:TObject) of object;
+
+  TIocpSendRequest = class(iocpTcpClient.TIocpSendRequest)
+  private
+    FBufferLink: TBufferLink;
+
+    FBuf:Pointer;
+    FBlockSize: Integer;
+
+  protected
+    /// <summary>
+    ///   is all buf send completed?
+    /// </summary>
+    function isCompleted: Boolean; override;
+
+    /// <summary>
+    ///  on request successful
+    /// </summary>
+    procedure onSendRequestSucc; override;
+
+    /// <summary>
+    ///   post send a block
+    /// </summary>
+    function checkSendNextBlock: Boolean; override;
+
+
+    procedure DoCleanUp;override;
+  public
+    constructor Create; override;
+    destructor Destroy; override;
+    procedure setBufferLink(pvBufferLink:TBufferLink);
+  end;
 
 
   TiocpCoderTcpClient = class(TIocpTcpClient)
@@ -64,41 +105,18 @@ type
 
 
 
+
 implementation
 
 uses
   uIOCPFileLogger;
 
 
-//
-//
-//procedure TIOCPClientContext.writeObject(const pvDataObject:TObject);
-//var
-//  lvOutBuffer:TBufferLink;
-//  lvRequest:TIocpSendRequest;
-//begin
-//  lvOutBuffer := TBufferLink.Create;
-//  try
-//    TiocpCoderTcpClient(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
-//  except
-//    lvOutBuffer.Free;
-//    raise;
-//  end;
-//
-//  lvRequest := TIocpSendRequest(getSendRequest);
-//  lvRequest.setBufferLink(lvOutBuffer);
-//
-//
-//  postSendRequest(lvRequest);
-//
-//  self.StateINfo := 'TIOCPClientContext.writeObject,投递到发送缓存';
-//
-//end;
-
 constructor TiocpCoderTcpClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FRecvBufferLink := TBufferLink.Create();
+  FIocpSendRequestClass := TIocpSendRequest;
 end;
 
 destructor TiocpCoderTcpClient.Destroy;
@@ -191,18 +209,100 @@ end;
 
 procedure TiocpCoderTcpClient.writeObject(pvObject: TObject);
 var
-  lvBufLink:TBufferLink;
+  lvOutBuffer:TBufferLink;
+  lvRequest:TIocpSendRequest;
 begin
-  lvBufLink := TBufferLink.Create;
+  if not self.isActive then Exit;
+  
+  lvOutBuffer := TBufferLink.Create;
   try
-    FEncoder.Encode(pvObject, lvBufLink);
-
-    //lvBufLink.readBuffer()
-
-  finally
-    lvBufLink.Free;
+    FEncoder.Encode(pvObject, lvOutBuffer);
+  except
+    lvOutBuffer.Free;
+    raise;
   end;
 
+  lvRequest := TIocpSendRequest(getSendRequest);
+  lvRequest.setBufferLink(lvOutBuffer);
+  postSendRequest(lvRequest);    
+end;
+
+constructor TIocpSendRequest.Create;
+begin
+  inherited Create;
+  FBlockSize := 0;
+  FBufferLink := nil;
+end;
+
+destructor TIocpSendRequest.Destroy;
+begin
+  if FBlockSize <> 0 then
+  begin
+    FreeMem(FBuf);
+    FBlockSize := 0;
+  end;
+
+  if FBufferLink <> nil then
+  begin
+    FBufferLink.clearBuffer;
+    FBufferLink.Free;
+    FBufferLink := nil;
+  end;
+  inherited Destroy;
+end;
+
+procedure TIocpSendRequest.DoCleanUp;
+begin
+  inherited;
+
+  if FBlockSize <> 0 then
+  begin
+    FreeMem(FBuf);
+    FBlockSize := 0;
+  end;
+
+  if FBufferLink <> nil then
+  begin
+    FBufferLink.clearBuffer;
+    FBufferLink.Free;
+    FBufferLink := nil;
+  end;
+end;
+
+{ TIocpSendRequest }
+
+function TIocpSendRequest.checkSendNextBlock: Boolean;
+var
+  l:Cardinal;
+begin
+  if FBlockSize = 0 then
+  begin
+    FBlockSize := Owner.WSASendBufferSize;
+    GetMem(FBuf, FBlockSize);
+  end;
+
+  l := FBufferLink.readBuffer(FBuf, FBlockSize);
+  Result := InnerPostRequest(FBuf, l);
+end;
+
+function TIocpSendRequest.isCompleted: Boolean;
+begin
+  Result := FBufferLink.validCount = 0;
+
+  if Result  then
+  begin  // release Buffer
+    FBufferLink.clearBuffer;
+  end;
+end;
+
+procedure TIocpSendRequest.onSendRequestSucc;
+begin
+  ;
+end;
+
+procedure TIocpSendRequest.setBufferLink(pvBufferLink: TBufferLink);
+begin
+  FBufferLink := pvBufferLink;
 end;
 
 end.
