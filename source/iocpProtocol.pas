@@ -19,6 +19,12 @@ type
      IntPtr = Cardinal;
 {$ifend}
 
+// before delphi 2007
+{$if CompilerVersion < 18}
+type
+     ULONG_PTR = Cardinal;
+{$ifend}
+
 
 
 const

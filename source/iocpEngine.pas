@@ -305,7 +305,7 @@ end;
 
 function TIocpCore.processIO(const pvWorker: TIocpWorker): Integer;
 var
-  lvBytesTransferred:Cardinal;
+  lvBytesTransferred:ULONG_PTR;
   lvResultStatus:BOOL;
   lvErrCode:Integer;
   lpOverlapped:POVERLAPPEDEx;
