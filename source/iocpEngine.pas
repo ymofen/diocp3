@@ -313,7 +313,7 @@ var
   lpCompletionKey:{$IF CompilerVersion> 23}  //>XE2
                      NativeUInt
                   {$ELSE}
-                     {$IFDEF CompilerVersion >=21} //>=2010
+                     {$IF CompilerVersion >=21} //>=2010
                        UIntPtr
                      {$ELSE}
                        Cardinal

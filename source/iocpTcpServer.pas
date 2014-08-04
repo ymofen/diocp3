@@ -41,7 +41,9 @@ type
   TOnDataReceived = procedure(pvClientContext:TIocpClientContext;
       buf:Pointer; len:cardinal; errCode:Integer) of object;
 
-  TOnClientContextConnect = procedure(pvClientContext:TIocpClientContext; errCode:Integer) of object;
+  
+  TClientContextNotifyEvent = procedure(pvClientContext: TIocpClientContext) of
+      object;
 
   /// <summary>
   ///   on post request is completed
@@ -450,6 +452,8 @@ type
 
     // server listen socket, accept client connection
     FListenSocket: TRawSocket;
+    FOnClientContextConnected: TClientContextNotifyEvent;
+    FOnClientContextDisconnected: TClientContextNotifyEvent;
 
 
     FOnDataReceived: TOnDataReceived;
@@ -551,6 +555,17 @@ type
     /// </summary>
     property KeepAlive: Boolean read FKeepAlive write FKeepAlive;
   published
+
+    /// <summary>
+    ///   on disconnected
+    /// </summary>
+    property OnClientContextDisconnected: TClientContextNotifyEvent read
+        FOnClientContextDisconnected write FOnClientContextDisconnected;
+
+    /// <summary>
+    ///   on connected
+    /// </summary>
+    property OnClientContextConnected: TClientContextNotifyEvent read FOnClientContextConnected write FOnClientContextConnected;
     /// <summary>
     ///   listen port
     /// </summary>
@@ -584,6 +599,8 @@ type
     /// </summary>
     property OnClientContextError: TOnClientContextError read FOnClientContextError
         write FOnClientContextError;
+
+
 
     /// <summary>
     ///  on clientcontext received data
@@ -628,6 +645,11 @@ begin
     checkReleaseRes;
     if FOwner <> nil then
     begin
+      if Assigned(FOwner.FOnClientContextDisconnected) then
+      begin
+        FOwner.FOnClientContextDisconnected(Self);
+      end;
+      
       FOwner.FOnlineContextList.remove(self);
       FOwner.releaseClientContext(Self);
     end else
@@ -740,6 +762,10 @@ begin
     if FOwner <> nil then
     begin
       FOwner.FOnlineContextList.add(Self);
+      if Assigned(FOwner.FOnClientContextConnected) then
+      begin
+        FOwner.FOnClientContextConnected(Self);
+      end;
     end;
   end else
   begin
