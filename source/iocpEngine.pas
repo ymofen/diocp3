@@ -101,7 +101,7 @@ type
     /// <summary>
     ///   binding a Handle to IOCPHandle
     /// </summary>
-    function bind2IOCPHandle(pvHandle: THandle; pvCompletionKey: NativeUInt):
+    function bind2IOCPHandle(pvHandle: THandle; pvCompletionKey: ULONG_PTR):
         THandle;
 
     /// <summary>
@@ -262,7 +262,7 @@ begin
 end;
 
 function TIocpCore.bind2IOCPHandle(pvHandle: THandle; pvCompletionKey:
-    NativeUInt): THandle;
+    ULONG_PTR): THandle;
 begin
    Result := CreateIoCompletionPort(pvHandle, FIOCPHandle, pvCompletionKey, 0);
 end;
@@ -310,15 +310,7 @@ var
   lvErrCode:Integer;
   lpOverlapped:POVERLAPPEDEx;
 
-  lpCompletionKey:{$IF CompilerVersion> 23}  //>XE2
-                     NativeUInt
-                  {$ELSE}
-                     {$IF CompilerVersion >=21} //>=2010
-                       UIntPtr
-                     {$ELSE}
-                       Cardinal
-                     {$IFEND}
-                  {$IFEND};
+  lpCompletionKey:ULONG_PTR;
 
 begin
   Result := IOCP_RESULT_OK;

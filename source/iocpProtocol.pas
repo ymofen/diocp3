@@ -13,7 +13,7 @@ uses
   Windows, SysUtils;
 
 
-{$if CompilerVersion <= 23}
+{$if CompilerVersion < 23}
 type
      NativeUInt = Cardinal;
      IntPtr = Cardinal;
@@ -26,7 +26,19 @@ const
   IOCP_RESULT_QUIT = 1;
 
 
+function CreateIoCompletionPort(FileHandle, ExistingCompletionPort: THandle;
+  CompletionKey:ULONG_PTR; NumberOfConcurrentThreads: DWORD): THandle; stdcall;
+{$EXTERNALSYM CreateIoCompletionPort}
+
+function GetQueuedCompletionStatus(CompletionPort: THandle;
+  var lpNumberOfBytesTransferred, lpCompletionKey: ULONG_PTR;
+  var lpOverlapped: POverlapped; dwMilliseconds: DWORD): BOOL; stdcall;
+{$EXTERNALSYM GetQueuedCompletionStatus}
+
 
 implementation
+
+function GetQueuedCompletionStatus; external kernel32 name 'GetQueuedCompletionStatus';
+function CreateIoCompletionPort; external kernel32 name 'CreateIoCompletionPort';
 
 end.
