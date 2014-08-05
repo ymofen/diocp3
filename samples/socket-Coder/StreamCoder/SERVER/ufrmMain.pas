@@ -47,6 +47,8 @@ begin
   FTcpServer := TIOCPConsole.Create(Self);
   FTcpServer.createDataMonitor;
   FTcpServer.OnDataObjectReceived := OnRecvObject;
+
+  // register decoder and encoder class
   FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
 end;
@@ -93,6 +95,8 @@ begin
     try
       s := edtMsg.Text;
       lvStream.Write(s[1], Length(s));
+
+      // get all client context to List
       FTcpServer.getOnlineContextList(lvList);
 
 
