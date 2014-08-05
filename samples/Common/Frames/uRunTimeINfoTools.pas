@@ -9,6 +9,8 @@ type
   TRunTimeINfoTools = class(TObject)
   public
     class function getRunTimeINfo: String;
+
+    class function transByteSize(pvByte:Int64):String;
   end;
 
 implementation
@@ -49,6 +51,11 @@ begin
 end;
 
 
+
+class function TRunTimeINfoTools.transByteSize(pvByte: Int64): String;
+begin
+
+end;
 
 initialization
   __startTime :=  Now();

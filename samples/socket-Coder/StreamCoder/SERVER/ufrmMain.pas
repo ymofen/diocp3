@@ -37,7 +37,7 @@ var
 implementation
 
 uses
-  uFMMonitor, uIOCPJSonStreamEncoder, uIOCPJSonStreamDecoder, JSonStream;
+  uFMMonitor, uDIOCPStreamCoder;
 
 {$R *.dfm}
 
@@ -47,7 +47,7 @@ begin
   FTcpServer := TIOCPConsole.Create(Self);
   FTcpServer.createDataMonitor;
   FTcpServer.OnDataObjectReceived := OnRecvObject;
-  FTcpServer.registerCoderClass(TIOCPJSonStreamDecoder, TIOCPJSonStreamEncoder);
+  FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
 end;
 
@@ -84,23 +84,25 @@ procedure TfrmMain.actPushMsgExecute(Sender: TObject);
 var
   lvList:TList;
   i: Integer;
-  lvMsg:TJSonStream;
+  lvStream:TMemoryStream;
+  s:AnsiString;
 begin
   lvList := TList.Create;
   try
-    lvMsg := TJsonStream.Create;
+    lvStream := TMemoryStream.Create;
     try
-      lvMsg.Json.S['id'] := CreateClassID;
-      lvMsg.Json.S['info'] := 'diocp3 push message';
-      lvMsg.Json.S['severtime'] := FormatDateTime('yyyy-MM-dd hh:nn:ss', Now());
-      lvMsg.Json.S['msg'] := edtMsg.Text;
+      s := edtMsg.Text;
+      lvStream.Write(s[1], Length(s));
       FTcpServer.getOnlineContextList(lvList);
+
+
       for i := 0 to lvList.Count-1 do
       begin
-        TIOCPClientContext(lvList[i]).writeObject(lvMsg);
+        //send stream object directly
+        TIOCPClientContext(lvList[i]).writeObject(lvStream);
       end;
     finally
-      lvMsg.Free;
+      lvStream.Free;
     end;
   finally
     lvList.Free;

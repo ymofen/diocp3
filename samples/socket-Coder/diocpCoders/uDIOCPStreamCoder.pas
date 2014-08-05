@@ -1,4 +1,4 @@
-unit TDIOCPStreamCoder;
+unit uDIOCPStreamCoder;
 
 interface
 
@@ -44,8 +44,62 @@ const
 
 
 function TIOCPStreamDecoder.Decode(const inBuf: TBufferLink): TObject;
+var
+  lvBytes, lvHeadBytes:SysUtils.TBytes;
+  lvValidCount, lvReadL:Integer;
+  lvPACK_FLAG:Word;
+  lvDataLen: Integer;
+  lvZiped:Byte;
 begin
-  ;
+  Result := nil;
+
+  //如果缓存中的数据长度不够包头长度，
+  lvValidCount := inBuf.validCount;   //pack_flag + head_len + buf_len
+  if (lvValidCount < SizeOf(Word) + SizeOf(Integer) + SizeOf(Integer)) then
+  begin
+    Exit;
+  end;
+
+  //记录读取位置
+  inBuf.markReaderIndex;
+  //setLength(lvBytes, 2);
+  inBuf.readBuffer(@lvPACK_FLAG, 2);
+
+  if lvPACK_FLAG <> PACK_FLAG then
+  begin
+    //错误的包数据
+    Result := TObject(-1);
+    exit;
+  end;
+
+  //headlen
+  inBuf.readBuffer(@lvReadL, SizeOf(lvReadL));
+  lvDataLen := TByteTools.swap32(lvReadL);
+
+  if lvDataLen > 0 then
+  begin
+    //文件头不能过大
+    if lvDataLen > MAX_OBJECT_SIZE  then
+    begin
+      Result := TObject(-1);
+      exit;
+    end;
+
+    if inBuf.validCount < lvDataLen then
+    begin
+      //返回buf的读取位置
+      inBuf.restoreReaderIndex;
+      exit;
+    end;
+
+    Result := TMemoryStream.Create;
+    TMemoryStream(Result).SetSize(lvDataLen);
+    inBuf.readBuffer(TMemoryStream(Result).Memory, lvDataLen);
+    TMemoryStream(Result).Position := 0;
+  end else
+  begin
+    Result := nil;
+  end;
 end;
 
 { TIOCPStreamEncoder }
@@ -59,18 +113,22 @@ var
 begin
   lvPACK_FLAG := PACK_FLAG;
 
+  TStream(pvDataObject).Position := 0;
+
   if TStream(pvDataObject).Size > MAX_OBJECT_SIZE then
   begin
     if lvDataLen > MAX_OBJECT_SIZE then
       raise Exception.CreateFmt('数据包太大,请在业务层分拆发送,最大数据包[%d]!', [MAX_OBJECT_SIZE]);
   end;
 
-  //
-  lvDataLen := MAX_OBJECT_SIZE;
-  lvWriteIntValue := TByteTools.swap32(lvDataLen);
+
 
   //pack_flag
   ouBuf.AddBuffer(@lvPACK_FLAG, 2);
+
+  //
+  lvDataLen := MAX_OBJECT_SIZE;
+  lvWriteIntValue := TByteTools.swap32(lvDataLen);
 
   // stream len
   ouBuf.AddBuffer(@lvWriteIntValue, SizeOf(lvWriteIntValue));
