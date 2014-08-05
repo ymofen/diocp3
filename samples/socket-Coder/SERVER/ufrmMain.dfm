@@ -3,7 +3,7 @@ object frmMain: TfrmMain
   Top = 0
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 server for diocp1'
-  ClientHeight = 350
+  ClientHeight = 357
   ClientWidth = 582
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET

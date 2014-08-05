@@ -14,7 +14,8 @@ uses
   uCRCTools in '..\diocpCoders\uCRCTools.pas',
   uZipTools in '..\diocpCoders\uZipTools.pas',
   uMyTypes in '..\diocpCoders\uMyTypes.pas',
-  AnsiStringTools in '..\diocpCoders\AnsiStringTools.pas';
+  AnsiStringTools in '..\diocpCoders\AnsiStringTools.pas',
+  TDIOCPStreamCoder in '..\diocpCoders\TDIOCPStreamCoder.pas';
 
 {$R *.res}
 
