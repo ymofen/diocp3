@@ -2,7 +2,7 @@ object FMMonitor: TFMMonitor
   Left = 0
   Top = 0
   Width = 483
-  Height = 225
+  Height = 309
   TabOrder = 0
   object Label1: TLabel
     Left = 16
@@ -25,82 +25,110 @@ object FMMonitor: TFMMonitor
     Height = 13
     Caption = 'recv:'
   end
-  object lblrecvState: TLabel
+  object lblPostRecvINfo: TLabel
     Left = 96
     Top = 48
-    Width = 57
+    Width = 76
     Height = 13
-    Caption = 'lblrecvState'
+    Caption = 'lblPostRecvINfo'
   end
   object Label3: TLabel
     Left = 16
-    Top = 67
+    Top = 115
     Width = 27
     Height = 13
     Caption = 'send:'
   end
   object lblSend: TLabel
     Left = 96
-    Top = 67
+    Top = 115
     Width = 34
     Height = 13
     Caption = 'lblSend'
   end
   object Label4: TLabel
-    Left = 18
-    Top = 136
+    Left = 16
+    Top = 192
     Width = 48
     Height = 13
     Caption = 'acceptex:'
   end
   object lblAcceptEx: TLabel
-    Left = 98
-    Top = 136
+    Left = 96
+    Top = 192
     Width = 55
     Height = 13
     Caption = 'lblAcceptEx'
   end
   object lblOnlineCounter: TLabel
-    Left = 98
-    Top = 156
+    Left = 96
+    Top = 212
     Width = 79
     Height = 13
     Caption = 'lblOnlineCounter'
   end
   object Label5: TLabel
-    Left = 18
-    Top = 156
+    Left = 16
+    Top = 212
     Width = 32
     Height = 13
     Caption = 'online:'
   end
   object lblRunTimeINfo: TLabel
-    Left = 98
-    Top = 196
+    Left = 96
+    Top = 252
     Width = 72
     Height = 13
     Caption = 'lblRunTimeINfo'
   end
   object Label6: TLabel
-    Left = 18
-    Top = 175
+    Left = 16
+    Top = 231
     Width = 42
     Height = 13
     Caption = 'workers:'
   end
   object lblWorkerCount: TLabel
-    Left = 98
-    Top = 175
+    Left = 96
+    Top = 231
     Width = 74
     Height = 13
     Caption = 'lblWorkerCount'
   end
   object Label7: TLabel
-    Left = 18
-    Top = 196
+    Left = 16
+    Top = 252
     Width = 43
     Height = 13
     Caption = 'run time:'
+  end
+  object lblRecvdSize: TLabel
+    Left = 96
+    Top = 67
+    Width = 59
+    Height = 13
+    Caption = 'lblRecvdSize'
+  end
+  object lblSentSize: TLabel
+    Left = 96
+    Top = 134
+    Width = 51
+    Height = 13
+    Caption = 'lblSentSize'
+  end
+  object lblSendQueue: TLabel
+    Left = 96
+    Top = 153
+    Width = 66
+    Height = 13
+    Caption = 'lblSendQueue'
+  end
+  object Label8: TLabel
+    Left = 16
+    Top = 153
+    Width = 70
+    Height = 13
+    Caption = 'sending queue'
   end
   object tmrReader: TTimer
     Enabled = False

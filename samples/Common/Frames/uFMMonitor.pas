@@ -12,7 +12,7 @@ type
     tmrReader: TTimer;
     lblsvrState: TLabel;
     Label2: TLabel;
-    lblrecvState: TLabel;
+    lblPostRecvINfo: TLabel;
     Label3: TLabel;
     lblSend: TLabel;
     Label4: TLabel;
@@ -23,6 +23,10 @@ type
     Label6: TLabel;
     lblWorkerCount: TLabel;
     Label7: TLabel;
+    lblRecvdSize: TLabel;
+    lblSentSize: TLabel;
+    lblSendQueue: TLabel;
+    Label8: TLabel;
     procedure tmrReaderTimer(Sender: TObject);
     procedure refreshState;
   private
@@ -78,29 +82,41 @@ begin
     lblsvrState.Caption := 'stop';
   end;
 
-  lblrecvState.Caption := Format('post:%d, response:%d, recvd:%d',
+
+  lblPostRecvINfo.Caption :=   Format('post:%d, response:%d',
      [
        FIocpTcpServer.DataMoniter.PostWSARecvCounter,
-       FIocpTcpServer.DataMoniter.ResponseWSARecvCounter,
-       FIocpTcpServer.DataMoniter.RecvSize
+       FIocpTcpServer.DataMoniter.ResponseWSARecvCounter
      ]
     );
 
-  lblSend.Caption := Format('post:%d, response:%u, size:%u/%u'#10#13+
-                            'pushSendingQueueCounter:%d'#10#13+
-                            'postSendObjectCounter:%d'#10#13+
-                            'responseSendingObject:%d',
+  lblRecvdSize.Caption := TRunTimeINfoTools.transByteSize(FIocpTcpServer.DataMoniter.RecvSize);
+
+
+//  Format('post:%d, response:%d, recvd:%d',
+//     [
+//       FIocpTcpServer.DataMoniter.PostWSARecvCounter,
+//       FIocpTcpServer.DataMoniter.ResponseWSARecvCounter,
+//       FIocpTcpServer.DataMoniter.RecvSize
+//     ]
+//    );
+
+  lblSend.Caption := Format('post:%d, response:%u',
      [
        FIocpTcpServer.DataMoniter.PostWSASendCounter,
-       FIocpTcpServer.DataMoniter.ResponseWSASendCounter,
-       FIocpTcpServer.DataMoniter.PostWSASendSize,
-       FIocpTcpServer.DataMoniter.SentSize,
-
+       FIocpTcpServer.DataMoniter.ResponseWSASendCounter
+     ]
+    );
+    
+  lblSendQueue.Caption := Format('push/pop/complted:%d, %d, %d',
+     [
        FIocpTcpServer.DataMoniter.PushSendQueueCounter,
        FIocpTcpServer.DataMoniter.PostSendObjectCounter,
        FIocpTcpServer.DataMoniter.ResponseSendObjectCounter
      ]
     );
+  lblSentSize.Caption := TRunTimeINfoTools.transByteSize(FIocpTcpServer.DataMoniter.SentSize);
+
 
   lblAcceptEx.Caption := Format('post:%d, response:%d',
      [

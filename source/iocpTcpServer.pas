@@ -643,19 +643,16 @@ begin
   begin
     FRawSocket.close;
     checkReleaseRes;
-    if FOwner <> nil then
+    Assert(FOwner <> nil);
+
+    if Assigned(FOwner.FOnClientContextDisconnected) then
     begin
-      if Assigned(FOwner.FOnClientContextDisconnected) then
-      begin
-        FOwner.FOnClientContextDisconnected(Self);
-      end;
-      
-      FOwner.FOnlineContextList.remove(self);
-      FOwner.releaseClientContext(Self);
-    end else
-    begin
-      self.Free;
+      FOwner.FOnClientContextDisconnected(Self);
     end;
+
+    FOwner.FOnlineContextList.remove(self);
+    FOwner.releaseClientContext(Self);
+
   end;
 end;
 
@@ -669,7 +666,7 @@ begin
     FcurrSendRequest := lvRequest;
     if lvRequest.checkStart then
     begin
-      if FOwner.FDataMoniter <> nil then
+      if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
       begin
         FOwner.FDataMoniter.incPostSendObjectCounter;
       end;
@@ -810,7 +807,7 @@ function TIocpClientContext.postSendRequest(
 begin
   if FSendRequestLink.Push(pvSendRequest) then
   begin
-    if FOwner.FDataMoniter <> nil then
+    if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
     begin
       FOwner.FDataMoniter.incPushSendQueueCounter;
     end;
@@ -1193,7 +1190,7 @@ begin
       FList.Add(lvRequest);
       lvRequest.PostRequest;
 
-      if FOwner.FDataMoniter <> nil then
+      if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
       begin
         InterlockedIncrement(FOwner.FDataMoniter.FPostWSAAcceptExCounter);
       end;
@@ -1301,7 +1298,7 @@ begin
   end else
   begin
     ///
-    if FOwner.FDataMoniter <> nil then
+    if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
     begin
       InterlockedIncrement(FOwner.FDataMoniter.FResponseWSAAcceptExCounter);
     end;
@@ -1363,12 +1360,10 @@ end;
 
 procedure TIocpRecvRequest.HandleResponse;
 begin
-
   if FOwner = nil then
   begin
-    FClientContext.Free;
     exit;
-  end else if (FOwner.FDataMoniter <> nil) then
+  end else if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
   begin
     FOwner.FDataMoniter.incResponseWSARecvCounter;
     FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
@@ -1531,8 +1526,6 @@ begin
   FIsBusying := false;
   if FOwner = nil then
   begin
-    FClientContext.Free;
-    Self.Free;
     exit;
   end else if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
   begin                                                       

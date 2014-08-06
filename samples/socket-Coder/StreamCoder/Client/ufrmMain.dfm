@@ -15,9 +15,9 @@ object frmMain: TfrmMain
   TextHeight = 13
   object mmoRecvMessage: TMemo
     Left = 8
-    Top = 40
+    Top = 72
     Width = 521
-    Height = 257
+    Height = 225
     Lines.Strings = (
       'iocp tcp client demo')
     TabOrder = 0
@@ -48,7 +48,7 @@ object frmMain: TfrmMain
     Text = '9983'
   end
   object btnSendObject: TButton
-    Left = 384
+    Left = 368
     Top = 8
     Width = 105
     Height = 25

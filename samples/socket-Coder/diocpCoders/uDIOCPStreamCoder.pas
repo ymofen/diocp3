@@ -127,7 +127,7 @@ begin
   ouBuf.AddBuffer(@lvPACK_FLAG, 2);
 
   //
-  lvDataLen := MAX_OBJECT_SIZE;
+  lvDataLen := TStream(pvDataObject).Size;
   lvWriteIntValue := TByteTools.swap32(lvDataLen);
 
   // stream len

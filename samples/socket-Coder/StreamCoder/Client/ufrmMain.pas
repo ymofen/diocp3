@@ -77,10 +77,11 @@ var
 begin
   lvStream := TMemoryStream.Create;
   try
-    s := 'this message will send to server';
-    lvStream.Write(s[1], Length(s));
-
-    lvStream.Position := 0;
+    lvStream.LoadFromFile('C:\1.txt');
+//    s := 'this message will send to server';
+//    lvStream.Write(s[1], Length(s));
+//
+//    lvStream.Position := 0;
 
     //send stream object
     FiocpCoderTcpClient.writeObject(lvStream);

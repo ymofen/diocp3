@@ -13,10 +13,17 @@ type
     class function transByteSize(pvByte:Int64):String;
   end;
 
+const
+  BytePerKB = 1024;
+  BytePerMB = BytePerKB * 1024;
+  BytePerGB = BytePerMB * 1024;
+
+
 implementation
 
 var
   __startTime:TDateTime;
+
 
 
 
@@ -53,8 +60,27 @@ end;
 
 
 class function TRunTimeINfoTools.transByteSize(pvByte: Int64): String;
+var
+  lvTB, lvGB, lvMB, lvKB:Word;
+  lvRemain:Int64;
 begin
+  lvRemain := pvByte;
 
+  lvTB := Trunc(lvRemain/BytePerGB/1024);
+  //lvRemain := pvByte - (lvTB * BytePerGB * 1024);
+  
+  lvGB := Trunc(lvRemain/BytePerGB);
+
+  lvGB := lvGB mod 1024;      // trunc TB
+
+  lvRemain := lvRemain mod BytePerGB;
+
+  lvMB := Trunc(lvRemain/BytePerMB);
+  lvRemain := lvRemain mod BytePerMB;
+
+  lvKB := Trunc(lvRemain/BytePerKB);
+  lvRemain := lvRemain mod BytePerKB;
+  Result := Format('%d TB, %d GB, %d MB, %d KB, %d B', [lvTB, lvGB, lvMB, lvKB, lvRemain]);
 end;
 
 initialization
