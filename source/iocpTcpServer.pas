@@ -58,7 +58,7 @@ type
   private
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
-  protected
+  private
     FAlive:Boolean;
 
     // link
@@ -77,6 +77,7 @@ type
     FRecvRequest:TIocpRecvRequest;
 
     FcurrSendRequest:TIocpSendRequest;
+    FData: Pointer;
 
     /// sendRequest link
     FSendRequestLink: TIocpRequestSingleLink;
@@ -85,8 +86,6 @@ type
 
     FRemoteAddr: String;
     FRemotePort: Integer;
-
-    procedure checkRequestObject;
 
     /// <summary>
     ///   called by recvRequest response
@@ -147,14 +146,19 @@ type
 
     property Active: Boolean read FActive;
 
+    property Data: Pointer read FData write FData;
+
     property DebugINfo: string read FDebugINfo write SetDebugINfo;
 
     property Owner: TIocpTcpServer read FOwner;
+
     property RawSocket: TRawSocket read FRawSocket;
 
     property RemoteAddr: String read FRemoteAddr;
 
     property RemotePort: Integer read FRemotePort;
+
+
 
 
   end;
@@ -319,7 +323,6 @@ type
     FMaxRequest:Integer;
     FMinRequest:Integer;
 
-    procedure notifyForDestory;
   protected
   public
     constructor Create(AOwner: TIocpTcpServer);
@@ -424,7 +427,7 @@ type
     FClientContextClass:TIocpClientContextClass;
 
     FIocpSendRequestClass:TIocpSendRequestClass;
-  private
+  public
     // clientContext pool
     FContextPool: TBaseQueue;
 
@@ -532,6 +535,7 @@ type
     ///
     /// </summary>
     procedure DisconnectAll;
+
     /// <summary>
     ///   get online client list
     /// </summary>
@@ -650,6 +654,7 @@ begin
       FOwner.FOnClientContextDisconnected(Self);
     end;
 
+
     FOwner.FOnlineContextList.remove(self);
     FOwner.releaseClientContext(Self);
 
@@ -705,16 +710,6 @@ begin
   end;
 end;
 
-procedure TIocpClientContext.checkRequestObject;
-begin
-  if FRecvRequest = nil then
-  begin
-    FRecvRequest := TIocpRecvRequest.Create;
-    FRecvRequest.FClientContext := self;
-    FRecvRequest.FOwner := FOwner;
-  end;
-end;
-
 constructor TIocpClientContext.Create;
 begin
   inherited Create;
@@ -722,6 +717,9 @@ begin
   FRawSocket := TRawSocket.Create();
   FActive := false;
   FSendRequestLink := TIocpRequestSingleLink.Create(10);
+  FRecvRequest := TIocpRecvRequest.Create;
+  FRecvRequest.FClientContext := self;
+  FRecvRequest.FOwner := FOwner;
 end;
 
 destructor TIocpClientContext.Destroy;
@@ -754,16 +752,17 @@ procedure TIocpClientContext.DoConnected;
 begin
   if lock_cmp_exchange(False, True, FActive) = False then
   begin
-    checkRequestObject;
-    PostWSARecvRequest;
-    if FOwner <> nil then
+    if FOwner = nil then
+      Assert(FOwner <> nil);
+
+    FOwner.FOnlineContextList.add(Self);
+
+    if Assigned(FOwner.FOnClientContextConnected) then
     begin
-      FOwner.FOnlineContextList.add(Self);
-      if Assigned(FOwner.FOnClientContextConnected) then
-      begin
-        FOwner.FOnClientContextConnected(Self);
-      end;
+      FOwner.FOnClientContextConnected(Self);
     end;
+
+    PostWSARecvRequest;
   end else
   begin
     FActive := FActive;
@@ -935,8 +934,6 @@ begin
     lvContinue := true;
     if FKeepAlive then
     begin
-      pvRequest.FClientContext.FRawSocket.setNoDelayOption(True);
-
       if not pvRequest.FClientContext.FRawSocket.setKeepAliveOption() then
       begin       // set option fail
         lvErrCode := GetLastError;
@@ -1069,7 +1066,9 @@ begin
     DisconnectAll;
 
     // engine stop
-    FIocpEngine.safeStop;    
+    FIocpEngine.safeStop;
+
+    //Assert(self.) 
   end; 
 end;
 
@@ -1218,31 +1217,10 @@ begin
   inherited Destroy;
 end;
 
-procedure TIocpAcceptorMgr.notifyForDestory;
-var
-  i:Integer;
-  lvRequest:TIocpAcceptExRequest;
-begin
-  FLocker.lock;
-  try
-    for i := 0 to FList.Count - 1 do
-    begin
-      lvRequest := TIocpAcceptExRequest(FList[i]);
-      lvRequest.FOwner := nil;
-      lvRequest.FAcceptorMgr := nil;
-    end;
-    FList.Clear;
-  finally
-    FLocker.unLock;
-  end;
-end;
-
 procedure TIocpAcceptorMgr.releaseRequestObject(
   pvRequest: TIocpAcceptExRequest);
 begin
-  
-  pvRequest.Free;
-
+  pvRequest.Free; 
 end;
 
 procedure TIocpAcceptorMgr.removeRequestObject(pvRequest: TIocpAcceptExRequest);
@@ -1802,6 +1780,7 @@ end;
 constructor TContextDoublyLinked.Create;
 begin
   inherited Create;
+  FCount := 0;
   FLocker := TIocpLocker.Create();
   FLocker.Name := 'onlineContext';
   FHead := nil;
@@ -1833,10 +1812,15 @@ begin
 end;
 
 function TContextDoublyLinked.remove(pvContext:TIocpClientContext): Boolean;
-begin
+begin   
+
   Result := false;
   FLocker.lock;
   try
+    if (FCount = 0) then
+    begin
+      FCount := 0;
+    end;
     if pvContext.FPre <> nil then
     begin
       pvContext.FPre.FNext := pvContext.FNext;
@@ -1857,6 +1841,11 @@ begin
       end;
     end;
     Dec(FCount);
+
+    if FCount < 0 then
+    begin
+      Assert(FCount > 0);
+    end;
 
     //  set pvConext.FPre is FTail
     if FTail = pvContext then FTail := pvContext.FPre;

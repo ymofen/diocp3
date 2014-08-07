@@ -6,7 +6,7 @@ uses
   iocpTcpServer, uBuffer, SysUtils, Classes, uIocpCoder;
 
 type
-  TIocpSendRequest = class(iocpTcpServer.TIocpSendRequest)
+  TIocpCoderSendRequest = class(iocpTcpServer.TIocpSendRequest)
   private
     FBufferLink: TBufferLink;
 
@@ -38,7 +38,7 @@ type
   end;
 
 
-  TIOCPClientContext = class(iocpTcpServer.TiocpClientContext)
+  TIOCPCoderClientContext = class(iocpTcpServer.TIOCPClientContext)
   private
     FrecvBuffers: TBufferLink;
     FStateINfo: String;
@@ -75,7 +75,7 @@ type
 
 
 
-  TOnDataObjectReceived = procedure(pvClientContext:TIocpClientContext;pvObject:TObject) of object;
+  TOnDataObjectReceived = procedure(pvClientContext:TIOCPCoderClientContext;pvObject:TObject) of object;
 
 
   TIOCPConsole = class(TIocpTcpServer)
@@ -124,25 +124,25 @@ implementation
 uses
   uIOCPFileLogger;
 
-constructor TIOCPClientContext.Create;
+constructor TIOCPCoderClientContext.Create;
 begin
   inherited Create;
   FrecvBuffers := TBufferLink.Create();
 end;
 
-destructor TIOCPClientContext.Destroy;
+destructor TIOCPCoderClientContext.Destroy;
 begin
   FrecvBuffers.Free;
   inherited Destroy;
 end;
 
-procedure TIOCPClientContext.add2Buffer(buf: PAnsiChar; len: Cardinal);
+procedure TIOCPCoderClientContext.add2Buffer(buf: PAnsiChar; len: Cardinal);
 begin
   //加入到套接字对应的缓存
   FrecvBuffers.AddBuffer(buf, len);
 end;
 
-procedure TIOCPClientContext.clearRecvedBuffer;
+procedure TIOCPCoderClientContext.clearRecvedBuffer;
 begin
   if FrecvBuffers.validCount = 0 then
   begin
@@ -153,28 +153,28 @@ begin
   end;
 end;
 
-procedure TIOCPClientContext.dataReceived(const pvDataObject:TObject);
+procedure TIOCPCoderClientContext.dataReceived(const pvDataObject:TObject);
 begin
 
 end;
 
-function TIOCPClientContext.decodeObject: TObject;
+function TIOCPCoderClientContext.decodeObject: TObject;
 begin
   Result := TIocpConsole(Owner).FDecoder.Decode(FrecvBuffers);
 end;
 
-function TIOCPClientContext.GetStateINfo: String;
+function TIOCPCoderClientContext.GetStateINfo: String;
 begin
   Result := FStateINfo;
 end;
 
-procedure TIOCPClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal;
+procedure TIOCPCoderClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal;
   ErrCode: WORD);
 begin
   recvBuffer(buf, len);
 end;
 
-procedure TIOCPClientContext.recvBuffer(buf:PAnsiChar; len:Cardinal);
+procedure TIOCPCoderClientContext.recvBuffer(buf:PAnsiChar; len:Cardinal);
 var
   lvObject:TObject;
 begin
@@ -229,10 +229,10 @@ begin
   clearRecvedBuffer;
 end;
 
-procedure TIOCPClientContext.writeObject(const pvDataObject:TObject);
+procedure TIOCPCoderClientContext.writeObject(const pvDataObject:TObject);
 var
   lvOutBuffer:TBufferLink;
-  lvRequest:TIocpSendRequest;
+  lvRequest:TIocpCoderSendRequest;
 begin
   if not Active then Exit;
   
@@ -244,21 +244,21 @@ begin
     raise;
   end;
 
-  lvRequest := TIocpSendRequest(getSendRequest);
+  lvRequest := TIocpCoderSendRequest(getSendRequest);
   lvRequest.setBufferLink(lvOutBuffer);
 
 
   postSendRequest(lvRequest);
 
-  self.StateINfo := 'TIOCPClientContext.writeObject,投递到发送缓存';
+  self.StateINfo := 'TIOCPCoderClientContext.writeObject,投递到发送缓存';
 
 end;
 
 constructor TIOCPConsole.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FClientContextClass := TIOCPClientContext;
-  FIocpSendRequestClass := TIocpSendRequest;
+  FClientContextClass := TIOCPCoderClientContext;
+  FIocpSendRequestClass := TIocpCoderSendRequest;
 end;
 
 destructor TIOCPConsole.Destroy;
@@ -299,14 +299,14 @@ begin
   FEncoder := pvEncoder;
 end;
 
-constructor TIocpSendRequest.Create;
+constructor TIocpCoderSendRequest.Create;
 begin
   inherited Create;
   FBlockSize := 0;
   FBufferLink := nil;
 end;
 
-destructor TIocpSendRequest.Destroy;
+destructor TIocpCoderSendRequest.Destroy;
 begin
   if FBlockSize <> 0 then
   begin
@@ -323,7 +323,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TIocpSendRequest.DoCleanUp;
+procedure TIocpCoderSendRequest.DoCleanUp;
 begin
   inherited;
 
@@ -341,9 +341,9 @@ begin
   end;
 end;
 
-{ TIocpSendRequest }
+{ TIocpCoderSendRequest }
 
-function TIocpSendRequest.checkSendNextBlock: Boolean;
+function TIocpCoderSendRequest.checkSendNextBlock: Boolean;
 var
   l:Cardinal;
 begin
@@ -357,7 +357,7 @@ begin
   Result := InnerPostRequest(FBuf, l);
 end;
 
-function TIocpSendRequest.isCompleted: Boolean;
+function TIocpCoderSendRequest.isCompleted: Boolean;
 begin
   Result := FBufferLink.validCount = 0;
 
@@ -367,12 +367,12 @@ begin
   end;
 end;
 
-procedure TIocpSendRequest.onSendRequestSucc;
+procedure TIocpCoderSendRequest.onSendRequestSucc;
 begin
   ;
 end;
 
-procedure TIocpSendRequest.setBufferLink(pvBufferLink: TBufferLink);
+procedure TIocpCoderSendRequest.setBufferLink(pvBufferLink: TBufferLink);
 begin
   FBufferLink := pvBufferLink;
 end;

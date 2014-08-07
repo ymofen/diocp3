@@ -16,6 +16,8 @@ type
     Button2: TButton;
     btnSingleProduce: TButton;
     btnSingleConsum: TButton;
+    btnDoubly: TButton;
+    procedure btnDoublyClick(Sender: TObject);
     procedure btnSingleConsumClick(Sender: TObject);
     procedure btnSingleProduceClick(Sender: TObject);
     procedure Button1Click(Sender: TObject);
@@ -67,6 +69,20 @@ begin
   FPool.Free;
   FIocpRequestSingleLink.Free;
   inherited Destroy;
+end;
+
+procedure TfrmDoublyLink.btnDoublyClick(Sender: TObject);
+var
+  i:Integer;
+begin
+  FConsumeCounter := 0;
+  FProduceCounter := 0;
+  workerMgr.checkIsDone();
+  workerMgr.OnConsume := OnConsume;
+  workerMgr.OnProduce := nil;
+  workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
+  workerMgr.OnProduceWorkersDone := nil;
+  workerMgr.start();
 end;
 
 procedure TfrmDoublyLink.btnSingleConsumClick(Sender: TObject);

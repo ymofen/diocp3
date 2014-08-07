@@ -4,8 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  ComObj;
+  Dialogs, StdCtrls, ActnList, uIOCPCentre, iocpTcpServer, ExtCtrls,
+  ComObj, FileTransProtocol;
 
 type
   TfrmMain = class(TForm)
@@ -28,7 +28,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure OnRecvObject(pvClientContext:TIocpClientContext;pvObject:TObject);
+    procedure OnRecvObject(pvClientContext: TIOCPCoderClientContext; pvObject: TObject);
   end;
 
 var
@@ -40,6 +40,8 @@ uses
   uFMMonitor, uDIOCPStreamCoder;
 
 {$R *.dfm}
+
+
 
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
@@ -58,10 +60,43 @@ begin
   inherited Destroy;
 end;
 
-procedure TfrmMain.OnRecvObject(pvClientContext: TIocpClientContext;
-  pvObject: TObject);
+procedure TfrmMain.OnRecvObject(pvClientContext: TIOCPCoderClientContext;
+    pvObject: TObject);
+var
+  lvFileHead, lvResult:TFileHead;
+  lvStream:TStream;
+  lvFile:String;  
 begin
-  pvClientContext.writeObject(pvObject);
+  lvStream := TStream(pvObject);
+  if lvStream.Size < SizeOf(TFileHead) then
+  begin  // other data
+    pvClientContext.writeObject(pvObject);
+  end else
+  begin
+    lvStream.Read(Pointer(@lvFileHead)^, SizeOf(TFileHead));
+    if lvFileHead.Flag <> FILE_TRANS_FLAG  then
+    begin        // other data
+      pvClientContext.writeObject(pvObject);
+    end else
+    begin
+      ZeroMemory(@lvResult, SizeOf(TFilehead));
+      lvResult.Flag := FILE_TRANS_FLAG;
+
+      if lvFileHead.cmd = 1 then
+      begin    // request
+        lvResult.cmd := 2;  //response
+
+        lvFile := ExtractFilePath(ParamStr(0)) + 'files\' + lvFileHead.FileName;
+        if not FileExists(lvFile) then
+        begin
+          lvResult.cmd_result := 1;  // file not found
+        end;
+
+
+      end;
+    end;
+
+  end;
 end;
 
 procedure TfrmMain.refreshState;
@@ -103,7 +138,7 @@ begin
       for i := 0 to lvList.Count-1 do
       begin
         //send stream object directly
-        TIOCPClientContext(lvList[i]).writeObject(lvStream);
+        TIOCPCoderClientContext(lvList[i]).writeObject(lvStream);
       end;
     finally
       lvStream.Free;

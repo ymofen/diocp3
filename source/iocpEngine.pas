@@ -12,7 +12,7 @@ interface
 
 uses
   Windows, iocpProtocol, SysUtils, Classes, SyncObjs
-  , ComObj, ActiveX;
+  , ComObj, ActiveX, iocpLocker;
 {$DEFINE __DEBUG}
 
 {$IF CompilerVersion> 23}
@@ -36,6 +36,8 @@ type
   TIocpRequest = class(TObject)
   private
     FiocpWorker: TIocpWorker;
+
+    FPre: TIocpRequest;
 
     // next Request
     FNext: TIocpRequest;
@@ -71,6 +73,26 @@ type
     function Push(pvRequest:TIocpRequest): Boolean;
     function Pop:TIocpRequest;
     property Count: Integer read FCount;
+  end;
+
+  /// <summary>
+  ///  request doublyLinked
+  /// </summary>
+  TIocpRequestDoublyLinked = class(TObject)
+  private
+    FLocker: TIocpLocker;
+    FHead: TIocpRequest;
+    FTail: TIocpRequest;
+    FCount:Integer;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure add(pvContext: TIocpRequest);
+    function remove(pvContext: TIocpRequest): Boolean;
+    function Pop: TIocpRequest;
+    procedure write2List(pvList:TList);  
+    property Count: Integer read FCount; 
   end;
 
   /// <summary>
@@ -234,6 +256,9 @@ type
 
 
   end;
+
+
+
 
 
 implementation
@@ -618,6 +643,121 @@ begin
     end;
   finally
     FLocker.Leave;
+  end;
+end;
+
+procedure TIocpRequestDoublyLinked.add(pvContext: TIocpRequest);
+begin
+  FLocker.lock;
+  try
+    if FHead = nil then
+    begin
+      FHead := pvContext;
+    end else
+    begin
+      FTail.FNext := pvContext;
+      pvContext.FPre := FTail;
+    end;
+
+    FTail := pvContext;
+    FTail.FNext := nil;
+
+    inc(FCount);
+  finally
+    FLocker.unLock;
+  end;
+end;
+
+constructor TIocpRequestDoublyLinked.Create;
+begin
+  inherited Create;
+  FLocker := TIocpLocker.Create();
+  FLocker.Name := 'onlineContext';
+  FHead := nil;
+  FTail := nil;
+end;
+
+destructor TIocpRequestDoublyLinked.Destroy;
+begin
+  FreeAndNil(FLocker);
+  inherited Destroy;
+end;
+
+function TIocpRequestDoublyLinked.Pop: TIocpRequest;
+begin
+  FLocker.lock;
+  try
+    Result := FHead;
+    if FHead <> nil then
+    begin
+      FHead := FHead.FNext;
+      if FHead = nil then FTail := nil;
+      Dec(FCount);
+      Result.FPre := nil;
+      Result.FNext := nil;  
+    end;  
+  finally
+    FLocker.unLock;
+  end;
+end;
+
+function TIocpRequestDoublyLinked.remove(pvContext: TIocpRequest): Boolean;
+begin
+
+
+  Result := false;
+  FLocker.lock;
+  try
+//    if FCount = 0 then
+//    begin
+//      FCount := 0;
+//    end;
+    if pvContext.FPre <> nil then
+    begin
+      pvContext.FPre.FNext := pvContext.FNext;
+      if pvContext.FNext <> nil then
+        pvContext.FNext.FPre := pvContext.FPre;
+    end else if pvContext.FNext <> nil then
+    begin    // pre is nil, pvContext is FHead
+      pvContext.FNext.FPre := nil;
+      FHead := pvContext.FNext;
+    end else
+    begin   // pre and next is nil
+      if pvContext = FHead then
+      begin
+        FHead := nil;
+      end else
+      begin
+        exit;
+      end;
+    end;
+    Dec(FCount);
+
+    //  set pvConext.FPre is FTail
+    if FTail = pvContext then FTail := pvContext.FPre;
+
+    pvContext.FPre := nil;
+    pvContext.FNext := nil;
+    Result := true;
+  finally
+    FLocker.unLock;
+  end;
+end;
+
+procedure TIocpRequestDoublyLinked.write2List(pvList: TList);
+var
+  lvItem:TIocpRequest;
+begin
+  FLocker.lock;
+  try
+    lvItem := FHead;
+    while lvItem <> nil do
+    begin
+      pvList.Add(lvItem);
+      lvItem := lvItem.FNext;
+    end;
+  finally
+    FLocker.unLock;
   end;
 end;
 

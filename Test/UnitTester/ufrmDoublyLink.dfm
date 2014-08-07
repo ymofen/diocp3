@@ -25,9 +25,9 @@ object frmDoublyLink: TfrmDoublyLink
   end
   object Memo1: TMemo
     Left = 8
-    Top = 39
+    Top = 72
     Width = 604
-    Height = 281
+    Height = 248
     Lines.Strings = (
       'Memo1')
     TabOrder = 1
@@ -58,5 +58,14 @@ object frmDoublyLink: TfrmDoublyLink
     Caption = 'btnSingleConsum'
     TabOrder = 4
     OnClick = btnSingleConsumClick
+  end
+  object btnDoubly: TButton
+    Left = 8
+    Top = 41
+    Width = 75
+    Height = 25
+    Caption = 'btnDoubly'
+    TabOrder = 5
+    OnClick = btnDoublyClick
   end
 end

@@ -17,6 +17,7 @@ type
     procedure Button2Click(Sender: TObject);
   private
     FTcpSvr:TIocpTcpServer;
+    FDoublyLinked: TContextDoublyLinked;
     FPool:TBaseQueue;
     FConsumeCounter: Integer;
     FProduceCounter: Integer;
@@ -39,13 +40,16 @@ implementation
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  FTcpSvr := TIocpTcpServer.Create(nil);
+  FTcpSvr := TIocpTcpServer.Create(Self);
+  FTcpSvr.Name := 'tcpServer';
   uiLogger.setLogLines(Memo1.Lines);
   FPool := TBaseQueue.Create;
+  FDoublyLinked := TContextDoublyLinked.Create();
 end;
 
 destructor TfrmMain.Destroy;
 begin
+  FreeAndNil(FDoublyLinked);
   FTcpSvr.Free;
   FPool.Free;
   inherited Destroy;
@@ -86,26 +90,34 @@ var
   lvContext:TIocpClientContext;
   i:Integer;
 begin
-  i:=0;
+  i := 0;
   while not pvWoker.IsTerminated do
   begin
-    lvContext := TIocpClientContext(FPool.Pop);
-    if lvContext <> nil then
+    lvContext := nil;
+    if i mod 2 = 0 then
     begin
-      lvContext.DoDisconnect;
-      //FTcpSvr.releaseClientContext(lvContext);
-      inc(i);
-      InterlockedIncrement(FConsumeCounter);
+      lvContext := TIocpClientContext(FPool.Pop);
     end else
     begin
+      lvContext := FDoublyLinked.Pop;
+    end;
+    if lvContext = nil then
+    begin
+      lvContext := nil;
       Break;
     end;
+    FDoublyLinked.remove(lvContext);
+    FTcpSvr.releaseClientContext(lvContext);
+    InterlockedIncrement(FConsumeCounter);
+    Inc(i);
   end;
 end;
 
 procedure TfrmMain.OnConsumersDone(pvSender: tObject);
 begin
   uiLogger.logMessage('consume counter:%d', [FConsumeCounter]);
+  uiLogger.logMessage(Format('linked count:%d', [FDoublyLinked.Count]));
+
 end;
 
 procedure TfrmMain.onProduce(pvWoker: TThreadWorker);
@@ -113,12 +125,11 @@ var
   lvContext:TIocpClientContext;
   i:Integer;
 begin
-  for i := 1 to 1000 do
+  for i := 1 to 3000 do
   begin
     lvContext := FTcpSvr.getClientContext;
     FPool.Push(lvContext);
-    lvContext.DoConnected;
-
+    FDoublyLinked.add(lvContext);
     InterlockedIncrement(FProduceCounter);
   end;
 end;
