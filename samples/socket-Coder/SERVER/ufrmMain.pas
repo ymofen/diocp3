@@ -28,7 +28,8 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure OnRecvObject(pvClientContext:TIocpClientContext;pvObject:TObject);
+    procedure OnRecvObject(pvClientContext:TIOCPCoderClientContext;
+        pvObject:TObject);
   end;
 
 var
@@ -56,8 +57,8 @@ begin
   inherited Destroy;
 end;
 
-procedure TfrmMain.OnRecvObject(pvClientContext: TIocpClientContext;
-  pvObject: TObject);
+procedure TfrmMain.OnRecvObject(pvClientContext:TIOCPCoderClientContext;
+    pvObject:TObject);
 begin
   pvClientContext.writeObject(pvObject);
 end;
@@ -97,7 +98,7 @@ begin
       FTcpServer.getOnlineContextList(lvList);
       for i := 0 to lvList.Count-1 do
       begin
-        TIOCPClientContext(lvList[i]).writeObject(lvMsg);
+        TIOCPCoderClientContext(lvList[i]).writeObject(lvMsg);
       end;
     finally
       lvMsg.Free;

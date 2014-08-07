@@ -6,7 +6,7 @@ uses
   uIOCPCentre;
 
 type
-  TMyClientContext = class(uIOCPCentre.TIOCPClientContext)
+  TMyClientContext = class(TIOCPCoderClientContext)
   private
     FPullerID:String;
   public

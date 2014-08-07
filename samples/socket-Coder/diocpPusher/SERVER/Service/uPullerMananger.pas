@@ -19,11 +19,11 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    procedure registerPuller(pvPullID:string; pvObject:TIOCPClientContext);
+    procedure registerPuller(pvPullID: string; pvObject: TIOCPCoderClientContext);
     procedure removePuller(pvPullID:string);
     function writeObject(pvPullID:string; pvData:TObject): Boolean;
 
-    function findObject(pvPullID:String): TIOCPClientContext;
+    function findObject(pvPullID:String): TIOCPCoderClientContext;
 
     procedure dispatchObject(pvData:TObject);
 
@@ -66,16 +66,17 @@ begin
   try
     for i := FPuller.Count - 1 downto 0 do
     begin
-      TIOCPClientContext(FPuller[i]).writeObject(pvData);
+      TIOCPCoderClientContext(FPuller[i]).writeObject(pvData);
     end;
   finally
     unLock;
   end;
 end;
 
-function TMessagePullMananger.findObject(pvPullID: String): TIOCPClientContext;
+function TMessagePullMananger.findObject(pvPullID:String):
+    TIOCPCoderClientContext;
 begin
-  Result :=TIOCPClientContext(FPuller.find(pvPullID));
+  Result :=TIOCPCoderClientContext(FPuller.find(pvPullID));
 end;
 
 procedure TMessagePullMananger.getPullerIDList(vString:TStrings);
@@ -113,8 +114,8 @@ begin
   FCS.Enter;
 end;
 
-procedure TMessagePullMananger.registerPuller(pvPullID:string;
-    pvObject:TIOCPClientContext);
+procedure TMessagePullMananger.registerPuller(pvPullID: string; pvObject:
+    TIOCPCoderClientContext);
 begin
   lock;
   try
@@ -142,10 +143,10 @@ end;
 function TMessagePullMananger.writeObject(pvPullID:string; pvData:TObject):
     Boolean;
 var
-  lvClient:TIOCPClientContext;
+  lvClient:TIOCPCoderClientContext;
 begin
   Result := false;
-  lvClient := TIOCPClientContext(FPuller.find(pvPullID));
+  lvClient := TIOCPCoderClientContext(FPuller.find(pvPullID));
   if lvClient <> nil then
   begin
     if lvClient.Active then
