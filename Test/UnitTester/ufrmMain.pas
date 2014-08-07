@@ -5,16 +5,18 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, iocpTask, Vcl.StdCtrls,
-  iocpEngine, iocpTcpServer, uThreadWorker, iocpUILogger, BaseQueue;
+  iocpEngine, iocpTcpServer, uThreadWorker, BaseQueue, iocpLogger;
 
 type
   TfrmMain = class(TForm)
     Button1: TButton;
     Memo1: TMemo;
     Button2: TButton;
+    Button3: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
   private
     FTcpSvr:TIocpTcpServer;
     FDoublyLinked: TContextDoublyLinked;
@@ -23,11 +25,15 @@ type
     FProduceCounter: Integer;
     procedure OnConsumersDone(pvSender:tObject);
     procedure OnProducersDone(pvSender:tObject);
+
+
+
+    procedure OnLogTester(pvStr:String);
   public
     destructor Destroy; override;
     procedure onConsume(pvWoker:TThreadWorker);
-    { Public declarations }
 
+    procedure OnLogWorker(pvSender:TThreadWorker);
     procedure onProduce(pvWoker:TThreadWorker);
   end;
 
@@ -38,8 +44,12 @@ implementation
 
 {$R *.dfm}
 
+var
+  gblSN:Integer;
+
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
+
   FTcpSvr := TIocpTcpServer.Create(Self);
   FTcpSvr.Name := 'tcpServer';
   uiLogger.setLogLines(Memo1.Lines);
@@ -81,7 +91,25 @@ begin
   workerMgr.OnProduce := nil;
   workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
   workerMgr.OnProduceWorkersDone := nil;
-  workerMgr.start();
+  workerMgr.start(0, 1);
+
+end;
+
+procedure TfrmMain.Button3Click(Sender: TObject);
+var
+  i:Integer;
+begin
+  gblSN := 0;
+  iocpTaskManager.setWorkerCount(1);
+
+  FProduceCounter := 0;
+  FConsumeCounter := 0;
+  workerMgr.checkIsDone();
+  workerMgr.OnConsume := OnLogWorker;
+  workerMgr.OnProduce := nil;
+  workerMgr.OnConsumeWorkersDone := nil;
+  workerMgr.OnProduceWorkersDone := nil;
+  workerMgr.start(0, 10);
 
 end;
 
@@ -117,7 +145,22 @@ procedure TfrmMain.OnConsumersDone(pvSender: tObject);
 begin
   uiLogger.logMessage('consume counter:%d', [FConsumeCounter]);
   uiLogger.logMessage(Format('linked count:%d', [FDoublyLinked.Count]));
+end;
 
+procedure TfrmMain.OnLogTester(pvStr: String);
+begin
+  Memo1.Lines.Add(pvStr);
+end;
+
+procedure TfrmMain.OnLogWorker(pvSender:TThreadWorker);
+var
+  lvSN:Integer;
+begin
+  lvSN := InterlockedIncrement(gblSN);
+  iocpTaskManager.PostATask(OnLogTester,IntToStr(lvSN) +  '.1.第一次投递============', true, rtPostMessage);
+
+  lvSN := InterlockedIncrement(gblSN);
+  iocpTaskManager.PostATask(OnLogTester, IntToStr(lvSN) +  '.2.第二次', true, rtPostMessage);
 end;
 
 procedure TfrmMain.onProduce(pvWoker: TThreadWorker);

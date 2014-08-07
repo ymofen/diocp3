@@ -2,8 +2,8 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'frmMain'
-  ClientHeight = 356
-  ClientWidth = 627
+  ClientHeight = 471
+  ClientWidth = 829
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -27,7 +27,7 @@ object frmMain: TfrmMain
     Left = 8
     Top = 47
     Width = 604
-    Height = 281
+    Height = 416
     Lines.Strings = (
       'Memo1')
     TabOrder = 1
@@ -40,5 +40,14 @@ object frmMain: TfrmMain
     Caption = 'Button2'
     TabOrder = 2
     OnClick = Button2Click
+  end
+  object Button3: TButton
+    Left = 336
+    Top = 16
+    Width = 75
+    Height = 25
+    Caption = 'Button3'
+    TabOrder = 3
+    OnClick = Button3Click
   end
 end

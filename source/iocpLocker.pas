@@ -2,15 +2,31 @@ unit iocpLocker;
 
 interface
 
+{$DEFINE USECriticalSection}
+
 uses
-  Windows, SysUtils, Classes;
+  {$IFDEF USECriticalSection}
+    SyncObjs,
+  {$ELSE}
+    Windows,
+  {$ENDIF}
+  SysUtils, Classes;
 
 type
-  TIocpLocker = class(TObject)
+  {$IFDEF USECriticalSection}
+    TIocpLocker = class(TCriticalSection)
+  {$ELSE}
+    TIocpLocker = class(TObject)
+  {$ENDIF}
   private
     FEnterINfo: string;
     FName: String;
+
+  {$IFDEF USECriticalSection}
+  {$ELSE}
     FSection: TRTLCriticalSection;
+  {$ENDIF}
+
     function GetEnterCount: Integer;
   public
     constructor Create;
@@ -18,7 +34,6 @@ type
 
     procedure lock;
     procedure unLock;
-
 
     property EnterCount: Integer read GetEnterCount;
     property EnterINfo: string read FEnterINfo write FEnterINfo;
@@ -31,28 +46,51 @@ implementation
 constructor TIocpLocker.Create;
 begin
   inherited Create;
-  InitializeCriticalSection(FSection);
+  {$IFDEF USECriticalSection}
+
+  {$ELSE}
+    InitializeCriticalSection(FSection);
+  {$ENDIF}
 end;
 
 destructor TIocpLocker.Destroy;
 begin
-  DeleteCriticalSection(FSection);
+  {$IFDEF USECriticalSection}
+
+  {$ELSE}
+    DeleteCriticalSection(FSection);
+  {$ENDIF}
+
   inherited Destroy;
 end;
 
 function TIocpLocker.GetEnterCount: Integer;
 begin
-  Result := FSection.RecursionCount;
+  {$IFDEF USECriticalSection}
+     Result := 0;
+  {$ELSE}
+     Result := FSection.RecursionCount;
+  {$ENDIF}
+
 end;
 
 procedure TIocpLocker.lock;
 begin
-  EnterCriticalSection(FSection);
+  {$IFDEF USECriticalSection}
+    Enter;
+  {$ELSE}
+     EnterCriticalSection(FSection);
+  {$ENDIF}
 end;
 
 procedure TIocpLocker.unLock;
 begin
-  LeaveCriticalSection(FSection);
+  {$IFDEF USECriticalSection}
+     Leave;
+  {$ELSE}
+     LeaveCriticalSection(FSection);
+  {$ENDIF}
+
   //OutputDebugString(PChar(Format('%d:%s unlock', [GetCurrentThreadID, Name])));
   //FEnterINfo := '';
 end;

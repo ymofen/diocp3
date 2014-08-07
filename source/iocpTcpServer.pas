@@ -1764,12 +1764,21 @@ begin
       FHead := pvContext;
     end else
     begin
+      if FTail = nil then
+      begin
+        FCount := FCount;
+      end;
       FTail.FNext := pvContext;
       pvContext.FPre := FTail;
     end;
 
     FTail := pvContext;
     FTail.FNext := nil;
+
+    if FTail = nil then
+    begin
+      FCount := FCount;
+    end;
 
     inc(FCount);
   finally
@@ -1817,10 +1826,6 @@ begin
   Result := false;
   FLocker.lock;
   try
-    if (FCount = 0) then
-    begin
-      FCount := 0;
-    end;
     if pvContext.FPre <> nil then
     begin
       pvContext.FPre.FNext := pvContext.FNext;
@@ -1848,7 +1853,20 @@ begin
     end;
 
     //  set pvConext.FPre is FTail
-    if FTail = pvContext then FTail := pvContext.FPre;
+    if FTail = pvContext then
+      FTail := pvContext.FPre;
+
+    if FTail = nil then
+    begin
+      FCount := FCount;
+      FTail := nil;
+    end;
+
+    if FHead = nil then
+    begin
+      FCount := FCount;
+      FHead := nil;
+    end;
 
     pvContext.FPre := nil;
     pvContext.FNext := nil;

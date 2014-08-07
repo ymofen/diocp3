@@ -7,6 +7,7 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Vcl.StdCtrls, iocpTcpServer, iocpTask, BaseQueue,
   iocpEngine,
+  iocpLogger,
   uThreadWorker;
 
 type
@@ -57,8 +58,6 @@ var
 
 implementation
 
-uses
-  iocpUILogger;
 
 {$R *.dfm}
 
