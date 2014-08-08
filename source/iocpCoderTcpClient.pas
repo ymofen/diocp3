@@ -132,7 +132,7 @@ procedure TiocpCoderTcpClient.DoRecvd(buf: Pointer; len: Cardinal; errCode:
 var
   lvObject:TObject;
 begin
-  inherited;
+  inherited DoRecvd(buf, len, errCode);
   FRecvBufferLink.AddBuffer(buf, len);
 
   while True do

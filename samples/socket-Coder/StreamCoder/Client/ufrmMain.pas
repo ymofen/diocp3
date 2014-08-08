@@ -91,7 +91,7 @@ begin
   lvFileHead.cmd := 10;   // file info
   lvFileHead.FileName := edtFileID.Text;
   lvStream := TMemoryStream.Create;
-  lvStream.Read(lvFileHead, SizeOf(lvFileHead));
+  lvStream.Write(lvFileHead, SizeOf(lvFileHead));
   FiocpCoderTcpClient.writeObject(lvStream);
   lvStream.Free; 
 end;
