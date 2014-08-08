@@ -15,9 +15,9 @@ object frmMain: TfrmMain
   TextHeight = 13
   object mmoRecvMessage: TMemo
     Left = 8
-    Top = 72
+    Top = 88
     Width = 521
-    Height = 225
+    Height = 209
     Lines.Strings = (
       'iocp tcp client demo')
     TabOrder = 0
@@ -55,5 +55,22 @@ object frmMain: TfrmMain
     Caption = 'btnSendObject'
     TabOrder = 4
     OnClick = btnSendObjectClick
+  end
+  object btnGetFile: TButton
+    Left = 156
+    Top = 41
+    Width = 100
+    Height = 25
+    Caption = 'btnGetFile'
+    TabOrder = 5
+    OnClick = btnGetFileClick
+  end
+  object edtFileID: TEdit
+    Left = 8
+    Top = 43
+    Width = 142
+    Height = 21
+    TabOrder = 6
+    Text = 'demoFile.jpg'
   end
 end

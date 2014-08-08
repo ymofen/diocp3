@@ -112,6 +112,7 @@ type
     ///  sendRequest to pool
     /// </example>
     procedure checkReleaseRes;
+    procedure SetOwner(const Value: TIocpTcpServer);
 
   protected
     /// <summary>
@@ -150,7 +151,7 @@ type
 
     property DebugINfo: string read FDebugINfo write SetDebugINfo;
 
-    property Owner: TIocpTcpServer read FOwner;
+    property Owner: TIocpTcpServer read FOwner write SetOwner;
 
     property RawSocket: TRawSocket read FRawSocket;
 
@@ -719,7 +720,6 @@ begin
   FSendRequestLink := TIocpRequestSingleLink.Create(10);
   FRecvRequest := TIocpRecvRequest.Create;
   FRecvRequest.FClientContext := self;
-  FRecvRequest.FOwner := FOwner;
 end;
 
 destructor TIocpClientContext.Destroy;
@@ -850,6 +850,12 @@ end;
 procedure TIocpClientContext.SetDebugINfo(const Value: string);
 begin
   FDebugINfo := Value;
+end;
+
+procedure TIocpClientContext.SetOwner(const Value: TIocpTcpServer);
+begin
+  FOwner := Value;
+  FRecvRequest.FOwner := FOwner;
 end;
 
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;

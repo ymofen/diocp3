@@ -14,7 +14,10 @@ type
     edtHost: TEdit;
     edtPort: TEdit;
     btnSendObject: TButton;
+    btnGetFile: TButton;
+    edtFileID: TEdit;
     procedure btnConnectClick(Sender: TObject);
+    procedure btnGetFileClick(Sender: TObject);
     procedure btnSendObjectClick(Sender: TObject);
   private
     { Private declarations }
@@ -33,6 +36,9 @@ var
   frmMain: TfrmMain;
 
 implementation
+
+uses
+  FileTransProtocol;
 
 
 
@@ -68,6 +74,28 @@ begin
   mmoRecvMessage.Lines.Add('start to recv...');
 end;
 
+procedure TfrmMain.btnGetFileClick(Sender: TObject);
+var
+  lvStream:TMemoryStream;
+  lvFileHead:TFileHead;
+begin
+  if not  FiocpCoderTcpClient.isActive then
+  begin
+    uiLogger.logMessage('please do connect');
+    exit;
+  end;
+
+  ZeroMemory(@lvFileHead, SizeOf(lvFileHead));
+
+  lvFileHead.Flag := FILE_TRANS_FLAG;
+  lvFileHead.cmd := 10;   // file info
+  lvFileHead.FileName := edtFileID.Text;
+  lvStream := TMemoryStream.Create;
+  lvStream.Read(lvFileHead, SizeOf(lvFileHead));
+  FiocpCoderTcpClient.writeObject(lvStream);
+  lvStream.Free; 
+end;
+
 procedure TfrmMain.btnSendObjectClick(Sender: TObject);
 var
   lvList:TList;
@@ -98,20 +126,76 @@ end;
 
 procedure TfrmMain.OnRecvObject(pvObject: TObject);
 var
-  lvStream:TMemoryStream;
   s:AnsiString;
+var
+  lvFileHead, lvResult:TFileHead;
+  lvStream, lvFileData:TMemoryStream;
+  lvFile:String;
+  lvFileStream:TFileStream;
 begin
-  // recv stream object
+  lvFileData := nil;
   lvStream := TMemoryStream(pvObject);
+  if lvStream.Size < SizeOf(TFileHead) then
+  begin  // other data
+    SetLength(s, lvStream.Size);
+    lvStream.Position := 0;
+    lvStream.Read(s[1], lvStream.Size);
+
+    uiLogger.logMessage('recv msg from server:' + sLineBreak + '    ' + s);
+    uiLogger.logMessage('');
+
+  end else
+  begin
+    lvStream.Read(Pointer(@lvFileHead)^, SizeOf(TFileHead));
+    if lvFileHead.Flag <> FILE_TRANS_FLAG  then
+    begin        // other data
+      SetLength(s, lvStream.Size);
+      lvStream.Position := 0;
+      lvStream.Read(s[1], lvStream.Size);
+
+      uiLogger.logMessage('recv msg from server:' + sLineBreak + '    ' + s);
+      uiLogger.logMessage('');
+    end else
+    begin
+      try
+        if lvFileHead.cmd = 11 then
+        begin    // request file info
+          uiLogger.logMessage('file info name:%s, size:%d', [lvFileHead.FileName,
+            lvFileHead.Size]);
 
 
-  SetLength(s, lvStream.Size);
-  lvStream.Position := 0;
-  lvStream.Read(s[1], lvStream.Size);
+        end else if lvFileHead.cmd = 2 then
+        begin                 // file data
+//          lvFile := ExtractFilePath(ParamStr(0)) + 'files\' + lvFileHead.FileName;
+//          if not FileExists(lvFile) then
+//          begin
+//            lvResult.cmd_result := 1;  // file not found
+//          end else
+//          begin
+//            lvFileStream := TFileStream.Create(lvFile, fmOpenRead);
+//            try
+//              if lvFileStream.Position > lvFileHead.Position then
+//              begin
+//                lvFileStream.Position := lvFileHead.Position;
+//                lvFileData := TMemoryStream.Create;
+//                lvFileData.CopyFrom(lvFileData, lvFileHead.Size);
+//              end  else
+//                // err param
+//                lvResult.cmd_result := 3;
+//            finally
+//              lvFileStream.Free;
+//            end;
+//          end;
+        end;
+      except
+        on E:Exception do
+        begin
+          uiLogger.logMessage('file request exception:' + e.Message, []);
+        end;
+      end;
+    end;
 
-  uiLogger.logMessage('recv msg from server:' + sLineBreak + '    ' + s);
-  uiLogger.logMessage('');
-
+  end;
 end;
 
 end.

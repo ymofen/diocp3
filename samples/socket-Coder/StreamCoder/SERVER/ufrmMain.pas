@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, iocpTcpServer, ExtCtrls,
-  ComObj, FileTransProtocol;
+  ComObj, FileTransProtocol, iocpLogger, ComCtrls;
 
 type
   TfrmMain = class(TForm)
@@ -14,10 +14,14 @@ type
     actlstMain: TActionList;
     actOpen: TAction;
     actStop: TAction;
-    pnlMonitor: TPanel;
     actPushMsg: TAction;
     edtMsg: TEdit;
     btnPushMsg: TButton;
+    PageControl1: TPageControl;
+    TabSheet1: TTabSheet;
+    TabSheet2: TTabSheet;
+    pnlMonitor: TPanel;
+    mmoLog: TMemo;
     procedure actOpenExecute(Sender: TObject);
     procedure actPushMsgExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
@@ -46,6 +50,7 @@ uses
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  uiLogger.setLogLines(mmoLog.Lines);
   FTcpServer := TIOCPConsole.Create(Self);
   FTcpServer.createDataMonitor;
   FTcpServer.OnDataObjectReceived := OnRecvObject;
@@ -64,36 +69,91 @@ procedure TfrmMain.OnRecvObject(pvClientContext: TIOCPCoderClientContext;
     pvObject: TObject);
 var
   lvFileHead, lvResult:TFileHead;
-  lvStream:TStream;
-  lvFile:String;  
+  lvStream, lvFileData:TMemoryStream;
+  lvFile:String;
+  lvFileStream:TFileStream;
 begin
-  lvStream := TStream(pvObject);
+  lvFileData := nil;
+  lvStream := TMemoryStream(pvObject);
   if lvStream.Size < SizeOf(TFileHead) then
   begin  // other data
     pvClientContext.writeObject(pvObject);
   end else
   begin
-    lvStream.Read(Pointer(@lvFileHead)^, SizeOf(TFileHead));
+    lvStream.Read(lvFileHead, SizeOf(TFileHead));
     if lvFileHead.Flag <> FILE_TRANS_FLAG  then
     begin        // other data
       pvClientContext.writeObject(pvObject);
     end else
     begin
-      ZeroMemory(@lvResult, SizeOf(TFilehead));
-      lvResult.Flag := FILE_TRANS_FLAG;
+      try
+        ZeroMemory(@lvResult, SizeOf(TFilehead));
+        lvResult.Flag := FILE_TRANS_FLAG;
 
-      if lvFileHead.cmd = 1 then
-      begin    // request
-        lvResult.cmd := 2;  //response
+        if lvFileHead.cmd = 10 then
+        begin    // request file info
+          lvResult.cmd := 11;  //response
+          lvResult.FileName := lvFileHead.FileName;
+          uiLogger.logMessage('request file(%s) info', [lvFileHead.FileName]);
 
-        lvFile := ExtractFilePath(ParamStr(0)) + 'files\' + lvFileHead.FileName;
-        if not FileExists(lvFile) then
-        begin
-          lvResult.cmd_result := 1;  // file not found
+
+          lvFile := ExtractFilePath(ParamStr(0)) + 'files\' + lvFileHead.FileName;
+          if not FileExists(lvFile) then
+          begin
+            lvResult.cmd_result := 1;  // file not found
+          end else
+          begin
+            lvFileStream := TFileStream.Create(lvFile, fmOpenRead);
+            lvResult.Size := lvFileStream.Size;
+            lvFileStream.Free;
+          end;
+        end else if lvFileHead.cmd = 1 then
+        begin                 // down file
+          lvResult.cmd := 2;  //  response
+
+          lvFile := ExtractFilePath(ParamStr(0)) + 'files\' + lvFileHead.FileName;
+          if not FileExists(lvFile) then
+          begin
+            lvResult.cmd_result := 1;  // file not found
+          end else
+          begin
+            lvFileStream := TFileStream.Create(lvFile, fmOpenRead);
+            try
+              if lvFileStream.Position > lvFileHead.Position then
+              begin
+                lvFileStream.Position := lvFileHead.Position;
+                lvFileData := TMemoryStream.Create;
+                lvFileData.CopyFrom(lvFileData, lvFileHead.Size);
+              end  else
+                // err param
+                lvResult.cmd_result := 3;
+            finally
+              lvFileStream.Free;
+            end;
+          end;
         end;
-
-
+        // return response
+        lvStream.Clear;
+        lvStream.WriteBuffer(lvResult, SizeOf(lvResult));
+        if lvFileData <> nil then
+        begin
+          // return fileStream data
+          lvFileData.Size := lvFileData.Size;
+          lvFileData.Position := 0;
+          lvStream.CopyFrom(lvFileData,lvFileData.Size);
+        end;
+        lvStream.Position := 0;
+        pvClientContext.writeObject(lvStream);
+      except
+        on E:Exception do
+        begin
+          uiLogger.logMessage('file trans exception:' + e.Message, []);
+          lvStream.Clear;
+          lvResult.cmd_result := 2;
+          lvStream.WriteBuffer(lvResult, SizeOf(lvResult));
+        end;
       end;
+      pvClientContext.writeObject(lvStream);
     end;
 
   end;

@@ -7,7 +7,7 @@ uses
   ufrmMain in 'ufrmMain.pas' {frmMain},
   ufrmDoublyLink in 'ufrmDoublyLink.pas' {frmDoublyLink},
   uThreadWorker in 'uThreadWorker.pas',
-  iocpUILogger in 'iocpUILogger.pas';
+  DoublyLinked in 'DoublyLinked.pas';
 
 {$R *.res}
 

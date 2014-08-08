@@ -42,12 +42,30 @@ object frmMain: TfrmMain
     OnClick = Button2Click
   end
   object Button3: TButton
-    Left = 336
+    Left = 296
     Top = 16
     Width = 75
     Height = 25
     Caption = 'Button3'
     TabOrder = 3
     OnClick = Button3Click
+  end
+  object btnDoublyLinked: TButton
+    Left = 472
+    Top = 16
+    Width = 100
+    Height = 25
+    Caption = 'btnDoublyLinked'
+    TabOrder = 4
+    OnClick = btnDoublyLinkedClick
+  end
+  object btnDoublyLinkedConsume: TButton
+    Left = 600
+    Top = 16
+    Width = 121
+    Height = 25
+    Caption = 'btnDoublyLinkedConsume'
+    TabOrder = 5
+    OnClick = btnDoublyLinkedConsumeClick
   end
 end
