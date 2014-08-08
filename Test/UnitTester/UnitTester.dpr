@@ -1,8 +1,8 @@
 program UnitTester;
 
 uses
-  FastMM4,
-  FastMM4Messages,
+//  FastMM4,
+//  FastMM4Messages,
   Vcl.Forms,
   ufrmMain in 'ufrmMain.pas' {frmMain},
   ufrmDoublyLink in 'ufrmDoublyLink.pas' {frmDoublyLink},
@@ -12,6 +12,7 @@ uses
 {$R *.res}
 
 begin
+  ReportMemoryLeaksOnShutdown := true;
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
  // Application.CreateForm(TfrmDoublyLink, frmDoublyLink);

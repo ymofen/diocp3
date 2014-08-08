@@ -16,11 +16,10 @@ type
 
   TBaseQueue = class(TObject)
   private
-    
+    FName: String;
     FLocker: TCriticalSection;
     FCount: Integer;
     FHead: PQueueData;
-    FName: String;
     FTail: PQueueData;
 
     {$IFDEF __debug}
@@ -94,9 +93,8 @@ constructor TBaseQueue.Create;
 begin
   inherited Create;
   FLocker := TCriticalSection.Create();
-  FHead := queueDataPool.Pop;
-  FHead.next := nil;
-  FTail := FHead;
+  FHead := nil;
+  FTail := nil;
   FCount := 0;
   FName := 'BaseQueue';
 end;
@@ -109,7 +107,6 @@ begin
 
   Clear;
   FLocker.Free;
-  queueDataPool.Push(FHead);
   inherited Destroy;
 end;
 
@@ -121,6 +118,8 @@ var
 begin
   FLocker.Enter;
   try
+    if FHead = nil then Exit;
+
     while FHead.Next <> nil do
     begin
       ANext := FHead.Next;     
@@ -128,6 +127,8 @@ begin
       queueDataPool.Push(FHead);
       FHead := ANext;
     end;
+
+    FCount := 0;
   finally
     FLocker.Leave;
   end;
@@ -204,23 +205,20 @@ end;
 
 function TBaseQueue.innerPop: PQueueData;
 begin
-  ///为了方便 队列中始终保留一个FHead数据块
-  ///  也就是说FHead指向的下一个数据块才是第一个数据块
   FLocker.Enter;
   try
-    Result := FHead.Next;
+    Result := FHead;
     if Result <> nil then
     begin
-      FHead.Next := Result.Next;
-      if Result = FTail then
-        FTail := FHead;
+      FHead := Result.Next;
+      
+      if FHead = nil then FTail := nil;
 
       Dec(FCount);
 
     {$IFDEF __debug}
       Inc(FPopCounter);
     {$ENDIF}
-      
     end;
   finally
     FLocker.Leave;
@@ -232,7 +230,13 @@ begin
   AData.Next := nil;
   FLocker.Enter;
   try
-    FTail.Next := AData;
+    if FTail = nil then
+      FHead := AData
+    else
+    begin
+      FTail.Next := AData;
+    end;
+
     FTail := AData;
     Inc(FCount);
 
@@ -297,6 +301,8 @@ procedure TQueueDataPool.Push(pvQueueData: PQueueData);
 var
   ADoFree: Boolean;
 begin
+  Assert(pvQueueData <> nil);
+
   FLocker.Enter;
   ADoFree := (FCount = FSize);
   if not ADoFree then

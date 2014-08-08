@@ -8,7 +8,8 @@ uses
   uDIOCPStreamCoder in '..\..\diocpCoders\uDIOCPStreamCoder.pas',
   uFMMonitor in '..\..\..\Common\Frames\uFMMonitor.pas' {FMMonitor: TFrame},
   uRunTimeINfoTools in '..\..\..\Common\Frames\uRunTimeINfoTools.pas',
-  FileTransProtocol in '..\Common\FileTransProtocol.pas';
+  FileTransProtocol in '..\Common\FileTransProtocol.pas',
+  uMyClientContext in 'uMyClientContext.pas';
 
 {$R *.res}
 

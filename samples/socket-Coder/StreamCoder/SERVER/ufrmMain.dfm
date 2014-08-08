@@ -56,6 +56,8 @@ object frmMain: TfrmMain
     TabOrder = 4
     object TabSheet1: TTabSheet
       Caption = 'TabSheet1'
+      ExplicitLeft = 0
+      ExplicitTop = 0
       ExplicitWidth = 281
       ExplicitHeight = 165
       object pnlMonitor: TPanel
@@ -76,8 +78,6 @@ object frmMain: TfrmMain
     object TabSheet2: TTabSheet
       Caption = 'log'
       ImageIndex = 1
-      ExplicitWidth = 281
-      ExplicitHeight = 165
       object mmoLog: TMemo
         Left = 0
         Top = 0
@@ -85,10 +85,6 @@ object frmMain: TfrmMain
         Height = 285
         Align = alClient
         TabOrder = 0
-        ExplicitLeft = 160
-        ExplicitTop = 88
-        ExplicitWidth = 185
-        ExplicitHeight = 89
       end
     end
   end

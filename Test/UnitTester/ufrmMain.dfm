@@ -33,7 +33,7 @@ object frmMain: TfrmMain
     TabOrder = 1
   end
   object Button2: TButton
-    Left = 144
+    Left = 128
     Top = 16
     Width = 75
     Height = 25
@@ -67,5 +67,32 @@ object frmMain: TfrmMain
     Caption = 'btnDoublyLinkedConsume'
     TabOrder = 5
     OnClick = btnDoublyLinkedConsumeClick
+  end
+  object btnBaseQueue: TButton
+    Left = 632
+    Top = 112
+    Width = 145
+    Height = 25
+    Caption = 'btnBaseQueue'
+    TabOrder = 6
+    OnClick = btnBaseQueueClick
+  end
+  object btnBaseQueueConsume: TButton
+    Left = 632
+    Top = 160
+    Width = 145
+    Height = 25
+    Caption = 'btnBaseQueueConsume'
+    TabOrder = 7
+    OnClick = btnBaseQueueConsumeClick
+  end
+  object Button4: TButton
+    Left = 632
+    Top = 280
+    Width = 75
+    Height = 25
+    Caption = 'Button4'
+    TabOrder = 8
+    OnClick = Button4Click
   end
 end

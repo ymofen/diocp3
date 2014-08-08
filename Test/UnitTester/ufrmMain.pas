@@ -5,7 +5,8 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, iocpTask, Vcl.StdCtrls,
-  iocpEngine, iocpTcpServer, uThreadWorker, BaseQueue, iocpLogger, DoublyLinked;
+  iocpEngine, iocpTcpServer, syncObjs,
+  uThreadWorker, BaseQueue, iocpLogger, DoublyLinked, IdGlobal;
 
 type
   TfrmMain = class(TForm)
@@ -15,20 +16,31 @@ type
     Button3: TButton;
     btnDoublyLinked: TButton;
     btnDoublyLinkedConsume: TButton;
+    btnBaseQueue: TButton;
+    btnBaseQueueConsume: TButton;
+    Button4: TButton;
+    procedure btnBaseQueueClick(Sender: TObject);
+    procedure btnBaseQueueConsumeClick(Sender: TObject);
     procedure btnDoublyLinkedClick(Sender: TObject);
     procedure btnDoublyLinkedConsumeClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
   private
+    FList: TList;
+    FCreateList: TList;
+    FLocker2: TCriticalSection;
+    FLocker: TCriticalSection;
     FTcpSvr:TIocpTcpServer;
-    FDoublyLinked: TContextDoublyLinked;
+    FContextDoublyLinked: TContextDoublyLinked;
 
-    FDoublyLinked02: TSafeDoublyLinkedList;
+    FSafeDoublyLinkedList: TSafeDoublyLinkedList;
     FPool:TBaseQueue;
     FConsumeCounter: Integer;
     FProduceCounter: Integer;
+    FFailCounter:Integer;
     procedure OnConsumersDone(pvSender:tObject);
     procedure OnProducersDone(pvSender:tObject);
 
@@ -37,14 +49,18 @@ type
     procedure OnLogTester(pvStr:String);
   public
     destructor Destroy; override;
-    procedure onConsume(pvWoker:TThreadWorker);
+    procedure onContextDoublyLinkedConsume(pvWoker:TThreadWorker);
+    procedure onContextDoublyLinkedProduce(pvWoker:TThreadWorker);
 
     procedure onDoublyLinkedConsume(pvWoker:TThreadWorker);
     procedure onDoublyLinkedProduce(pvWoker:TThreadWorker);
 
+    procedure onBaseQueueConsume(pvWoker:TThreadWorker);
+    procedure onBaseQueueProduce(pvWoker:TThreadWorker);
+
 
     procedure OnLogWorker(pvSender:TThreadWorker);
-    procedure onProduce(pvWoker:TThreadWorker);
+
   end;
 
 var
@@ -65,31 +81,66 @@ begin
   FTcpSvr.Name := 'tcpServer';
   uiLogger.setLogLines(Memo1.Lines);
   FPool := TBaseQueue.Create;
-  FDoublyLinked := TContextDoublyLinked.Create();
-  FDoublyLinked02 := TSafeDoublyLinkedList.Create();
+  FContextDoublyLinked := TContextDoublyLinked.Create();
+  FSafeDoublyLinkedList := TSafeDoublyLinkedList.Create();
+  FList := TList.Create();
+  FLocker := TCriticalSection.Create();
+  FCreateList := TList.Create();
+  FLocker2 := TCriticalSection.Create();
 end;
 
 destructor TfrmMain.Destroy;
 begin
-  FreeAndNil(FDoublyLinked02);
-  FreeAndNil(FDoublyLinked);
+  FreeAndNil(FLocker2);
+  FreeAndNil(FCreateList);
+  FreeAndNil(FLocker);
+  FreeAndNil(FList);
+  FreeAndNil(FSafeDoublyLinkedList);
+  FreeAndNil(FContextDoublyLinked);
   FTcpSvr.Free;
   FPool.Free;
   inherited Destroy;
+end;
+
+procedure TfrmMain.btnBaseQueueClick(Sender: TObject);
+begin
+  FProduceCounter := 0;
+  FConsumeCounter := 0;
+  FFailCounter := 0;
+  workerMgr.checkIsDone();
+  workerMgr.onConsume := onBaseQueueConsume;
+  workerMgr.onProduce := onBaseQueueProduce;
+  workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
+  workerMgr.OnProduceWorkersDone := self.OnProducersDone;
+  workerMgr.start(30, 60);
+end;
+
+procedure TfrmMain.btnBaseQueueConsumeClick(Sender: TObject);
+begin
+  FProduceCounter := 0;
+  FConsumeCounter := 0;
+  workerMgr.checkIsDone();
+  workerMgr.onConsume := onBaseQueueConsume;
+  workerMgr.onProduce := onBaseQueueProduce;
+  workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
+  workerMgr.OnProduceWorkersDone := self.OnProducersDone;
+  workerMgr.start(0, 1);
 end;
 
 procedure TfrmMain.btnDoublyLinkedClick(Sender: TObject);
 var
   i:Integer;
 begin
+  FList.Clear;
   FProduceCounter := 0;
   FConsumeCounter := 0;
+  FFailCounter := 0;
   workerMgr.checkIsDone();
-  workerMgr.OnConsume := onDoublyLinkedConsume;
-  workerMgr.OnProduce := onDoublyLinkedProduce;
+  workerMgr.onConsume := onDoublyLinkedConsume;
+  workerMgr.onProduce := onDoublyLinkedProduce;
   workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
   workerMgr.OnProduceWorkersDone := self.OnProducersDone;
-  workerMgr.start();
+  workerMgr.start(50, 100);
 end;
 
 procedure TfrmMain.btnDoublyLinkedConsumeClick(Sender: TObject);
@@ -98,9 +149,10 @@ var
 begin
   FProduceCounter := 0;
   FConsumeCounter := 0;
+  FFailCounter := 0;
   workerMgr.checkIsDone();
-  workerMgr.OnConsume := onDoublyLinkedConsume;
-  workerMgr.OnProduce := nil;
+  workerMgr.onConsume := onDoublyLinkedConsume;
+  workerMgr.onProduce := nil;
   workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
   workerMgr.OnProduceWorkersDone := nil;
   workerMgr.start(0,1);
@@ -113,9 +165,10 @@ var
 begin
   FProduceCounter := 0;
   FConsumeCounter := 0;
+  FFailCounter := 0;
   workerMgr.checkIsDone();
-  workerMgr.OnConsume := onConsume;
-  workerMgr.OnProduce := onProduce;
+  workerMgr.onConsume := onContextDoublyLinkedConsume;
+  workerMgr.onProduce := onContextDoublyLinkedProduce;
   workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
   workerMgr.OnProduceWorkersDone := self.OnProducersDone;
   workerMgr.start();
@@ -129,8 +182,8 @@ begin
   FProduceCounter := 0;
   FConsumeCounter := 0;
   workerMgr.checkIsDone();
-  workerMgr.OnConsume := onConsume;
-  workerMgr.OnProduce := nil;
+  workerMgr.onConsume := onContextDoublyLinkedConsume;
+  workerMgr.onProduce := nil;
   workerMgr.OnConsumeWorkersDone := self.OnConsumersDone;
   workerMgr.OnProduceWorkersDone := nil;
   workerMgr.start(0, 1);
@@ -147,48 +200,108 @@ begin
   FProduceCounter := 0;
   FConsumeCounter := 0;
   workerMgr.checkIsDone();
-  workerMgr.OnConsume := OnLogWorker;
-  workerMgr.OnProduce := nil;
+  workerMgr.onConsume := OnLogWorker;
+  workerMgr.onProduce := nil;
   workerMgr.OnConsumeWorkersDone := nil;
   workerMgr.OnProduceWorkersDone := nil;
   workerMgr.start(0, 20);
 
 end;
 
-procedure TfrmMain.onConsume(pvWoker: TThreadWorker);
+procedure TfrmMain.Button4Click(Sender: TObject);
+begin
+  Memo1.Clear;
+end;
+
+procedure TfrmMain.onBaseQueueConsume(pvWoker: TThreadWorker);
 var
-  lvContext:TIocpClientContext;
-  i:Integer;
+  lvContext:TBaseDoublyObject;
+  i, j:Integer;
 begin
   i := 0;
   while not pvWoker.IsTerminated do
   begin
     lvContext := nil;
-    lvContext := TIocpClientContext(FPool.Pop);
-//    if i mod 2 = 0 then
-//    begin
-//      lvContext := TIocpClientContext(FPool.Pop);
-//    end else
-//    begin
-//      lvContext := FDoublyLinked.Pop;
-//    end;
+    lvContext := TBaseDoublyObject(FPool.Pop);
+
     if lvContext = nil then
     begin
       lvContext := nil;
       Break;
     end;
-    FDoublyLinked.remove(lvContext);
-    FTcpSvr.releaseClientContext(lvContext);
+
     InterlockedIncrement(FConsumeCounter);
-    Inc(i);
+
+    try
+      lvContext.Free;
+    except
+      InterlockedIncrement(FFailCounter);
+    end;
+  end;
+end;
+
+procedure TfrmMain.onBaseQueueProduce(pvWoker: TThreadWorker);
+var
+  lvContext:TBaseDoublyObject;
+  i, j:Integer;
+begin
+  for i := 1 to 3000 do
+  begin
+    lvContext := TBaseDoublyObject.Create;
+//    FLocker2.Enter;
+//    try
+//      j := FCreateList.IndexOf(lvContext);
+//      if j <> -1 then
+//      begin
+//        uiLogger.logMessage('create repeat object addr:%d', [j]);
+//      end;
+//      FCreateList.Add(lvContext);
+//
+//    finally
+//      FLocker2.Leave;
+//    end;
+    FPool.Push(lvContext);
+    InterlockedIncrement(FProduceCounter);
+  end;
+end;
+
+procedure TfrmMain.onContextDoublyLinkedConsume(pvWoker:TThreadWorker);
+var
+  lvContext:TIocpClientContext;
+begin
+  while not pvWoker.IsTerminated do
+  begin
+    try
+      lvContext := nil;
+      lvContext := TIocpClientContext(FPool.Pop);
+      if lvContext = nil then
+      begin
+        lvContext := nil;
+        Break;
+      end;
+      FContextDoublyLinked.remove(lvContext);
+
+      lvContext.Free;
+      InterlockedIncrement(FConsumeCounter);
+    except
+      on E:Exception do
+      begin
+        uiLogger.logMessage(e.Message);
+      end;
+    end;
   end;
 end;
 
 procedure TfrmMain.OnConsumersDone(pvSender: tObject);
 begin
-  uiLogger.logMessage('consume counter:%d', [FConsumeCounter]);
-
-  uiLogger.logMessage(Format('linked count:%d,%d', [FDoublyLinked.Count, FDoublyLinked02.Size]));
+  uiLogger.logMessage('=================================='
+                      + sLineBreak + Format('consume counter:%d', [FConsumeCounter])
+                      + sLineBreak + Format('produce counter:%d', [FProduceCounter])
+                      + sLineBreak + Format('error counter:%d', [FFailCounter])
+                      + sLineBreak + Format('ContextDoublyLinked count:%d', [FContextDoublyLinked.Count])
+                      + sLineBreak + Format('SafeDoublyLinkedList count:%d', [FSafeDoublyLinkedList.Size])
+                      + sLineBreak + Format('base queue:%d', [self.FPool.size])
+                      );
 end;
 
 procedure TfrmMain.onDoublyLinkedConsume(pvWoker: TThreadWorker);
@@ -199,39 +312,34 @@ begin
   i := 0;
   while not pvWoker.IsTerminated do
   begin
-    lvContext := nil;
-
-    //lvContext := TBaseDoublyObject(FPool.Pop);
-
-    if i mod 2 = 0 then
-    begin
-      lvContext := FDoublyLinked02.PeekLast;
-      j := 0;
-    end else
-    begin
-      lvContext := FDoublyLinked02.PeekFirst;
-      j := 1;
-    end;
-
-    if lvContext = nil then
-    begin
+    try
       lvContext := nil;
-      j := 3;
-      Break;
-    end;
 
-    if not FDoublyLinked02.isLinked(lvContext) then
-    begin
-      j := 4;
-    end;
+      lvContext := TBaseDoublyObject(FPool.Pop);
 
-    FDoublyLinked02.remove(lvContext);
-    lvContext.Free;
-    InterlockedIncrement(FConsumeCounter);
-    Inc(i);
+      if lvContext = nil then
+      begin
+        lvContext := nil;
+        Break;
+      end;
+
+      InterlockedIncrement(FConsumeCounter);
+
+      if not FSafeDoublyLinkedList.checkRemove(lvContext) then
+      begin
+        InterlockedIncrement(FFailCounter);
+      end;
+
+      lvContext.Free;
+    except
+      on E:Exception do
+      begin
+        uiLogger.logMessage(e.Message);
+      end;
+    end;
   end;
 
-  Assert(j = 3);
+  //Assert(j = 3);
 end;
 
 procedure TfrmMain.onDoublyLinkedProduce(pvWoker: TThreadWorker);
@@ -242,8 +350,9 @@ begin
   for i := 1 to 3000 do
   begin
     lvContext := TBaseDoublyObject.Create;
+    FSafeDoublyLinkedList.addToLast(lvContext);
+
     FPool.Push(lvContext);
-    FDoublyLinked02.addToLast(lvContext);
     InterlockedIncrement(FProduceCounter);
   end;
 end;
@@ -264,7 +373,7 @@ begin
   iocpTaskManager.PostATask(OnLogTester, IntToStr(lvSN) +  '.2.µÚ¶þ´Î', true, rtPostMessage);
 end;
 
-procedure TfrmMain.onProduce(pvWoker: TThreadWorker);
+procedure TfrmMain.onContextDoublyLinkedProduce(pvWoker:TThreadWorker);
 var
   lvContext:TIocpClientContext;
   i:Integer;
@@ -272,16 +381,14 @@ begin
   for i := 1 to 3000 do
   begin
     lvContext := FTcpSvr.getClientContext;
+    FContextDoublyLinked.add(lvContext);
     FPool.Push(lvContext);
-    FDoublyLinked.add(lvContext);
     InterlockedIncrement(FProduceCounter);
   end;
 end;
 
 procedure TfrmMain.OnProducersDone(pvSender: tObject);
 begin
-  uiLogger.logMessage('produce counter:%d', [FProduceCounter]);
-
 end;
 
 end.

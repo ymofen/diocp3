@@ -133,6 +133,10 @@ type
     procedure DoCleanUp;virtual;
 
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); virtual;
+
+    procedure OnDiscounnected;virtual;
+
+    procedure OnConnected;virtual;
   public
     constructor Create; virtual;
     destructor Destroy; override;
@@ -519,6 +523,8 @@ type
 
     destructor Destroy; override;
 
+    procedure registerContextClass(pvContextClass: TIocpClientContextClass);
+
     /// <summary>
     ///   create DataMonitor object
     /// </summary>
@@ -650,15 +656,16 @@ begin
     checkReleaseRes;
     Assert(FOwner <> nil);
 
-    if Assigned(FOwner.FOnClientContextDisconnected) then
-    begin
-      FOwner.FOnClientContextDisconnected(Self);
-    end;
-
-
-    FOwner.FOnlineContextList.remove(self);
-    FOwner.releaseClientContext(Self);
-
+    try
+      if Assigned(FOwner.FOnClientContextDisconnected) then
+      begin
+        FOwner.FOnClientContextDisconnected(Self);
+      end;
+      OnDiscounnected;
+    finally
+      FOwner.FOnlineContextList.remove(self);
+      FOwner.releaseClientContext(Self);
+    end;   
   end;
 end;
 
@@ -756,13 +763,15 @@ begin
       Assert(FOwner <> nil);
 
     FOwner.FOnlineContextList.add(Self);
-
     if Assigned(FOwner.FOnClientContextConnected) then
     begin
       FOwner.FOnClientContextConnected(Self);
     end;
 
+    OnConnected();
+
     PostWSARecvRequest;
+
   end else
   begin
     FActive := FActive;
@@ -794,6 +803,16 @@ end;
 
 
 
+
+procedure TIocpClientContext.OnConnected;
+begin
+  
+end;
+
+procedure TIocpClientContext.OnDiscounnected;
+begin
+
+end;
 
 procedure TIocpClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode:
     WORD);
@@ -1032,6 +1051,11 @@ procedure TIocpTcpServer.onCreateClientContext(
   const context: TIocpClientContext);
 begin
 
+end;
+
+procedure TIocpTcpServer.registerContextClass(pvContextClass: TIocpClientContextClass);
+begin
+  FClientContextClass := pvContextClass;
 end;
 
 function TIocpTcpServer.releaseClientContext(pvObject:TIocpClientContext):
