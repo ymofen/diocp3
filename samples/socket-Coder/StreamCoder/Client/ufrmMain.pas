@@ -143,7 +143,6 @@ begin
 
     uiLogger.logMessage('recv msg from server:' + sLineBreak + '    ' + s);
     uiLogger.logMessage('');
-
   end else
   begin
     lvStream.Read(Pointer(@lvFileHead)^, SizeOf(TFileHead));
@@ -162,7 +161,6 @@ begin
         begin    // request file info
           uiLogger.logMessage('file info name:%s, size:%d', [lvFileHead.FileName,
             lvFileHead.Size]);
-
 
         end else if lvFileHead.cmd = 2 then
         begin                 // file data
