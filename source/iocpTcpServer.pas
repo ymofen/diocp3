@@ -1020,7 +1020,7 @@ begin
   end;
   Result.FAlive := True;
   Result.DoCleanUp;
-  Result.FOwner := Self;
+  Result.Owner := Self;
 end;
 
 function TIocpTcpServer.GetWorkerCount: Integer;

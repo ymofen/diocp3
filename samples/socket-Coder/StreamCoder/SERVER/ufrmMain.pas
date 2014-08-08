@@ -143,7 +143,6 @@ begin
           lvStream.CopyFrom(lvFileData,lvFileData.Size);
         end;
         lvStream.Position := 0;
-        pvClientContext.writeObject(lvStream);
       except
         on E:Exception do
         begin
