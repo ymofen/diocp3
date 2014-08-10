@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, StdCtrls, iocpCoderTcpClient,
-  iocpLogger, uDIOCPStreamCoder;
+  iocpLogger, uDIOCPStreamCoder, IocpFileASyncTrans, iocpTask;
 
 type
   TfrmMain = class(TForm)
@@ -23,6 +23,9 @@ type
     { Private declarations }
     FiocpCoderTcpClient:TiocpCoderTcpClient;
 
+    //
+    FFileAsyncTrans: TIocpFileASyncTrans;
+
     procedure OnRecvObject(pvObject:TObject);
 
     procedure OnDisconnected(pvObject:TObject);
@@ -30,6 +33,7 @@ type
     { Public declarations }
 
     constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
   end;
 
 var
@@ -52,10 +56,23 @@ constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited;
   uiLogger.setLogLines(mmoRecvMessage.Lines);
+
+  FFileAsyncTrans := TIocpFileASyncTrans.Create;
   FiocpCoderTcpClient := TiocpCoderTcpClient.Create(Self);
   FiocpCoderTcpClient.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
   FiocpCoderTcpClient.OnDataObjectReceived := OnRecvObject;
   FiocpCoderTcpClient.OnDisconnected := OnDisconnected;
+  FFileAsyncTrans.IocpTcpCoderTcpClient := FiocpCoderTcpClient;
+
+
+end;
+
+destructor TfrmMain.Destroy;
+begin
+  FiocpCoderTcpClient.Disconnect;
+  FiocpCoderTcpClient.Free;
+  FFileAsyncTrans.Free;
+  inherited Destroy;
 end;
 
 procedure TfrmMain.btnConnectClick(Sender: TObject);
@@ -75,25 +92,14 @@ begin
 end;
 
 procedure TfrmMain.btnGetFileClick(Sender: TObject);
-var
-  lvStream:TMemoryStream;
-  lvFileHead:TFileHead;
 begin
-  if not  FiocpCoderTcpClient.isActive then
+  if not FiocpCoderTcpClient.isActive then
   begin
     uiLogger.logMessage('please do connect');
     exit;
   end;
 
-  ZeroMemory(@lvFileHead, SizeOf(lvFileHead));
-
-  lvFileHead.Flag := FILE_TRANS_FLAG;
-  lvFileHead.cmd := 10;   // file info
-  lvFileHead.FileName := edtFileID.Text;
-  lvStream := TMemoryStream.Create;
-  lvStream.Write(lvFileHead, SizeOf(lvFileHead));
-  FiocpCoderTcpClient.writeObject(lvStream);
-  lvStream.Free; 
+  FFileAsyncTrans.requestFileINfo(edtFileID.Text);
 end;
 
 procedure TfrmMain.btnSendObjectClick(Sender: TObject);
@@ -105,11 +111,11 @@ var
 begin
   lvStream := TMemoryStream.Create;
   try
-    lvStream.LoadFromFile('C:\1.txt');
-//    s := 'this message will send to server';
-//    lvStream.Write(s[1], Length(s));
-//
-//    lvStream.Position := 0;
+   // lvStream.LoadFromFile('C:\1.txt');
+    s := 'this message will send to server';
+    lvStream.Write(s[1], Length(s));
+
+    lvStream.Position := 0;
 
     //send stream object
     FiocpCoderTcpClient.writeObject(lvStream);
@@ -121,6 +127,11 @@ end;
 
 procedure TfrmMain.OnDisconnected(pvObject: TObject);
 begin
+  if csDestroying in ComponentState then
+  begin
+    exit;
+  end;
+
   uiLogger.logMessage('disconnected');
 end;
 
@@ -157,33 +168,37 @@ begin
     end else
     begin
       try
+
+        if lvFileHead.cmd_result = 3 then
+        begin
+          raise Exception.Create('request Error param');
+        end else if lvFileHead.cmd_result = 2 then
+        begin
+          raise Exception.Create('unkown server error');
+        end;
+
         if lvFileHead.cmd = 11 then
         begin    // request file info
-          uiLogger.logMessage('file info name:%s, size:%d', [lvFileHead.FileName,
-            lvFileHead.Size]);
+          FFileAsyncTrans.ParseRequestFileINfo(@lvFileHead, lvStream);
+          uiLogger.logMessage('file info name:%s, size:%d', [FFileAsyncTrans.FileName,
+            FFileAsyncTrans.FileSize]);
 
-        end else if lvFileHead.cmd = 2 then
-        begin                 // file data
-//          lvFile := ExtractFilePath(ParamStr(0)) + 'files\' + lvFileHead.FileName;
-//          if not FileExists(lvFile) then
-//          begin
-//            lvResult.cmd_result := 1;  // file not found
-//          end else
-//          begin
-//            lvFileStream := TFileStream.Create(lvFile, fmOpenRead);
-//            try
-//              if lvFileStream.Position > lvFileHead.Position then
-//              begin
-//                lvFileStream.Position := lvFileHead.Position;
-//                lvFileData := TMemoryStream.Create;
-//                lvFileData.CopyFrom(lvFileData, lvFileHead.Size);
-//              end  else
-//                // err param
-//                lvResult.cmd_result := 3;
-//            finally
-//              lvFileStream.Free;
-//            end;
-//          end;
+          FFileAsyncTrans.requestNextFileBlock;
+        end else if lvFileHead.cmd = 2 then   // file data
+        begin
+          Assert(lvFileHead.Size=lvStream.Size - lvStream.Position);
+          FFileAsyncTrans.saveFileData(lvStream, lvStream.Size-lvStream.Position);
+          if not FFileAsyncTrans.isFileCompleted then
+          begin
+            uiLogger.logMessage('file data received, current size:%u!', [FFileAsyncTrans.CurrentPostion]);
+            FFileAsyncTrans.requestNextFileBlock;
+          end else
+          begin
+            uiLogger.logMessage('file (%s) is down completed, size:%u!', [
+              FFileAsyncTrans.FileName, FFileAsyncTrans.FileSize]);
+            FFileAsyncTrans.closeAndReset;
+
+          end;
         end;
       except
         on E:Exception do

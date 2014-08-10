@@ -3,7 +3,7 @@ unit uMyClientContext;
 interface
 
 uses
-  uIOCPCentre, iocpLogger, FileTransProtocol, SysUtils, Classes, Windows;
+  uIOCPCentre, iocpLogger, FileTransProtocol, SysUtils, Classes, Windows, Math;
 
 
 type
@@ -99,11 +99,24 @@ begin
               FFileName := lvFile;
             end;
 
-            if FFileStream.Position > lvFileHead.Position then
+            if FFileStream.Size > lvFileHead.Position then
             begin
               FFileStream.Position := lvFileHead.Position;
               lvFileData := TMemoryStream.Create;
-              lvFileData.CopyFrom(lvFileData, lvFileHead.Size);
+              lvResult.Size := Min(FFileStream.Size - FFileStream.Position, lvFileHead.Size);
+
+              // file data size
+              lvFileData.CopyFrom(FFileStream, lvResult.Size);
+
+
+
+              if FFileStream.Position = FFileStream.Size then
+              begin      // end
+                FFileStream.Free;
+                FFileStream := nil;
+              end;
+
+
             end  else
               // err param
               lvResult.cmd_result := 3;
@@ -131,6 +144,15 @@ begin
         end;
       end;
       writeObject(lvStream);
+
+
+      // free file stream
+      if lvFileData <> nil then
+      begin
+        lvFileData.Free;
+      end;
+
+
     end;
   end;
 end;

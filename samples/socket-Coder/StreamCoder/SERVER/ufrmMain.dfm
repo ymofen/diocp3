@@ -52,14 +52,10 @@ object frmMain: TfrmMain
     Top = 36
     Width = 566
     Height = 313
-    ActivePage = TabSheet2
+    ActivePage = TabSheet1
     TabOrder = 4
     object TabSheet1: TTabSheet
       Caption = 'TabSheet1'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 281
-      ExplicitHeight = 165
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -69,10 +65,6 @@ object frmMain: TfrmMain
         BevelKind = bkTile
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitLeft = -112
-        ExplicitTop = -15
-        ExplicitWidth = 561
-        ExplicitHeight = 297
       end
     end
     object TabSheet2: TTabSheet

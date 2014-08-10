@@ -347,7 +347,7 @@ begin
   if Assigned(FOnDisconnected) then
   begin
     FOnDisconnected(Self);
-  end;                      
+  end;
 end;
 
 procedure TIocpTcpClient.connectASync;

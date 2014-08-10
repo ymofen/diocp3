@@ -217,11 +217,6 @@ type
     /// </summary>
     procedure start;
 
-    /// <summary>
-    ///   stop all worker thread and clear list
-    /// </summary>
-    procedure stop;
-
 
     /// <summary>
     ///   stop and wait worker thread
@@ -453,7 +448,7 @@ end;
 
 destructor TIocpEngine.Destroy;
 begin
-  stop;
+  safeStop;
   FIocpCore.Free;
   FreeAndNil(FWorkerList);
   inherited Destroy;
@@ -535,31 +530,6 @@ begin
     SetThreadIdealProcessor(AWorker.Handle, i mod lvCpuCount);
   end;
   FActive := true;
-end;
-
-procedure TIocpEngine.stop;
-var
-  i: Integer;
-begin
-  if FActive then
-  begin
-    for i := 0 to FWorkerList.Count -1 do
-    begin
-      TIocpWorker(FWorkerList[i]).FIocpEngine := nil;
-      if not FIocpCore.postIOExitRequest then
-      begin
-        RaiseLastOSError;
-      end;
-    end;
-    FWorkerList.Clear;
-    if FSafeStopSign <> nil then
-    begin
-      FSafeStopSign.Free;
-      FSafeStopSign := nil;
-    end;
-
-    FActive := false;
-  end;
 end;
 
 function TIocpEngine.workersIsAlive: Boolean;

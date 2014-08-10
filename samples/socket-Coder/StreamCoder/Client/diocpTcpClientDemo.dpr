@@ -4,7 +4,8 @@ uses
   Forms,
   ufrmMain in 'ufrmMain.pas' {frmMain},
   uDIOCPStreamCoder in '..\..\diocpCoders\uDIOCPStreamCoder.pas',
-  FileTransProtocol in '..\Common\FileTransProtocol.pas';
+  FileTransProtocol in '..\Common\FileTransProtocol.pas',
+  IocpFileASyncTrans in 'IocpFileASyncTrans.pas';
 
 {$R *.res}
 
