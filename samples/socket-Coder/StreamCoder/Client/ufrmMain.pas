@@ -175,6 +175,9 @@ begin
         end else if lvFileHead.cmd_result = 2 then
         begin
           raise Exception.Create('unkown server error');
+        end else if lvFileHead.cmd_result = 1 then
+        begin
+          raise Exception.Create('server file not found!');
         end;
 
         if lvFileHead.cmd = 11 then
