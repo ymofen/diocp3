@@ -12,6 +12,7 @@ type
     FFileStream:TFileStream;
     FFileName:String;
     procedure checkFreeFileStream;
+    procedure checkCreateFileStream(pvFileName: string);
   protected
     procedure OnDiscounnected; override;
 
@@ -25,6 +26,16 @@ type
   end;
 
 implementation
+
+procedure TMyClientContext.checkCreateFileStream(pvFileName: string);
+begin
+  if (FFileStream = nil) or (pvFileName <> FFileName) then
+  begin
+    checkFreeFileStream;
+    FFileStream := TFileStream.Create(pvFileName, fmOpenRead and fmShareDenyWrite);
+    FFileName := pvFileName;
+  end;
+end;
 
 procedure TMyClientContext.checkFreeFileStream;
 begin
@@ -72,12 +83,8 @@ begin
             lvResult.cmd_result := 1;  // file not found
           end else
           begin
-            if lvFile <> FFileName then
-            begin
-              checkFreeFileStream;
-              FFileStream := TFileStream.Create(lvFile, fmOpenRead and fmShareDenyWrite);
-              FFileName := lvFile;
-            end;
+            checkCreateFileStream(lvFile);
+
             lvResult.Size := FFileStream.Size;
           end;
 
@@ -92,24 +99,24 @@ begin
             lvResult.cmd_result := 1;  // file not found
           end else
           begin
-            if lvFile <> FFileName then
-            begin
-              checkFreeFileStream;
-              FFileStream := TFileStream.Create(lvFile, fmOpenRead and fmShareDenyWrite);
-              FFileName := lvFile;
-            end;
+            checkCreateFileStream(lvFile);
 
-            if FFileStream.Size > lvFileHead.Position then
+            if FFileStream.Size >= lvFileHead.Position then
             begin
               FFileStream.Position := lvFileHead.Position;
-              lvFileData := TMemoryStream.Create;
-              lvResult.Size := Min(FFileStream.Size - FFileStream.Position, lvFileHead.Size);
+              if FFileStream.Size = lvFileHead.Position then
+              begin
+                lvResult.Size := 0;
+              end else
+              begin 
+                lvFileData := TMemoryStream.Create;
+                lvResult.Size := Min(FFileStream.Size - FFileStream.Position, lvFileHead.Size);
 
-              // file data size
-              lvFileData.CopyFrom(FFileStream, lvResult.Size);
+                // file data size
+                lvFileData.CopyFrom(FFileStream, lvResult.Size);
+              end;
 
-
-
+              
               if FFileStream.Position = FFileStream.Size then
               begin      // end
                 FFileStream.Free;

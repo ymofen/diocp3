@@ -171,8 +171,13 @@ begin
   begin
     raise Exception.Create('File Stream is not valid!');
   end;
-
-  FFileStream.CopyFrom(pvStream, pvLen);
+  if pvLen > 0 then
+  begin
+    FFileStream.CopyFrom(pvStream, pvLen);
+  end else
+  begin
+    raise Exception.Create('no data need to append!');
+  end;
 end;
 
 procedure TIocpFileASyncTrans.sendCMD;
