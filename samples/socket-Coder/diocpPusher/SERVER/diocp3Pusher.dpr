@@ -10,7 +10,12 @@ uses
   uRunTimeINfoTools in '..\..\..\Common\Frames\uRunTimeINfoTools.pas',
   uPullerMananger in 'Service\uPullerMananger.pas',
   uMapObject in 'Service\uMapObject.pas',
-  uMyClientContext in 'Service\uMyClientContext.pas';
+  uMyClientContext in 'Service\uMyClientContext.pas',
+  qrbtree in '..\QTools\qrbtree.pas',
+  qstring in '..\QTools\qstring.pas',
+  qworker in '..\QTools\qworker.pas',
+  uPackageObject in '..\Common\uPackageObject.pas',
+  SimpleMsgPack in '..\Common\SimpleMsgPack.pas';
 
 {$R *.res}
 

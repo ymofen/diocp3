@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  ComObj, ComCtrls;
+  ComObj, ComCtrls, System.Actions;
 
 type
   TfrmMain = class(TForm)
@@ -34,8 +34,6 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure OnRecvObject(pvClientContext:TIOCPCoderClientContext;
-        pvObject:TObject);
   end;
 
 var
@@ -53,8 +51,6 @@ begin
   inherited Create(AOwner);
   FTcpServer := TIOCPConsole.Create(Self);
   FTcpServer.createDataMonitor;
-  FTcpServer.OnDataObjectReceived := OnRecvObject;
-
   // register decoder and encoder class
   FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
@@ -63,12 +59,6 @@ end;
 destructor TfrmMain.Destroy;
 begin
   inherited Destroy;
-end;
-
-procedure TfrmMain.OnRecvObject(pvClientContext:TIOCPCoderClientContext;
-    pvObject:TObject);
-begin
-  pvClientContext.writeObject(pvObject);
 end;
 
 procedure TfrmMain.refreshState;

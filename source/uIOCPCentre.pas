@@ -2,8 +2,18 @@ unit uIOCPCentre;
 
 interface
 
+// call dataReceived procedure with qworker
+{$DEFINE QDAC_QWorker}
+
 uses
-  iocpTcpServer, uBuffer, SysUtils, Classes, uIocpCoder;
+  iocpTcpServer, uBuffer, SysUtils, Classes,
+  uIocpCoder
+  {$IFDEF QDAC_QWorkers}
+    , qworker
+  {$ELSE}
+    , iocpTask
+  {$ENDIF}
+  ;
 
 type
   TIocpCoderSendRequest = class(iocpTcpServer.TIocpSendRequest)
@@ -12,6 +22,9 @@ type
 
     FBuf:Pointer;
     FBlockSize: Integer;
+
+
+
 
   protected
     /// <summary>
@@ -43,7 +56,11 @@ type
     FrecvBuffers: TBufferLink;
     FStateINfo: String;
     function GetStateINfo: String;
-
+   {$IFDEF QDAC_QWorkers}
+    procedure OnExecuteJob(pvJob:PQJob);
+   {$ELSE}
+    procedure OnExecuteJob(pvTaskRequest: TIocpTaskRequest);
+   {$ENDIF}
   protected
     procedure add2Buffer(buf:PAnsiChar; len:Cardinal);
     procedure clearRecvedBuffer;
@@ -54,22 +71,27 @@ type
   public
     constructor Create;override;
     destructor Destroy; override;
+
     /// <summary>
-    ///   数据处理
+    ///   on received a object
     /// </summary>
     /// <param name="pvDataObject"> (TObject) </param>
     procedure dataReceived(const pvDataObject:TObject); virtual;
+
     /// <summary>
-    ///   将数据返回给客户端
+    ///   send a object to peer socket
     /// </summary>
     /// <param name="pvDataObject"> (TObject) </param>
     procedure writeObject(const pvDataObject:TObject);
 
     /// <summary>
-    ///   接受的Buffer
+    ///   received buffer
     /// </summary>
     property Buffers: TBufferLink read FrecvBuffers;
-    //状态信息
+
+    /// <summary>
+    ///
+    /// </summary>
     property StateINfo: String read GetStateINfo write FStateINfo;
   end;
 
@@ -94,14 +116,15 @@ type
     /// </summary>
     procedure registerCoderClass(pvDecoderClass:TIOCPDecoderClass;
         pvEncoderClass:TIOCPEncoderClass);
+
     /// <summary>
-    ///   注册解码器
+    ///   register Decoder instance
     /// </summary>
     /// <param name="pvDecoder"> (TIOCPDecoder) </param>
     procedure registerDecoder(pvDecoder:TIOCPDecoder);
 
     /// <summary>
-    ///   注册编码器
+    ///   register Encoder instance
     /// </summary>
     /// <param name="pvEncoder"> (TIOCPEncoder) </param>
     procedure registerEncoder(pvEncoder:TIOCPEncoder);
@@ -109,7 +132,7 @@ type
   published
 
     /// <summary>
-    ///   接收到一个对象
+    ///   on clientContext received a object
     /// </summary>
     property OnDataObjectReceived: TOnDataObjectReceived read FOnDataObjectReceived
         write FOnDataObjectReceived;
@@ -138,7 +161,7 @@ end;
 
 procedure TIOCPCoderClientContext.add2Buffer(buf: PAnsiChar; len: Cardinal);
 begin
-  //加入到套接字对应的缓存
+  //add to context receivedBuffer
   FrecvBuffers.AddBuffer(buf, len);
 end;
 
@@ -168,11 +191,40 @@ begin
   Result := FStateINfo;
 end;
 
+
+
 procedure TIOCPCoderClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal;
   ErrCode: WORD);
 begin
   recvBuffer(buf, len);
 end;
+
+{$IFDEF QDAC_QWorkers}
+procedure TIOCPCoderClientContext.OnExecuteJob(pvJob: PQJob);
+var
+  lvObj:TObject;
+begin
+  lvObj := TObject(pvJob.Data);
+  try
+    dataReceived(lvObj);
+  finally
+    lvObj.Free;
+  end;
+end;
+{$ELSE}
+
+procedure TIOCPCoderClientContext.OnExecuteJob(pvTaskRequest: TIocpTaskRequest);
+var
+  lvObj:TObject;
+begin
+  lvObj := TObject(pvTaskRequest.TaskData);
+  try
+    dataReceived(lvObj);
+  finally
+    lvObj.Free;
+  end;
+end;
+{$ENDIF}
 
 procedure TIOCPCoderClientContext.recvBuffer(buf:PAnsiChar; len:Cardinal);
 var
@@ -197,26 +249,23 @@ begin
     end else if lvObject <> nil then
     begin
       try
-        try
-          self.StateINfo := '解码成功,准备调用dataReceived进行逻辑处理';
+        self.StateINfo := '解码成功,准备调用dataReceived进行逻辑处理';
 
 
-          if Assigned(TIOCPConsole(Owner).FOnDataObjectReceived) then
-            TIOCPConsole(Owner).FOnDataObjectReceived(Self, lvObject);
+        if Assigned(TIOCPConsole(Owner).FOnDataObjectReceived) then
+          TIOCPConsole(Owner).FOnDataObjectReceived(Self, lvObject);
 
 
-          //解码成功，调用业务逻辑的处理方法
-          dataReceived(lvObject);
-
-          self.StateINfo := 'dataReceived逻辑处理完成!';
-        except
-          on E:Exception do
-          begin
-            TIOCPFileLogger.logErrMessage('截获处理逻辑异常!' + e.Message);
-          end;
+       {$IFDEF QDAC_QWorkers}
+         Workers.Post(OnExecuteJob, lvObject);
+       {$ELSE}
+         iocpTaskManager.PostATask(OnExecuteJob, lvObject);
+       {$ENDIF}
+      except
+        on E:Exception do
+        begin
+          TIOCPFileLogger.logErrMessage('截获处理逻辑异常!' + e.Message);
         end;
-      finally
-        lvObject.Free;
       end;
     end else
     begin
@@ -228,6 +277,8 @@ begin
   //清理缓存<如果没有可用的内存块>清理
   clearRecvedBuffer;
 end;
+
+
 
 procedure TIOCPCoderClientContext.writeObject(const pvDataObject:TObject);
 var
@@ -366,6 +417,8 @@ begin
     FBufferLink.clearBuffer;
   end;
 end;
+
+
 
 procedure TIocpCoderSendRequest.onSendRequestSucc;
 begin

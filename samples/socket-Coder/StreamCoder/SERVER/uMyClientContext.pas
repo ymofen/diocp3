@@ -136,7 +136,6 @@ begin
         if lvFileData <> nil then
         begin
           // return fileStream data
-          lvFileData.Size := lvFileData.Size;
           lvFileData.Position := 0;
           lvStream.CopyFrom(lvFileData,lvFileData.Size);
         end;

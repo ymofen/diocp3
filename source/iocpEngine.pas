@@ -1,9 +1,11 @@
 ﻿(*
- *	 Unit owner: d10.天地弦
+ *	 Unit owner: D10.Mofen
  *	       blog: http://www.cnblogs.com/dksoft
  *
- *	 v0.1(2014-7-16 21:36:30)
+ *	 v3.0.1(2014-7-16 21:36:30)
  *     + first release
+ *
+ *   thanks qsl's suggestion
  *)
 unit iocpEngine;
 

@@ -1,5 +1,5 @@
 (*
- *	 Unit owner: d10.ÃÏµÿœ“
+ *	 Unit owner: D10.Mofen
  *	       blog: http://www.cnblogs.com/dksoft
  *
  *	 v3.0.1(2014-7-16 21:36:30)
