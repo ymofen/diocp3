@@ -23,6 +23,7 @@ type
     pnlMonitor: TPanel;
     ListView1: TListView;
     pnlPullerOperator: TPanel;
+    Button1: TButton;
     procedure actOpenExecute(Sender: TObject);
     procedure actPushMsgExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
@@ -45,6 +46,13 @@ uses
   uFMMonitor, uDIOCPStreamCoder, uRunTimeINfoTools;
 
 {$R *.dfm}
+
+function swap16(const v): Word;
+begin
+  Result := PByte(@v)^ shl 8;
+  inc(result, PByte(IntPtr(@v) + 1)^);
+end;
+
 
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
