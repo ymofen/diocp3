@@ -1,3 +1,13 @@
+(*
+ *	 Unit owner: D10.Mofen
+ *	       blog: http://www.cnblogs.com/dksoft
+ *
+ *	 v3.0.1(2014-7-16 21:36:30)
+ *     + first release
+ *
+ *   2014-08-12 21:47:34
+ *     + add Enable property
+ *)
 unit iocpTask;
 
 interface
@@ -46,6 +56,7 @@ type
   TIocpTaskMananger = class(TObject)
   private
     FActive: Boolean;
+    FEnable: Boolean;
     FIocpEngine: TIocpEngine;
     procedure SetActive(const Value: Boolean);
   protected
@@ -78,6 +89,8 @@ type
 
        
     property Active: Boolean read FActive write SetActive;
+
+    property Enable: Boolean read FEnable write FEnable;
     
     property IocpEngine: TIocpEngine read FIocpEngine;
   end;
@@ -138,6 +151,7 @@ procedure TIocpTaskMananger.DoMainThreadWork(var AMsg: TMessage);
 begin
   if AMsg.Msg = WM_REQUEST_TASK then
   begin
+    if not FEnable then Exit;
     try
       TIocpTaskRequest(AMsg.WPARAM).InnerDoTask();
     finally
@@ -161,6 +175,7 @@ procedure TIocpTaskMananger.PostATask(pvTaskWork:TOnTaskWorkStrData;
 var
   lvRequest:TIocpTaskRequest;
 begin
+  if not FEnable then Exit;
   lvRequest := TIocpTaskRequest(requestPool.Pop);
   try
     if lvRequest = nil then
@@ -194,6 +209,8 @@ procedure TIocpTaskMananger.PostATask(pvTaskWork: TOnTaskWork;
 var
   lvRequest:TIocpTaskRequest;
 begin
+  if not FEnable then Exit;
+  
   lvRequest := TIocpTaskRequest(requestPool.Pop);
   try
     if lvRequest = nil then
@@ -225,6 +242,7 @@ procedure TIocpTaskMananger.PostATask(pvTaskWork:TOnTaskWorkNoneData;
 var
   lvRequest:TIocpTaskRequest;
 begin
+  if not FEnable then Exit;
   lvRequest := TIocpTaskRequest(requestPool.Pop);
   try
     if lvRequest = nil then

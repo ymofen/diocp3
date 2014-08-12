@@ -23,7 +23,6 @@ type
     pnlMonitor: TPanel;
     ListView1: TListView;
     pnlPullerOperator: TPanel;
-    Button1: TButton;
     procedure actOpenExecute(Sender: TObject);
     procedure actPushMsgExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
@@ -43,7 +42,7 @@ var
 implementation
 
 uses
-  uFMMonitor, uDIOCPStreamCoder, uRunTimeINfoTools;
+  uFMMonitor, uDIOCPStreamCoder, uRunTimeINfoTools, iocpTask;
 
 {$R *.dfm}
 
@@ -66,6 +65,7 @@ end;
 
 destructor TfrmMain.Destroy;
 begin
+  iocpTaskManager.Enable := false;
   inherited Destroy;
 end;
 

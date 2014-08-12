@@ -28,9 +28,21 @@ type
      ///   高低位进行交换
      /// </summary>
      class function swap64(v:int64):Int64;
+
+     /// <summary>
+     ///   高低位进行交换
+     /// </summary>
+     class function swap16(const v):Word;
   end;
 
 implementation
+
+class function TByteTools.swap16(const v): Word;
+begin
+  // FF, EE : EE->1, FF->2
+  PByte(@result)^ := PByte(IntPtr(@v) + 1)^;
+  PByte(IntPtr(@result) + 1)^ := PByte(@v)^;
+end;
 
 class function TByteTools.swap32(v: Integer): Integer;
 var
