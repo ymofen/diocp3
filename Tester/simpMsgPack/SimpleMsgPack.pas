@@ -39,11 +39,17 @@ type
     procedure setAsInteger(pvValue:Int64);
 
     procedure checkObjectDataType(ANewType: TMsgPackType = mptMap);
+    function GetO(pvPath: String): TSimpleMsgPack;
+    procedure SetO(pvPath: String; const Value: TSimpleMsgPack);
 
+    function findObj(pvName:string): TSimpleMsgPack;
+    function indexOf(pvName:string): Integer;
   public
     constructor Create;
     destructor Destroy; override;
     property Count: Integer read GetCount;
+
+
 
     procedure LoadBinaryFromStream(pvStream: TStream; pvLen: cardinal = 0);
     procedure SaveBinaryToStream(pvStream:TStream);
@@ -54,6 +60,8 @@ type
     function EncodeToBytes: TBytes;
     procedure DecodeFromBytes(pvBytes:TBytes);
 
+
+
     function Add(pvNameKey, pvValue: string): TSimpleMsgPack; overload;
     function Add(pvNameKey: string; pvValue: Int64): TSimpleMsgPack; overload;
     function Add(pvNameKey: string; pvValue: TBytes): TSimpleMsgPack; overload;
@@ -63,6 +71,11 @@ type
     property AsInteger:Int64 read getAsInteger write setAsInteger;
     
     property AsString:string read getAsString write setAsString;
+
+
+    property O[pvPath: String]: TSimpleMsgPack read GetO write SetO;
+
+
 
   end;
 
@@ -116,6 +129,39 @@ begin
   PByte(IntPtr(@result) + 5)^ := PByte(IntPtr(@v) + 2)^;
   PByte(IntPtr(@result) + 6)^ := PByte(IntPtr(@v) + 1)^;
   PByte(IntPtr(@result) + 7)^ := PByte(@v)^;
+end;
+
+
+function getFirst(var strPtr:PAnsiChar; splitChars:TSysCharSet):AnsiString;
+var
+  oPtr:PAnsiChar;
+  l:Cardinal;
+begin
+  oPtr := strPtr;
+  Result := '';
+  while True do
+  begin
+    if (strPtr^ in splitChars) then
+    begin
+      l := strPtr - oPtr;
+      if l > 0 then
+      begin
+        SetLength(Result, l);
+        Move(oPtr^, Result[1], l);
+        break;
+      end;
+    end else if (strPtr^ = #0) then
+    begin
+      l := strPtr - oPtr;
+      if l > 0 then
+      begin
+        SetLength(Result, l);
+        Move(oPtr^, Result[1], l);
+      end;
+      break;
+    end;
+    Inc(strPtr);
+  end;
 end;
 
 // copy from qmsgPack
@@ -412,6 +458,11 @@ begin
   InnerEncodeToStream(pvStream);
 end;
 
+function TSimpleMsgPack.findObj(pvName:string): TSimpleMsgPack;
+begin
+  Result := ;
+end;
+
 function TSimpleMsgPack.getAsInteger: Int64;
 begin
   case FDataType of
@@ -452,6 +503,38 @@ end;
 function TSimpleMsgPack.GetCount: Integer;
 begin
   Result := FChildren.Count;
+end;
+
+function TSimpleMsgPack.GetO(pvPath: String): TSimpleMsgPack;
+var
+  lvName:AnsiString;
+begin
+
+
+  Result := nil;
+end;
+
+function TSimpleMsgPack.indexOf(pvName:string): Integer;
+var
+  i, l: Integer;
+  lvObj:TSimpleMsgPack;
+begin
+  Result := -1;
+  l := Length(pvName);
+  if l = 0 then exit;
+  for i := 0 to FChildren.Count-1 do
+  begin
+    lvObj := TSimpleMsgPack(FChildren[i]);
+    if Length(lvObj.FName) = l then
+    begin
+      if lvObj.FName = pvName then
+      begin
+        Result := i;
+        break;
+      end;
+    end;
+  end;
+  Result := ;
 end;
 
 function TSimpleMsgPack.InnerAdd: TSimpleMsgPack;
@@ -646,6 +729,11 @@ begin
     SetLength(FValue, length(pvValue));
     Move(PChar(pvValue)^, FValue[0], Length(FValue));
   end;
+end;
+
+procedure TSimpleMsgPack.SetO(pvPath: String; const Value: TSimpleMsgPack);
+begin
+  // TODO -cMM: TSimpleMsgPack.SetO default body inserted
 end;
 
 

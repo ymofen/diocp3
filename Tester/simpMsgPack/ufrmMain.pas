@@ -12,7 +12,12 @@ type
     Memo1: TMemo;
     btn1: TButton;
     btnSimpMsgPack: TButton;
+    btnGetFirst: TButton;
+    Memo2: TMemo;
+    btn2: TButton;
     procedure btn1Click(Sender: TObject);
+    procedure btn2Click(Sender: TObject);
+    procedure btnGetFirstClick(Sender: TObject);
     procedure btnSimpMsgPackClick(Sender: TObject);
     procedure Button1Click(Sender: TObject);
   private
@@ -56,6 +61,29 @@ begin
   PByte(IntPtr(@result) + 7)^ := PByte(@v)^;
 end;
 
+function getFirst(var strPtr:PAnsiChar; splitChars:TSysCharSet):AnsiString;
+var
+  oPtr:PAnsiChar;
+  l:Cardinal;
+begin
+  oPtr := strPtr;
+  Result := '';
+  while True do
+  begin
+    if (strPtr^ in splitChars) or (strPtr^ = #0) then
+    begin
+      l := strPtr - oPtr;
+      if l > 0 then
+      begin
+        SetLength(Result, l);
+        Move(oPtr^, Result[1], l);
+        break;
+      end;
+    end;
+    Inc(strPtr);
+  end;
+end;
+
 
 
 {$R *.dfm}
@@ -91,6 +119,37 @@ begin
 
   l := $FFEE;
   Memo1.Lines.Add(TByteTools.varToHexString(l, 4));
+
+
+end;
+
+procedure TForm1.btn2Click(Sender: TObject);
+begin
+  Memo1.Clear;
+  Memo2.Clear;
+end;
+
+procedure TForm1.btnGetFirstClick(Sender: TObject);
+var
+  s, s1:AnsiString;
+  sPtr:PAnsiChar;
+begin
+  s := Memo1.Lines.Text;
+
+  sPtr := PAnsiChar(s);
+  while sPtr^ <> #0 do
+  begin
+    s1 := getFirst(sPtr, ['.', '/','\']);
+    if s1 = '' then
+    begin
+      Break;
+    end else
+    begin
+      Memo2.Lines.Add(s1);
+    end;
+    if sPtr^ = #0 then Break;
+    Inc(sPtr);
+  end;
 
 
 end;
