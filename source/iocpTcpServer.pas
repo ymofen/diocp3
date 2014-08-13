@@ -17,7 +17,8 @@ interface
 
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
-  iocpWinsock2,
+  winsock, iocpWinsock2,
+
   iocpRawSocket, SyncObjs, Windows, SysUtils,
   {$IFDEF LOGGER_ON}
     iocpLogger,
@@ -923,7 +924,6 @@ end;
 
 procedure TIocpTcpServer.DisconnectAll;
 var
-  i:Integer;
   lvClientContext:TIocpClientContext;
 begin
   while True do
@@ -973,6 +973,7 @@ begin
         lvContinue := false;
       end;
     end;
+
 
     if lvContinue then
     begin
@@ -1289,12 +1290,6 @@ begin
 
   FClientContext.FRemoteAddr := string(inet_ntoa(TSockAddrIn(remoteAddr^).sin_addr));
   FClientContext.FRemotePort := ntohs(TSockAddrIn(remoteAddr^).sin_port);
-
-
-//  getpeername(FRawSocket.SocketHandle, TSockAddr(SockAddrIn), Size);
-//
-//  FRemoteAddr := inet_ntoa(SockAddrIn.sin_addr);
-//  FRemotePort := ntohs(SockAddrIn.sin_port);
 end;
 
 procedure TIocpAcceptExRequest.HandleResponse;
@@ -1312,7 +1307,16 @@ begin
     end;
 
     try
-      getPeerINfo();
+      if FErrorCode = 0 then
+      begin
+        // msdn
+        // The socket sAcceptSocket does not inherit the properties of the socket
+        //  associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT
+        //  is set on the socket.
+        FOwner.FListenSocket.UpdateAcceptContext(FClientContext.FRawSocket.SocketHandle);
+
+        getPeerINfo();
+      end;
       FOwner.DoAcceptExResponse(Self);
     finally
       FAcceptorMgr.releaseRequestObject(Self);

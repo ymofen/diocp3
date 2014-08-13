@@ -1,4 +1,4 @@
-unit SimpleMsgPack;
+﻿unit SimpleMsgPack;
 
 interface
 
@@ -6,7 +6,15 @@ uses
   classes, SysUtils;
 
 type
+  {$IF RTLVersion<25}
+    IntPtr=Integer;
+  {$IFEND IntPtr}
+
   TMsgPackType = (mptUnknown, mptMap, mptString, mptInteger, mptBoolean, mptFloat, mptBinary);
+
+  IMsgPack = interface
+    ['{37D3E479-7A46-435A-914D-08FBDA75B50E}'] 
+  end;
   TSimpleMsgPack = class(TObject)
   private
     FParent:TSimpleMsgPack;
@@ -20,8 +28,6 @@ type
     FChildren: TList;
 
     function InnerAdd: TSimpleMsgPack;
-
-
     function GetCount: Integer;
     procedure InnerEncodeToStream(pvStream:TStream);
     procedure InnerParseFromStream(pvStream: TStream);
@@ -32,10 +38,15 @@ type
     function getAsInteger: Int64;
     procedure setAsInteger(pvValue:Int64);
 
+    procedure checkObjectDataType(ANewType: TMsgPackType = mptMap);
+
   public
     constructor Create;
     destructor Destroy; override;
     property Count: Integer read GetCount;
+
+    procedure LoadBinaryFromStream(pvStream: TStream; pvLen: cardinal = 0);
+    procedure SaveBinaryToStream(pvStream:TStream);
 
     procedure EncodeToStream(pvStream:TStream);
     procedure DecodeFromStream(pvStream:TStream);
@@ -43,9 +54,16 @@ type
     function EncodeToBytes: TBytes;
     procedure DecodeFromBytes(pvBytes:TBytes);
 
+    function Add(pvNameKey, pvValue: string): TSimpleMsgPack; overload;
+    function Add(pvNameKey: string; pvValue: Int64): TSimpleMsgPack; overload;
+    function Add(pvNameKey: string; pvValue: TBytes): TSimpleMsgPack; overload;
+    function Add(pvNameKey: String): TSimpleMsgPack; overload;
+    function Add():TSimpleMsgPack; overload;
 
     property AsInteger:Int64 read getAsInteger write setAsInteger;
+    
     property AsString:string read getAsString write setAsString;
+
   end;
 
 implementation
@@ -331,6 +349,49 @@ begin
   inherited Destroy;
 end;
 
+function TSimpleMsgPack.Add(pvNameKey, pvValue: string): TSimpleMsgPack;
+begin
+  Result := InnerAdd;
+  Result.FName := pvNameKey;
+  Result.AsString := pvValue;
+end;
+
+function TSimpleMsgPack.Add(pvNameKey: string; pvValue: Int64): TSimpleMsgPack;
+begin
+  Result := InnerAdd;
+  Result.FName := pvNameKey;
+  Result.AsInteger := pvValue;
+end;
+
+
+function TSimpleMsgPack.Add: TSimpleMsgPack;
+begin
+  Result := InnerAdd;
+end;
+
+function TSimpleMsgPack.Add(pvNameKey: string; pvValue: TBytes): TSimpleMsgPack;
+begin
+  Result := InnerAdd;
+  Result.FName := pvNameKey;
+  Result.FDataType := mptBinary;
+  Result.FValue := pvValue;
+end;
+
+function TSimpleMsgPack.Add(pvNameKey:String): TSimpleMsgPack;
+begin
+  Result := InnerAdd;
+  Result.FName := pvNameKey;
+end;
+
+procedure TSimpleMsgPack.checkObjectDataType(ANewType: TMsgPackType = mptMap);
+begin
+  if not (FDataType in [mptMap]) then
+  begin
+    FDataType := ANewType;
+  end;
+  
+end;
+
 function TSimpleMsgPack.EncodeToBytes: TBytes;
 var
   lvStream:TStream;
@@ -395,6 +456,7 @@ end;
 
 function TSimpleMsgPack.InnerAdd: TSimpleMsgPack;
 begin
+  checkObjectDataType(mptMap);
   Result := TSimpleMsgPack.Create;
   Result.FParent := self;
   Result.FDataType := mptUnknown;
@@ -454,7 +516,7 @@ begin
       SetLength(lvBytes, l + 1);
       lvBytes[l] := 0;
 
-      pvStream.Read(lvBytes, l);
+      pvStream.Read(lvBytes[0], l);
 
       setAsString(UTF8Decode(PAnsiChar(lvBytes)));
     end else
@@ -547,6 +609,24 @@ begin
   end;
 end;
 
+procedure TSimpleMsgPack.LoadBinaryFromStream(pvStream: TStream; pvLen:
+    cardinal = 0);
+begin
+  if pvLen = 0 then
+  begin
+    pvStream.Position := 0;
+    pvStream.Read(FValue[0], pvStream.Size);
+  end else
+  begin
+    pvStream.ReadBuffer(FValue[0], pvLen);
+  end;
+end;
+
+procedure TSimpleMsgPack.SaveBinaryToStream(pvStream: TStream);
+begin
+  pvStream.WriteBuffer(FValue[0], Length(FValue));
+end;
+
 procedure TSimpleMsgPack.setAsInteger(pvValue: Int64);
 begin
   FDataType := mptInteger;
@@ -563,7 +643,7 @@ begin
     Move(PChar(pvValue)^, FValue[0], Length(FValue));
   end else
   begin
-    SetLength(FValue, length(FValue));
+    SetLength(FValue, length(pvValue));
     Move(PChar(pvValue)^, FValue[0], Length(FValue));
   end;
 end;

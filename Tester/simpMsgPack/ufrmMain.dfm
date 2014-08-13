@@ -32,7 +32,7 @@ object Form1: TForm1
     TabOrder = 1
   end
   object btn1: TButton
-    Left = 472
+    Left = 432
     Top = 64
     Width = 75
     Height = 25

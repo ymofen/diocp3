@@ -8,6 +8,17 @@ uses
 const
   SIO_KEEPALIVE_VALS = IOC_IN or IOC_VENDOR or 4;
 
+{ Other NT-specific options. }
+
+  {$EXTERNALSYM SO_MAXDG}
+  SO_MAXDG        = $7009;
+  {$EXTERNALSYM SO_MAXPATHDG}
+  SO_MAXPATHDG    = $700A;
+  {$EXTERNALSYM SO_UPDATE_ACCEPT_CONTEXT}
+  SO_UPDATE_ACCEPT_CONTEXT     = $700B;
+  {$EXTERNALSYM SO_CONNECT_TIME}
+  SO_CONNECT_TIME = $700C;
+
 type
   TKeepAlive = record
     OnOff: Integer;
@@ -43,6 +54,12 @@ type
     ///   default 5000 check alive
     /// </summary>
     function setKeepAliveOption(pvKeepAliveTime: Integer = 5000): Boolean;
+
+
+    /// <summary>
+    ///   call in listen RawSocket instance
+    /// </summary>
+    function UpdateAcceptContext(pvSocket: TSocket): Boolean;
 
     function setNoDelayOption(pvOption:Boolean): Boolean;
 
@@ -164,6 +181,13 @@ var
 begin
   bNoDelay := pvOption;
   Result := setsockopt(FSocketHandle, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay)) <> SOCKET_ERROR;
+end;
+
+function TRawSocket.UpdateAcceptContext(pvSocket: TSocket): Boolean;
+begin
+  result := setsockopt(pvSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
+    PAnsiChar(@FSocketHandle),
+   SizeOf(TSocket)) <> SOCKET_ERROR
 end;
 
 end.
