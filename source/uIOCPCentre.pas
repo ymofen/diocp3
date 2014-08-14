@@ -3,12 +3,12 @@ unit uIOCPCentre;
 interface
 
 // call dataReceived procedure with qworker
-{$DEFINE QDAC_QWorker}
+{.$DEFINE QDAC_QWorker}
 
 uses
   iocpTcpServer, uBuffer, SysUtils, Classes,
   uIocpCoder
-  {$IFDEF QDAC_QWorkers}
+  {$IFDEF QDAC_QWorker}
     , qworker
   {$ELSE}
     , iocpTask
@@ -56,7 +56,7 @@ type
     FrecvBuffers: TBufferLink;
     FStateINfo: String;
     function GetStateINfo: String;
-   {$IFDEF QDAC_QWorkers}
+   {$IFDEF QDAC_QWorker}
     procedure OnExecuteJob(pvJob:PQJob);
    {$ELSE}
     procedure OnExecuteJob(pvTaskRequest: TIocpTaskRequest);
@@ -199,7 +199,7 @@ begin
   recvBuffer(buf, len);
 end;
 
-{$IFDEF QDAC_QWorkers}
+{$IFDEF QDAC_QWorker}
 procedure TIOCPCoderClientContext.OnExecuteJob(pvJob: PQJob);
 var
   lvObj:TObject;
@@ -256,7 +256,7 @@ begin
           TIOCPConsole(Owner).FOnDataObjectReceived(Self, lvObject);
 
 
-       {$IFDEF QDAC_QWorkers}
+       {$IFDEF QDAC_QWorker}
          Workers.Post(OnExecuteJob, lvObject);
        {$ELSE}
          iocpTaskManager.PostATask(OnExecuteJob, lvObject);
