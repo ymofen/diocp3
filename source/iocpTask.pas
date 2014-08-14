@@ -276,6 +276,7 @@ begin
     begin
       FIocpEngine.start;
       FActive := Value;
+      FEnable := true;
     end else
     begin
       FActive := Value;
