@@ -10,14 +10,25 @@ type
     IntPtr=Integer;
   {$IFEND IntPtr}
 
+
   TMsgPackType = (mptUnknown, mptMap, mptString, mptInteger, mptBoolean, mptFloat, mptBinary);
 
   IMsgPack = interface
     ['{37D3E479-7A46-435A-914D-08FBDA75B50E}'] 
   end;
+
+  TMsgPackSetting = class(TObject)
+  private
+    FCaseSensitive: Boolean;
+  public
+    property CaseSensitive: Boolean read FCaseSensitive write FCaseSensitive;
+  end;
+
   TSimpleMsgPack = class(TObject)
   private
     FParent:TSimpleMsgPack;
+
+
 
     FName:String;
 
@@ -43,7 +54,7 @@ type
     procedure SetO(pvPath: String; const Value: TSimpleMsgPack);
 
     function findObj(pvName:string): TSimpleMsgPack;
-    function indexOf(pvName:string): Integer;
+    function indexOfCaseSensitive(pvName:string): Integer;
   public
     constructor Create;
     destructor Destroy; override;
@@ -74,9 +85,6 @@ type
 
 
     property O[pvPath: String]: TSimpleMsgPack read GetO write SetO;
-
-
-
   end;
 
 implementation
@@ -459,8 +467,11 @@ begin
 end;
 
 function TSimpleMsgPack.findObj(pvName:string): TSimpleMsgPack;
+var
+  i:Integer;
 begin
-  Result := ;
+  i := indexOfCaseSensitive(pvName);
+  Result := TSimpleMsgPack(FChildren[i]);
 end;
 
 function TSimpleMsgPack.getAsInteger: Int64;
@@ -508,13 +519,26 @@ end;
 function TSimpleMsgPack.GetO(pvPath: String): TSimpleMsgPack;
 var
   lvName:AnsiString;
+  s:AnsiString;
+  sPtr:PAnsiChar;
 begin
+  s := pvPath;
+
+  sPtr := PAnsiChar(s);
+  lvName := getFirst(sPtr, ['.', '/','\']);
+  if lvName = '' then
+  begin
+    Result := nil;
+  end else
+  begin
+
+  end;
 
 
   Result := nil;
 end;
 
-function TSimpleMsgPack.indexOf(pvName:string): Integer;
+function TSimpleMsgPack.indexOfCaseSensitive(pvName:string): Integer;
 var
   i, l: Integer;
   lvObj:TSimpleMsgPack;
@@ -534,7 +558,6 @@ begin
       end;
     end;
   end;
-  Result := ;
 end;
 
 function TSimpleMsgPack.InnerAdd: TSimpleMsgPack;
