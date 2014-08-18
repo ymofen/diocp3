@@ -4,9 +4,7 @@ uses
   FastMM4,
   FastMM4Messages,
   Forms,
-  ufrmMain in 'ufrmMain.pas' {frmMain},
-  iocpTask in '..\..\source\iocp-task\iocpTask.pas',
-  BaseQueue in '..\..\source\utils\BaseQueue.pas';
+  ufrmMain in 'ufrmMain.pas' {frmMain};
 
 {$R *.res}
 
