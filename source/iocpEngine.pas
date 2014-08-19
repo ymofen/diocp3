@@ -22,7 +22,7 @@ uses
 {$IFEND}
 
 const
-  WORKER_ISBUSY =  $01;
+  WORKER_ISBUSY =  $01;    // worker is busy
   WORKER_ISWATING = $02;   // waiting for task
   WORKER_RESERVED = $04;   // worker is reserved
 
@@ -120,13 +120,6 @@ type
     function createIOCPHandle: Boolean;
 
   public
-    /// <summary>
-    ///   process io request
-    ///    result:
-    ///     IOCP_RESULT_QUIT exit worker thread
-    /// </summary>
-    function processIO(const pvWorker: TIocpWorker): Integer;
-
 
     /// <summary>
     ///   binding a Handle to IOCPHandle
@@ -176,6 +169,8 @@ type
     procedure Execute; override;
 
     procedure setFlag(pvFlag:Integer);
+
+    procedure removeFlag(pvFlag:Integer);
 
     function checkFlag(pvFlag:Integer):Boolean;
 
@@ -352,47 +347,6 @@ begin
   Result := PostQueuedCompletionStatus(FIOCPHandle, 0, dwCompletionKey, lpOverlapped);  
 end;
 
-function TIocpCore.processIO(const pvWorker: TIocpWorker): Integer;
-var
-  lvBytesTransferred:ULONG_PTR;
-  lvResultStatus:BOOL;
-  lvErrCode:Integer;
-  lpOverlapped:POVERLAPPEDEx;
-
-  lpCompletionKey:ULONG_PTR;
-
-begin
-  Result := IOCP_RESULT_OK;
-
-
-  pvWorker.setFlag();
-  lvResultStatus := GetQueuedCompletionStatus(FIOCPHandle,
-    lvBytesTransferred,  lpCompletionKey,
-    POverlapped(lpOverlapped),
-    INFINITE);
-
-  if Assigned(lpOverlapped) then
-  begin
-    if not lvResultStatus then
-    begin
-      lvErrCode := GetLastError;
-    end else
-    begin
-      lvErrCode := 0;
-    end;
-    /// reply io request, invoke handleRepsone to do ....
-    lpOverlapped.iocpRequest.FiocpWorker := pvWorker;
-    lpOverlapped.iocpRequest.FErrorCode := lvErrCode;
-    lpOverlapped.iocpRequest.FBytesTransferred := lvBytesTransferred;
-    lpOverlapped.iocpRequest.FCompletionKey := lpCompletionKey;
-    lpOverlapped.iocpRequest.HandleResponse();
-  end else
-  begin
-    /// exit
-    Result := IOCP_RESULT_QUIT;
-  end;
-end;
-
 procedure TIocpWorker.checkCoInitializeEx(pvReserved: Pointer = nil; coInit:
     Longint = 0);
 begin
@@ -420,6 +374,12 @@ end;
 procedure TIocpWorker.Execute;
 var
   lvRET: Integer;
+  lvBytesTransferred:ULONG_PTR;
+  lvResultStatus:BOOL;
+  lvErrCode:Integer;
+  lpOverlapped:POVERLAPPEDEx;
+
+  lpCompletionKey:ULONG_PTR;
 begin
   if FIocpEngine <> nil then FIocpEngine.incAliveWorker;
 
@@ -430,9 +390,34 @@ begin
   while (not self.Terminated) do
   begin
     try
-      lvRET := FIocpCore.processIO(Self);
-      if lvRET <> IOCP_RESULT_OK then
+      FFlags := (FFlags or WORKER_ISWATING) and (not WORKER_ISBUSY);
+
+      lvResultStatus := GetQueuedCompletionStatus(FIocpCore.FIOCPHandle,
+        lvBytesTransferred,  lpCompletionKey,
+        POverlapped(lpOverlapped),
+        INFINITE);
+
+      FFlags := (FFlags or WORKER_ISBUSY) and (not WORKER_ISWATING);
+
+
+      if Assigned(lpOverlapped) then
       begin
+        if not lvResultStatus then
+        begin
+          lvErrCode := GetLastError;
+        end else
+        begin
+          lvErrCode := 0;
+        end;
+        /// reply io request, invoke handleRepsone to do ....
+        lpOverlapped.iocpRequest.FiocpWorker := Self;
+        lpOverlapped.iocpRequest.FErrorCode := lvErrCode;
+        lpOverlapped.iocpRequest.FBytesTransferred := lvBytesTransferred;
+        lpOverlapped.iocpRequest.FCompletionKey := lpCompletionKey;
+        lpOverlapped.iocpRequest.HandleResponse();
+      end else
+      begin
+        /// exit
         Break;
       end;
     except
@@ -444,6 +429,11 @@ begin
         end;
       end;
     end;
+    
+    if not checkFlag(WORKER_RESERVED) then
+    begin      // fire worker
+      Break;
+    end;     
   end;
 
 
@@ -457,6 +447,11 @@ begin
   if FIocpEngine <> nil then FIocpEngine.decAliveWorker;
 
 
+end;
+
+procedure TIocpWorker.removeFlag(pvFlag: Integer);
+begin
+  FFlags := FFlags AND (not pvFlag);
 end;
 
 procedure TIocpWorker.setFlag(pvFlag: Integer);
