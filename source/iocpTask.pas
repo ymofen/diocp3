@@ -136,6 +136,7 @@ constructor TIocpTaskMananger.Create;
 begin
   inherited Create;
   FIocpEngine := TIocpEngine.Create();
+  FIocpEngine.setWorkerCount(2);
   FMessageHandle := AllocateHWnd(DoMainThreadWork);
   FActive := false;
 end;

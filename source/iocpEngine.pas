@@ -21,6 +21,12 @@ uses
   {$define varNativeUInt}
 {$IFEND}
 
+const
+  WORKER_ISBUSY =  $01;
+  WORKER_ISWATING = $02;   // waiting for task
+  WORKER_RESERVED = $04;   // worker is reserved
+
+
 type
   TIocpRequest = class;
   TIocpEngine = class;
@@ -159,6 +165,8 @@ type
   /// </summary>
   TIocpWorker = class(TThread)
   private
+    FFlags: Integer;
+
     FIocpEngine: TIocpEngine;
     FIocpCore: TIocpCore;
     FCoInitialized:Boolean;  
@@ -166,6 +174,10 @@ type
     constructor Create(AIocpCore: TIocpCore);
     
     procedure Execute; override;
+
+    procedure setFlag(pvFlag:Integer);
+
+    function checkFlag(pvFlag:Integer):Boolean;
 
     /// <summary>
     ///   current worker invoke
@@ -179,6 +191,10 @@ type
   /// </summary>
   TIocpEngine = class(TObject)
   private
+    FWokerLocker:TIocpLocker;
+
+    FMaxWorkerCount: Word;
+
     FActive: Boolean;
 
     // alive worker count
@@ -195,7 +211,7 @@ type
     FSafeStopSign: TEvent;
 
     // set worker count
-    FWorkerCount: Integer;
+    FWorkerCount: Word;
 
     /// <summary>
     ///   check worker thread is alive
@@ -213,6 +229,17 @@ type
     ///   set worker count, will clear and stop all workers
     /// </summary>
     procedure setWorkerCount(AWorkerCount: Integer);
+
+    /// <summary>
+    ///   set max worker count.
+    /// </summary>
+    procedure setMaxWorkerCount(AWorkerCount: Integer);
+
+
+    /// <summary>
+    ///   check create a worker
+    /// </summary>
+    function checkCreateWorker: Boolean;
 
     /// <summary>
     ///   create worker thread and start worker
@@ -244,7 +271,7 @@ type
     /// <summary>
     ///  get worker count
     /// </summary>
-    property WorkerCount: Integer read FWorkerCount;
+    property WorkerCount: Word read FWorkerCount;
 
     /// <summary>
     ///   Engine name
@@ -337,6 +364,8 @@ var
 begin
   Result := IOCP_RESULT_OK;
 
+
+  pvWorker.setFlag();
   lvResultStatus := GetQueuedCompletionStatus(FIOCPHandle,
     lvBytesTransferred,  lpCompletionKey,
     POverlapped(lpOverlapped),
@@ -374,10 +403,16 @@ begin
   end;
 end;
 
+function TIocpWorker.checkFlag(pvFlag: Integer): Boolean;
+begin
+  Result := ((FFlags and pvFlag) <> 0);
+end;
+
 constructor TIocpWorker.Create(AIocpCore: TIocpCore);
 begin
   inherited Create(True);
   FIocpCore := AIocpCore;
+  FFlags := WORKER_RESERVED;  // default is reserved
 end;
 
 { TIocpWorker }
@@ -424,6 +459,24 @@ begin
 
 end;
 
+procedure TIocpWorker.setFlag(pvFlag: Integer);
+begin
+  FFlags := FFlags or pvFlag;
+end;
+
+function TIocpEngine.checkCreateWorker: Boolean;
+begin
+  Result := true;
+  FWokerLocker.lock;
+  try
+    if FWorkerCount >= FMaxWorkerCount then exit;
+
+
+  finally
+    FWokerLocker.unLock;
+  end;
+end;
+
 procedure TIocpEngine.checkStart;
 begin
   if not FActive then start;
@@ -432,6 +485,8 @@ end;
 constructor TIocpEngine.Create;
 begin
   inherited Create;
+  FWokerLocker := TIocpLocker.Create;
+
   FWorkerCount := getCPUCount * 2 - 1;
   FWorkerList := TList.Create();
   FIocpCore := TIocpCore.Create;
@@ -440,11 +495,16 @@ end;
 
 procedure TIocpEngine.decAliveWorker;
 begin
-  InterlockedDecrement(FActiveWorkerCount);
-  if FActiveWorkerCount = 0 then
-  begin
-    // all workers offline
-    FSafeStopSign.SetEvent;
+  FWokerLocker.lock;
+  try
+    InterlockedDecrement(FActiveWorkerCount);
+    if FActiveWorkerCount = 0 then
+    begin
+      // all workers offline
+      FSafeStopSign.SetEvent;
+    end;
+  finally
+    FWokerLocker.unLock;
   end;
 end;
 
@@ -453,6 +513,7 @@ begin
   safeStop;
   FIocpCore.Free;
   FreeAndNil(FWorkerList);
+  FWokerLocker.Free;
   inherited Destroy;
 end;
 
@@ -497,6 +558,11 @@ begin
     FWorkerList.Clear;
     FActive := false;
   end; 
+end;
+
+procedure TIocpEngine.setMaxWorkerCount(AWorkerCount: Integer);
+begin
+
 end;
 
 procedure TIocpEngine.setWorkerCount(AWorkerCount: Integer);
