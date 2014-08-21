@@ -45,7 +45,7 @@ object frmMain: TfrmMain
     Top = 35
     Width = 610
     Height = 330
-    ActivePage = TabSheet1
+    ActivePage = TabSheet2
     TabOrder = 3
     object TabSheet1: TTabSheet
       Caption = 'moniter'

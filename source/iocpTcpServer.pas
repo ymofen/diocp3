@@ -1444,7 +1444,7 @@ begin
      1,
      lpNumberOfBytesRecvd,
      FRecvdFlag,
-     @FOverlapped,
+     LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
      nil
      );
   if lvRet = SOCKET_ERROR then
@@ -1614,7 +1614,7 @@ begin
                     1,
                     lpNumberOfBytesSent,
                     dwFlag,
-                    @FOverlapped,
+                    LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
                     nil
   );
   if lvRet = SOCKET_ERROR then

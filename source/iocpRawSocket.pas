@@ -50,6 +50,12 @@ type
     function Recv(var data; const len: Integer): Integer;
     function Send(const data; const len: Integer): Integer;
 
+    function connect(const pvAddr: string; pvPort: Integer): Boolean;
+
+    //zero if the time limit expired, or SOCKET_ERROR if an error occurred.
+    function selectSocket(vReadReady, vWriteReady, vExceptFlag: PBoolean;
+        pvTimeOut: Integer = 0): Integer;
+
     /// <summary>
     ///   default 5000 check alive
     /// </summary>
@@ -103,6 +109,20 @@ begin
   end;
 end;
 
+function TRawSocket.connect(const pvAddr: string; pvPort: Integer): Boolean;
+var
+  sockaddr: TSockAddrIn;
+begin
+  FillChar(sockaddr, SizeOf(sockaddr), 0);
+  with sockaddr do
+  begin
+    sin_family := AF_INET;
+    sin_addr.S_addr := inet_addr(PAnsichar(AnsiString(pvAddr)));
+    sin_port :=  htons(pvPort);
+  end;
+  Result := iocpWinsock2.connect(FSocketHandle, TSockAddr(sockaddr), sizeof(TSockAddrIn))  = 0;
+end;
+
 procedure TRawSocket.createTcpOverlappedSocket;
 begin
   FSocketHandle := WSASocket(AF_INET,SOCK_STREAM, IPPROTO_TCP, Nil, 0, WSA_FLAG_OVERLAPPED);
@@ -138,6 +158,70 @@ end;
 function TRawSocket.Recv(var data; const len: Integer): Integer;
 begin
   Result := iocpWinsock2.recv(FSocketHandle, data, len, 0);
+end;
+
+function TRawSocket.selectSocket(vReadReady, vWriteReady, vExceptFlag:
+    PBoolean; pvTimeOut: Integer = 0): Integer;
+var
+  ReadFds: TFDset;
+  ReadFdsptr: PFDset;
+  WriteFds: TFDset;
+  WriteFdsptr: PFDset;
+  ExceptFds: TFDset;
+  ExceptFdsptr: PFDset;
+  tv: timeval;
+  Timeptr: PTimeval;
+  lvRet:Integer;
+begin
+  if Assigned(vReadReady) then
+  begin
+    ReadFdsptr := @ReadFds;
+    FD_ZERO(ReadFds);
+    _FD_SET(FSocketHandle, ReadFds);
+  end
+  else
+    ReadFdsptr := nil;
+  if Assigned(vWriteReady) then
+  begin
+    WriteFdsptr := @WriteFds;
+    FD_ZERO(WriteFds);
+    _FD_SET(FSocketHandle, WriteFds);
+  end
+  else
+    WriteFdsptr := nil;
+  if Assigned(vExceptFlag) then
+  begin
+    ExceptFdsptr := @ExceptFds;
+    FD_ZERO(ExceptFds);
+    _FD_SET(FSocketHandle, ExceptFds);
+  end
+  else
+    ExceptFdsptr := nil;
+  if pvTimeOut >= 0 then
+  begin
+    tv.tv_sec := pvTimeOut div 1000;
+    tv.tv_usec :=  1000 * (pvTimeOut mod 1000);
+    Timeptr := @tv;
+  end
+  else
+    Timeptr := nil;
+
+  //The select function determines the status of one or more sockets, waiting if necessary,
+  //to perform synchronous I/O.
+  //  The select function returns the total number of socket handles that are ready
+  //  and contained in the fd_set structures,
+  //  zero if the time limit expired, or SOCKET_ERROR if an error occurred.
+  //  If the return value is SOCKET_ERROR,
+  //  WSAGetLastError can be used to retrieve a specific error code.
+  
+  Result := iocpWinsock2.select(FSocketHandle + 1, ReadFdsptr, WriteFdsptr, ExceptFdsptr, Timeptr);
+
+  if Assigned(vReadReady) then
+    vReadReady^ := FD_ISSET(FSocketHandle, ReadFds);
+  if Assigned(vWriteReady) then
+    vWriteReady^ := FD_ISSET(FSocketHandle, WriteFds);
+  if Assigned(vExceptFlag) then
+    vExceptFlag^ := FD_ISSET(FSocketHandle, ExceptFds);
 end;
 
 function TRawSocket.Send(const data; const len: Integer): Integer;
