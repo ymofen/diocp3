@@ -37,6 +37,7 @@ type
     FMessageEvent: TEvent;
     FStrData:String;
     FOnTaskWork: TOnTaskWork;
+    FOnTaskWorkProc :TOnTaskWorkProc;
     FOnTaskWorkStrData :TOnTaskWorkStrData;
     FOnTaskWorkNoneData :TOnTaskWorkNoneData;
 
@@ -58,13 +59,28 @@ type
     FActive: Boolean;
     FEnable: Boolean;
     FIocpEngine: TIocpEngine;
+
+    FPostCounter: Integer;
+    FErrorCounter: Integer;
+    FResponseCounter: Integer;
+
     procedure SetActive(const Value: Boolean);
+
+    procedure incResponseCounter();
+    procedure incErrorCounter();
+
+    procedure InnerPostTask(pvRequest: TIocpTaskRequest);
   protected
     FMessageHandle: HWND;
     procedure DoMainThreadWork(var AMsg: TMessage);
   public
     constructor Create;
     destructor Destroy; override;
+
+    /// <summary>
+    ///   task current info
+    /// </summary>
+    function getStateINfo: String;
 
     /// <summary>
     ///   will stop iocpEngine and lose jobs
@@ -75,6 +91,10 @@ type
         False; pvRunType:TRunInMainThreadType = rtSync); overload;
 
     procedure PostATask(pvTaskWork:TOnTaskWorkStrData; pvStrData:string;
+        pvRunInMainThread:Boolean = False; pvRunType:TRunInMainThreadType =
+        rtSync); overload;
+
+    procedure PostATask(pvTaskWork:TOnTaskWork; pvStrData:string;
         pvRunInMainThread:Boolean = False; pvRunType:TRunInMainThreadType =
         rtSync); overload;
 
@@ -107,9 +127,10 @@ var
   requestPool:TBaseQueue;
 
 
-function MakeTaskProc(const AProc:TOnTaskWorkProc):TOnTaskWork;
+function MakeTaskProc(const pvData: Pointer; const AProc: TOnTaskWorkProc):
+    TOnTaskWork;
 begin
-  TMethod(Result).Data:=nil;
+  TMethod(Result).Data:=pvData;
   TMethod(Result).Code:=@AProc;
 end;
   
@@ -163,11 +184,102 @@ begin
     AMsg.Result := DefWindowProc(FMessageHandle, AMsg.Msg, AMsg.WPARAM, AMsg.LPARAM);
 end;
 
+function TIocpTaskMananger.getStateINfo: String;
+var
+  lvDebugINfo:TStrings;
+begin
+  lvDebugINfo := TStringList.Create;
+  try
+    lvDebugINfo.Add(Format('post counter:%d', [self.FPostCounter]));
+    lvDebugINfo.Add(Format('response counter:%d', [self.FResponseCounter]));
+    lvDebugINfo.Add(Format('error counter:%d', [self.FErrorCounter]));
+    lvDebugINfo.Add('');
+
+    FIocpEngine.writeStateINfo(lvDebugINfo);
+
+    Result := lvDebugINfo.Text;
+  finally
+    lvDebugINfo.Free;
+  end;
+end;
+
+procedure TIocpTaskMananger.incErrorCounter;
+begin
+  InterlockedIncrement(FErrorCounter);
+end;
+
+procedure TIocpTaskMananger.incResponseCounter;
+begin
+  InterlockedIncrement(FResponseCounter);
+end;
+
+procedure TIocpTaskMananger.InnerPostTask(pvRequest: TIocpTaskRequest);
+begin
+  /// post request to iocp queue
+  if not IocpEngine.IocpCore.postRequest(0, POverlapped(@pvRequest.FOverlapped)) then
+  begin
+    RaiseLastOSError;
+  end else
+  begin
+    InterlockedIncrement(FPostCounter);
+  end;
+end;
+
 procedure TIocpTaskMananger.PostATask(pvTaskWorkProc: TOnTaskWorkProc;
     pvTaskData: Pointer = nil; pvRunInMainThread: Boolean = False; pvRunType:
     TRunInMainThreadType = rtSync);
+var
+  lvRequest:TIocpTaskRequest;
 begin
-  PostATask(MakeTaskProc(pvTaskWorkProc),pvTaskData, pvRunInMainThread, pvRunType);
+  if not FEnable then Exit;
+  lvRequest := TIocpTaskRequest(requestPool.Pop);
+  try
+    if lvRequest = nil then
+    begin
+      lvRequest := TIocpTaskRequest.Create;
+    end;
+    lvRequest.DoCleanUp;
+    lvRequest.FOwner := self;
+    lvRequest.FOnTaskWorkProc := pvTaskWorkProc;
+    lvRequest.FTaskData := pvTaskData;
+    lvRequest.FRunInMainThread := pvRunInMainThread;
+    lvRequest.FRunInMainThreadType := pvRunType;
+
+    InnerPostTask(lvRequest);
+  except
+    // if occur exception, push to requestPool.
+    if lvRequest <> nil then requestPool.Push(lvRequest);
+    raise;
+  end;
+end;
+
+procedure TIocpTaskMananger.PostATask(pvTaskWork: TOnTaskWork;
+  pvStrData: string; pvRunInMainThread: Boolean;
+  pvRunType: TRunInMainThreadType);
+var
+  lvRequest:TIocpTaskRequest;
+begin
+  if not FEnable then Exit;
+  lvRequest := TIocpTaskRequest(requestPool.Pop);
+  try
+    if lvRequest = nil then
+    begin
+      lvRequest := TIocpTaskRequest.Create;
+    end;
+    lvRequest.DoCleanUp;
+    lvRequest.FOwner := self;
+    lvRequest.FOnTaskWork := pvTaskWork;
+    lvRequest.FStrData := pvStrData;
+    lvRequest.FRunInMainThread := pvRunInMainThread;
+    lvRequest.FRunInMainThreadType := pvRunType;
+
+    InnerPostTask(lvRequest);
+  except
+    // if occur exception, push to requestPool.
+    if lvRequest <> nil then requestPool.Push(lvRequest);
+    raise;
+  end;
+
 end;
 
 procedure TIocpTaskMananger.PostATask(pvTaskWork:TOnTaskWorkStrData;
@@ -191,11 +303,7 @@ begin
     lvRequest.FRunInMainThread := pvRunInMainThread;
     lvRequest.FRunInMainThreadType := pvRunType;
 
-    /// post request to iocp queue
-    if not IocpEngine.IocpCore.postRequest(0, @lvRequest.FOverlapped) then
-    begin
-      RaiseLastOSError;
-    end;
+    InnerPostTask(lvRequest);
   except
     // if occur exception, push to requestPool.
     if lvRequest <> nil then requestPool.Push(lvRequest);
@@ -225,12 +333,8 @@ begin
     lvRequest.FTaskData := pvTaskData;
     lvRequest.FRunInMainThread := pvRunInMainThread;
     lvRequest.FRunInMainThreadType := pvRunType;
-    
-    /// post request to iocp queue
-    if not IocpEngine.IocpCore.postRequest(0, @lvRequest.FOverlapped) then
-    begin
-      RaiseLastOSError;
-    end;
+
+    InnerPostTask(lvRequest);
   except
     // if occur exception, push to requestPool.
     if lvRequest <> nil then requestPool.Push(lvRequest);
@@ -257,11 +361,8 @@ begin
     lvRequest.FRunInMainThread := pvRunInMainThread;
     lvRequest.FRunInMainThreadType := pvRunType;
 
-    /// post request to iocp queue
-    if not IocpEngine.IocpCore.postRequest(0, @lvRequest.FOverlapped) then
-    begin
-      RaiseLastOSError;
-    end;
+    InnerPostTask(lvRequest);
+
   except
     // if occur exception, push to requestPool.
     if lvRequest <> nil then requestPool.Push(lvRequest);
@@ -315,6 +416,7 @@ end;
 
 procedure TIocpTaskRequest.DoCleanUp;
 begin
+  self.Remark := '';
   FOnTaskWork := nil;
   FRunInMainThreadType := rtSync;
   FMessageEvent.ResetEvent;
@@ -323,6 +425,7 @@ end;
 
 procedure TIocpTaskRequest.HandleResponse;
 begin
+  FOwner.incResponseCounter;
   if FOwner.Active then
   begin
     if FRunInMainThread then
@@ -337,6 +440,7 @@ begin
               FMessageEvent.WaitFor(INFINITE);
             end else
             begin
+              FOwner.incErrorCounter;
               // log exception
             end;
           end;
@@ -358,6 +462,9 @@ begin
   if Assigned(FOnTaskWork) then
   begin
     FOnTaskWork(Self);
+  end else if Assigned(FOnTaskWorkProc) then
+  begin
+    FOnTaskWorkProc(Self);
   end else if Assigned(FOnTaskWorkStrData) then
   begin
     FOnTaskWorkStrData(FStrData);

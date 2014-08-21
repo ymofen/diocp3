@@ -40,4 +40,13 @@ object frmMain: TfrmMain
     TabOrder = 2
     OnClick = SpeedTesterClick
   end
+  object Button1: TButton
+    Left = 272
+    Top = 8
+    Width = 75
+    Height = 25
+    Caption = 'Button1'
+    TabOrder = 3
+    OnClick = Button1Click
+  end
 end

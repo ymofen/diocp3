@@ -25,6 +25,7 @@ const
   WORKER_ISBUSY =  $01;    // worker is busy
   WORKER_ISWATING = $02;   // waiting for task
   WORKER_RESERVED = $04;   // worker is reserved
+  WORKER_OVER = $08;       // worker is dead
 
 
 type
@@ -47,6 +48,8 @@ type
 
     FPre: TIocpRequest;
 
+    FRemark: String;
+
     // next Request
     FNext: TIocpRequest;
   protected
@@ -63,6 +66,11 @@ type
     constructor Create;
 
     property iocpWorker: TIocpWorker read FiocpWorker;
+
+    /// <summary>
+    ///   remark
+    /// </summary>
+    property Remark: String read FRemark write FRemark;
   end;
 
   /// <summary>
@@ -158,15 +166,21 @@ type
   /// </summary>
   TIocpWorker = class(TThread)
   private
+    FResponseCounter:Cardinal;
+
     FFlags: Integer;
 
     FIocpEngine: TIocpEngine;
     FIocpCore: TIocpCore;
-    FCoInitialized:Boolean;  
+    FCoInitialized:Boolean;
+
+    FLastRequest:TIocpRequest;
   public
     constructor Create(AIocpCore: TIocpCore);
     
     procedure Execute; override;
+
+    procedure writeStateINfo(const pvStrings: TStrings);
 
     procedure setFlag(pvFlag:Integer);
 
@@ -178,6 +192,11 @@ type
     ///   current worker invoke
     /// </summary>
     procedure checkCoInitializeEx(pvReserved: Pointer = nil; coInit: Longint = 0);
+
+    /// <summary>
+    ///   the last iocp request
+    /// </summary>
+    property LastRequest: TIocpRequest read FLastRequest;
   end;
 
 
@@ -216,6 +235,7 @@ type
     procedure incAliveWorker;
     procedure decAliveWorker;
   public
+    procedure writeStateINfo(const pvStrings:TStrings);
     constructor Create;
 
     destructor Destroy; override;
@@ -367,6 +387,7 @@ begin
   inherited Create(True);
   FIocpCore := AIocpCore;
   FFlags := WORKER_RESERVED;  // default is reserved
+  FResponseCounter := 0;
 end;
 
 { TIocpWorker }
@@ -409,6 +430,10 @@ begin
         begin
           lvErrCode := 0;
         end;
+
+        Inc(FResponseCounter);
+
+        FLastRequest := lpOverlapped.iocpRequest;
         /// reply io request, invoke handleRepsone to do ....
         lpOverlapped.iocpRequest.FiocpWorker := Self;
         lpOverlapped.iocpRequest.FErrorCode := lvErrCode;
@@ -436,6 +461,7 @@ begin
     end;     
   end;
 
+  FFlags := WORKER_OVER;
 
   ///
   if FCoInitialized then CoUninitialize();
@@ -445,8 +471,6 @@ begin
 {$ENDIF}
 
   if FIocpEngine <> nil then FIocpEngine.decAliveWorker;
-
-
 end;
 
 procedure TIocpWorker.removeFlag(pvFlag: Integer);
@@ -459,14 +483,32 @@ begin
   FFlags := FFlags or pvFlag;
 end;
 
+procedure TIocpWorker.writeStateINfo(const pvStrings: TStrings);
+begin
+  pvStrings.Add(Format('worker thread id:%d', [self.ThreadID]));
+  pvStrings.Add(Format('response counter:%d', [FResponseCounter]));
+  if checkFlag(WORKER_OVER) then
+  begin
+    pvStrings.Add('worker over!!!');
+  end else
+  begin
+    pvStrings.Add(Format('busying:%s, waiting:%s, reserved:%s',
+     [boolToStr(checkFlag(WORKER_ISBUSY), true),
+      boolToStr(checkFlag(WORKER_ISWATING), true),
+      boolToStr(checkFlag(WORKER_RESERVED), true)]));
+    if (FLastRequest <> nil) and (FLastRequest.Remark <> '') then
+    begin
+      pvStrings.Add(Format('last request remark:%s', [FLastRequest.Remark]));
+    end;
+  end;
+end;
+
 function TIocpEngine.checkCreateWorker: Boolean;
 begin
   Result := true;
   FWokerLocker.lock;
   try
     if FWorkerCount >= FMaxWorkerCount then exit;
-
-
   finally
     FWokerLocker.unLock;
   end;
@@ -613,6 +655,24 @@ begin
     end;
   end;
 
+end;
+
+procedure TIocpEngine.writeStateINfo(const pvStrings:TStrings);
+var
+  i:Integer;
+begin
+  pvStrings.Add('active:' + BoolToStr(self.FActive, True));
+  pvStrings.Add(Format('workercount: %d', [self.WorkerCount]));
+  self.FWokerLocker.lock;
+  try
+    for i := 0 to FWorkerList.Count - 1 do
+    begin
+      pvStrings.Add(Format('----- worker:%d  ----', [i]));
+      TIocpWorker(FWorkerList[i]).writeStateINfo(pvStrings);
+    end;
+  finally
+    self.FWokerLocker.Leave;
+  end;
 end;
 
 constructor TIocpRequest.Create;

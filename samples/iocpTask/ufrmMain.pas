@@ -11,7 +11,9 @@ type
     btnPostTask: TButton;
     Memo1: TMemo;
     SpeedTester: TButton;
+    Button1: TButton;
     procedure btnPostTaskClick(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
     procedure SpeedTesterClick(Sender: TObject);
   private
     FLogTask: TIocpTaskMananger;
@@ -51,6 +53,8 @@ var
 
 procedure TaskProcGlobal(pvTaskRequest: TIocpTaskRequest);
 begin
+  pvTaskRequest.Remark := '≤‚ ‘µ»¥˝ 10√Î....';
+  Sleep(1000 * 10);
   ShowMessage('TaskProcGlobal invoke');
 end;
 
@@ -64,6 +68,7 @@ end;
 
 destructor TfrmMain.Destroy;
 begin
+  iocpTaskManager.Enable := false;
   FLogTask.Active := false;
   FLogTask.Free;
   inherited Destroy;
@@ -86,14 +91,20 @@ end;
 
 procedure TfrmMain.btnPostTaskClick(Sender: TObject);
 begin
-  iocpTaskManager.PostATask(OnTaskWork, True, rtPostMessage);
-  iocpTaskManager.PostATask(OnTaskWork, True, rtSync);
+//  iocpTaskManager.PostATask(OnTaskWork, True, rtPostMessage);
+//  iocpTaskManager.PostATask(OnTaskWork, True, rtSync);
+//
+//  iocpTaskManager.PostATask(OnTaskWork, '1');
+//  iocpTaskManager.PostATask(OnTaskWork, '2');
+//  iocpTaskManager.PostATask(OnTaskWork, '3');
 
-  iocpTaskManager.PostATask(OnTaskWork, '1');
-  iocpTaskManager.PostATask(OnTaskWork, '2');
-  iocpTaskManager.PostATask(OnTaskWork, '3');
+  iocpTaskManager.PostATask(TaskProcGlobal, nil, False);
+end;
 
-  iocpTaskManager.PostATask(TaskProcGlobal, nil, True);
+procedure TfrmMain.Button1Click(Sender: TObject);
+begin
+  Memo1.Clear;
+  Memo1.Lines.Add(iocpTaskManager.getStateINfo());
 end;
 
 { TfrmMain }
