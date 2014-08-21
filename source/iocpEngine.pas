@@ -1,4 +1,4 @@
-﻿(*
+(*
  *	 Unit owner: D10.Mofen
  *	       blog: http://www.cnblogs.com/dksoft
  *
