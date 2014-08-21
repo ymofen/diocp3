@@ -15,15 +15,11 @@ type
     actOpen: TAction;
     actStop: TAction;
     actPushMsg: TAction;
-    edtMsg: TEdit;
-    btnPushMsg: TButton;
     pgcMain: TPageControl;
     tsMoniter: TTabSheet;
     pnlMonitor: TPanel;
     procedure actOpenExecute(Sender: TObject);
-    procedure actPushMsgExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
-    procedure btn1Click(Sender: TObject);
   private
     { Private declarations }
     FTcpServer: TIOCPConsole;
@@ -43,11 +39,6 @@ uses
 
 {$R *.dfm}
 
-function swap16(const v): Word;
-begin
-  Result := PByte(@v)^ shl 8;
-  inc(result, PByte(IntPtr(@v) + 1)^);
-end;
 
 
 constructor TfrmMain.Create(AOwner: TComponent);
@@ -84,47 +75,10 @@ begin
   refreshState;
 end;
 
-procedure TfrmMain.actPushMsgExecute(Sender: TObject);
-var
-  lvList:TList;
-  i: Integer;
-  lvStream:TMemoryStream;
-  s:AnsiString;
-begin
-  lvList := TList.Create;
-  try
-    lvStream := TMemoryStream.Create;
-    try
-      s := edtMsg.Text;
-      lvStream.Write(s[1], Length(s));
-
-      // get all client context to List
-      FTcpServer.getOnlineContextList(lvList);
-
-
-      for i := 0 to lvList.Count-1 do
-      begin
-        //send stream object directly
-        TIOCPCoderClientContext(lvList[i]).writeObject(lvStream);
-      end;
-    finally
-      lvStream.Free;
-    end;
-  finally
-    lvList.Free;
-  end;
-
-end;
-
 procedure TfrmMain.actStopExecute(Sender: TObject);
 begin
   FTcpServer.safeStop;
   refreshState;
-end;
-
-procedure TfrmMain.btn1Click(Sender: TObject);
-begin
-  ShowMessage(TRunTimeINfoTools.transByteSize(10000000000000));
 end;
 
 end.

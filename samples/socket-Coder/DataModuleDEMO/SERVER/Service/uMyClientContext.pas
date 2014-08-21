@@ -3,17 +3,21 @@ unit uMyClientContext;
 interface
 
 uses
-  uIOCPCentre, udmMain, Classes, SimpleMsgPack, SysUtils;
+  uIOCPCentre, udmMain, Classes, qmsgpack, SysUtils, uZipTools;
 
 type
   TMyClientContext = class(TIOCPCoderClientContext)
   private
     FdmMain:TdmMain;
+
   protected
+
     procedure OnDiscounnected;override;
 
     procedure OnConnected;override;
+
   protected
+
     /// <summary>
     ///   on received a object
     /// </summary>
@@ -30,23 +34,51 @@ implementation
 
 procedure TMyClientContext.dataReceived(const pvDataObject: TObject);
 var
-  lvMsgPack:TSimpleMsgPack;
+  lvMsgPack:TQMsgPack;
   lvStream:TStream;
+  vData:OleVariant;
+  lvResult:Boolean;
 begin
   try
     lvStream :=TStream(pvDataObject);
     lvStream.Position := 0;
-    
-    lvMsgPack.DecodeFromStream(lvStream);
 
-    dmMain.Execute(lvMsgPack.I['cmd.index'], );
+    // upZip
+    TZipTools.unCompressStreamEX(lvStream);
+
+    // unpack
+    lvMsgPack.LoadFromStream(lvStream);
+
+    // get param
+    vData := lvMsgPack.ForcePath('cmd.data').AsVariant;
+
+    // invoke dataModule function
+    lvResult := dmMain.Execute(lvMsgPack.ForcePath('cmd.index').AsInteger, vData);
+
+    // write result info
+    lvMsgPack.Clear;
+    lvMsgPack.ForcePath('__result.result').AsBoolean := lvResult;
+    lvMsgPack.ForcePath('__result.data').AsVariant := vData;
   except
     on E:Exception do
     begin
-            
+      lvMsgPack.Clear;
+      lvMsgPack.ForcePath('__result.result').AsBoolean := false;
+      lvMsgPack.ForcePath('__result.msg').AsString := e.Message;
     end;
   end;
 
+  lvStream.Size := 0;
+  lvMsgPack.SaveToStream(lvStream);
+
+  lvStream.Position := 0;
+
+  // zipStream
+  TZipTools.compressStreamEX(lvStream);
+  lvStream.Position := 0;
+
+  // send to client
+  self.writeObject(lvStream);
 end;
 
 procedure TMyClientContext.OnConnected;

@@ -31,29 +31,13 @@ object frmMain: TfrmMain
     Action = actOpen
     TabOrder = 1
   end
-  object edtMsg: TEdit
-    Left = 256
-    Top = 9
-    Width = 232
-    Height = 21
-    TabOrder = 2
-    Text = 'this message will push to all client'
-  end
-  object btnPushMsg: TButton
-    Left = 494
-    Top = 8
-    Width = 75
-    Height = 25
-    Action = actPushMsg
-    TabOrder = 3
-  end
   object pgcMain: TPageControl
     Left = 8
     Top = 39
     Width = 566
     Height = 310
     ActivePage = tsMoniter
-    TabOrder = 4
+    TabOrder = 2
     object tsMoniter: TTabSheet
       Caption = 'Moniter'
       ImageIndex = 1
@@ -82,7 +66,6 @@ object frmMain: TfrmMain
     end
     object actPushMsg: TAction
       Caption = 'PushMsg'
-      OnExecute = actPushMsgExecute
     end
   end
 end
