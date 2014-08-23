@@ -21,6 +21,10 @@ uses
   {$define varNativeUInt}
 {$IFEND}
 
+{$if CompilerVersion >= 18}
+  {$DEFINE INLINE}
+{$ENDIF}
+
 const
   WORKER_ISBUSY =  $01;    // worker is busy
   WORKER_ISWATING = $02;   // waiting for task
@@ -182,11 +186,11 @@ type
 
     procedure writeStateINfo(const pvStrings: TStrings);
 
-    procedure setFlag(pvFlag:Integer);
+    procedure setFlag(pvFlag:Integer);{$IFDEF INLINE} inline; {$ENDIF}
 
-    procedure removeFlag(pvFlag:Integer);
+    procedure removeFlag(pvFlag:Integer);{$IFDEF INLINE} inline; {$ENDIF}
 
-    function checkFlag(pvFlag:Integer):Boolean;
+    function checkFlag(pvFlag:Integer):Boolean;{$IFDEF INLINE} inline; {$ENDIF}
 
     /// <summary>
     ///   current worker invoke
@@ -233,7 +237,7 @@ type
     function workersIsAlive():Boolean;
 
     procedure incAliveWorker;
-    procedure decAliveWorker;
+    procedure decAliveWorker(const pvWorker: TIocpWorker);
   public
     procedure writeStateINfo(const pvStrings:TStrings);
     constructor Create;
@@ -248,13 +252,14 @@ type
     /// <summary>
     ///   set max worker count.
     /// </summary>
-    procedure setMaxWorkerCount(AWorkerCount: Integer);
+    procedure setMaxWorkerCount(AWorkerCount: Word);
 
 
     /// <summary>
     ///   check create a worker
+    ///     true: create a worker
     /// </summary>
-    function checkCreateWorker: Boolean;
+    function checkCreateWorker(pvIsTempWorker: Boolean): Boolean;
 
     /// <summary>
     ///   create worker thread and start worker
@@ -281,6 +286,11 @@ type
     ///   core object, read only
     /// </summary>
     property IocpCore: TIocpCore read FIocpCore;
+
+
+    property MaxWorkerCount: Word read FMaxWorkerCount write SetMaxWorkerCount;
+
+
 
 
     /// <summary>
@@ -402,7 +412,7 @@ var
 
   lpCompletionKey:ULONG_PTR;
 begin
-  if FIocpEngine <> nil then FIocpEngine.incAliveWorker;
+  FIocpEngine.incAliveWorker;
 
 {$IFDEF __DEBUG}
   InterlockedIncrement(workerCounter);
@@ -413,10 +423,21 @@ begin
     try
       FFlags := (FFlags or WORKER_ISWATING) and (not WORKER_ISBUSY);
 
-      lvResultStatus := GetQueuedCompletionStatus(FIocpCore.FIOCPHandle,
-        lvBytesTransferred,  lpCompletionKey,
-        POverlapped(lpOverlapped),
-        INFINITE);
+      if checkFlag(WORKER_RESERVED) then
+      begin
+        lvResultStatus := GetQueuedCompletionStatus(FIocpCore.FIOCPHandle,
+          lvBytesTransferred,  lpCompletionKey,
+          POverlapped(lpOverlapped),
+          INFINITE);
+      end else
+      begin
+        // fire worker(will break) after 30's
+        //   timeout will return false and break while
+        lvResultStatus := GetQueuedCompletionStatus(FIocpCore.FIOCPHandle,
+          lvBytesTransferred,  lpCompletionKey,
+          POverlapped(lpOverlapped),
+          30000);
+      end;
 
       FFlags := (FFlags or WORKER_ISBUSY) and (not WORKER_ISWATING);
 
@@ -455,10 +476,7 @@ begin
       end;
     end;
     
-    if not checkFlag(WORKER_RESERVED) then
-    begin      // fire worker
-      Break;
-    end;     
+
   end;
 
   FFlags := WORKER_OVER;
@@ -470,7 +488,7 @@ begin
   InterlockedDecrement(workerCounter);
 {$ENDIF}
 
-  if FIocpEngine <> nil then FIocpEngine.decAliveWorker;
+  FIocpEngine.decAliveWorker(Self);
 end;
 
 procedure TIocpWorker.removeFlag(pvFlag: Integer);
@@ -503,12 +521,36 @@ begin
   end;
 end;
 
-function TIocpEngine.checkCreateWorker: Boolean;
+function TIocpEngine.checkCreateWorker(pvIsTempWorker: Boolean): Boolean;
+var
+  i:Integer;
+  AWorker:TIocpWorker;
 begin
-  Result := true;
+  Result := false;
   FWokerLocker.lock;
   try
-    if FWorkerCount >= FMaxWorkerCount then exit;
+    if FWorkerList.Count >= FMaxWorkerCount then exit;
+    for i := 0 to FWorkerList.Count -1 do
+    begin
+      if TIocpWorker(FWorkerList[i]).checkFlag(WORKER_ISWATING) then
+      begin
+        Exit;
+      end;
+    end;
+
+    AWorker := TIocpWorker.Create(FIocpCore);
+    if pvIsTempWorker then
+    begin
+      AWorker.removeFlag(WORKER_RESERVED);
+    end else
+    begin
+      AWorker.setFlag(WORKER_RESERVED);
+    end;
+    AWorker.FIocpEngine := Self;
+    AWorker.FreeOnTerminate := True;
+    FWorkerList.Add(AWorker);
+    AWorker.Resume;
+
   finally
     FWokerLocker.unLock;
   end;
@@ -530,10 +572,11 @@ begin
   FIocpCore.doInitialize;
 end;
 
-procedure TIocpEngine.decAliveWorker;
+procedure TIocpEngine.decAliveWorker(const pvWorker: TIocpWorker);
 begin
   FWokerLocker.lock;
   try
+    FWorkerList.Remove(pvWorker);
     InterlockedDecrement(FActiveWorkerCount);
     if FActiveWorkerCount = 0 then
     begin
@@ -597,8 +640,9 @@ begin
   end; 
 end;
 
-procedure TIocpEngine.setMaxWorkerCount(AWorkerCount: Integer);
+procedure TIocpEngine.setMaxWorkerCount(AWorkerCount: Word);
 begin
+  FMaxWorkerCount := AWorkerCount;
 
 end;
 
@@ -626,7 +670,7 @@ begin
   begin
     AWorker := TIocpWorker.Create(FIocpCore);
     AWorker.FIocpEngine := Self;
-        
+
     AWorker.FreeOnTerminate := True;
     AWorker.Resume;
     FWorkerList.Add(AWorker);

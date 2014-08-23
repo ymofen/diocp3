@@ -20,6 +20,7 @@ type
   {$ENDIF}
   private
     FEnterINfo: string;
+    FTryEnterInfo: String;
     FName: String;
 
   {$IFDEF USECriticalSection}
@@ -32,11 +33,17 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    procedure lock;
+    procedure lock(pvDebugInfo: String = '');
     procedure unLock;
 
     property EnterCount: Integer read GetEnterCount;
-    property EnterINfo: string read FEnterINfo write FEnterINfo;
+
+    property EnterINfo: string read FEnterINfo;
+
+    property TryEnterInfo: String read FTryEnterInfo;
+
+    function getDebugINfo():String;
+
     property Name: String read FName write FName;
 
   end;
@@ -60,27 +67,32 @@ begin
   {$ELSE}
     DeleteCriticalSection(FSection);
   {$ENDIF}
-
   inherited Destroy;
+end;
+
+function TIocpLocker.getDebugINfo: String;
+begin
+  Result := Format('%s: busycount:%d, try:%s, enter:%s', [self.FName, GetEnterCount, FTryEnterInfo, FEnterInfo]);
 end;
 
 function TIocpLocker.GetEnterCount: Integer;
 begin
   {$IFDEF USECriticalSection}
-     Result := 0;
+     Result := FSection.RecursionCount;
   {$ELSE}
      Result := FSection.RecursionCount;
   {$ENDIF}
-
 end;
 
-procedure TIocpLocker.lock;
+procedure TIocpLocker.lock(pvDebugInfo: String = '');
 begin
+  FTryEnterInfo := pvDebugInfo;
   {$IFDEF USECriticalSection}
-    Enter;
+     Enter;
   {$ELSE}
      EnterCriticalSection(FSection);
   {$ENDIF}
+  FEnterINfo := pvDebugInfo;
 end;
 
 procedure TIocpLocker.unLock;
@@ -90,9 +102,6 @@ begin
   {$ELSE}
      LeaveCriticalSection(FSection);
   {$ENDIF}
-
-  //OutputDebugString(PChar(Format('%d:%s unlock', [GetCurrentThreadID, Name])));
-  //FEnterINfo := '';
 end;
 
 end.

@@ -62,6 +62,7 @@ type
 
     FPostCounter: Integer;
     FErrorCounter: Integer;
+    FFireTempWorker: Boolean;
     FResponseCounter: Integer;
 
     procedure SetActive(const Value: Boolean);
@@ -111,14 +112,19 @@ type
     property Active: Boolean read FActive write SetActive;
 
     property Enable: Boolean read FEnable write FEnable;
-    
+
+    property FireTempWorker: Boolean read FFireTempWorker write FFireTempWorker;
+
     property IocpEngine: TIocpEngine read FIocpEngine;
+
+
   end;
 
 var
   iocpTaskManager: TIocpTaskMananger;
 
-function checkInitializeTaskManager(pvWorkerCount: Integer = 0): Boolean;
+function checkInitializeTaskManager(pvWorkerCount: Integer = 0;
+    pvMaxWorkerCount: Word = 0): Boolean;
 
 implementation
 
@@ -135,7 +141,8 @@ begin
 end;
   
 
-function checkInitializeTaskManager(pvWorkerCount: Integer = 0): Boolean;
+function checkInitializeTaskManager(pvWorkerCount: Integer = 0;
+    pvMaxWorkerCount: Word = 0): Boolean;
 begin
   if iocpTaskManager = nil then
   begin
@@ -144,6 +151,14 @@ begin
     begin
       iocpTaskManager.setWorkerCount(pvWorkerCount);
     end;
+    if pvMaxWorkerCount = 0 then
+    begin
+      iocpTaskManager.IocpEngine.setMaxWorkerCount(5);
+    end else
+    begin
+      iocpTaskManager.IocpEngine.setMaxWorkerCount(pvMaxWorkerCount);
+    end;
+
     iocpTaskManager.IocpEngine.Name := 'iocpDefaultTaskManager';
     iocpTaskManager.Active := True;
     Result := true;
@@ -159,6 +174,7 @@ begin
   FIocpEngine := TIocpEngine.Create();
   FIocpEngine.setWorkerCount(2);
   FMessageHandle := AllocateHWnd(DoMainThreadWork);
+  FFireTempWorker := True;
   FActive := false;
 end;
 
@@ -215,6 +231,8 @@ end;
 
 procedure TIocpTaskMananger.InnerPostTask(pvRequest: TIocpTaskRequest);
 begin
+  IocpEngine.checkCreateWorker(FFireTempWorker);
+
   /// post request to iocp queue
   if not IocpEngine.IocpCore.postRequest(0, POverlapped(@pvRequest.FOverlapped)) then
   begin
