@@ -426,8 +426,11 @@ type
 
   TIocpTcpServer = class(TComponent)
   private
+    FIsDestroying :Boolean;
     FWSARecvBufferSize: Integer;
     procedure SetWSARecvBufferSize(const Value: Integer);
+
+    function isDestroying:Boolean;
 
   protected
     FClientContextClass:TIocpClientContextClass;
@@ -629,6 +632,7 @@ implementation
 {$IFDEF DEBUG_MSG_ON}
 procedure logDebugMessage(pvMsg: string; const args: array of const);
 begin
+
   uiLogger.logMessage(pvMsg, args);
 end;
 {$ENDIF}
@@ -687,7 +691,8 @@ begin
     end else
     begin
       {$IFDEF DEBUG_MSG_ON}
-         logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
+         if not FOwner.isDestroying then
+           logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
       {$ENDIF}
 
       /// kick out the clientContext
@@ -841,7 +846,8 @@ begin
   end else
   begin
     {$IFDEF DEBUG_MSG_ON}
-      logDebugMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+      if not FOwner.isDestroying then
+        logDebugMessage('Push sendRequest to Sending Queue fail, queue size:%d',
          [FSendRequestLink.Count]);
     {$ENDIF}
 
@@ -904,6 +910,8 @@ end;
 
 destructor TIocpTcpServer.Destroy;
 begin
+  FIsDestroying := true;
+
   safeStop;
 
   if FDataMoniter <> nil then FDataMoniter.Free;
@@ -1046,6 +1054,11 @@ end;
 function TIocpTcpServer.GetWorkerCount: Integer;
 begin
   Result := FIocpEngine.WorkerCount;
+end;
+
+function TIocpTcpServer.isDestroying: Boolean;
+begin
+  Result := FIsDestroying;
 end;
 
 procedure TIocpTcpServer.onCreateClientContext(
@@ -1384,6 +1397,7 @@ begin
   if FErrorCode <> 0 then
   begin
     {$IFDEF DEBUG_MSG_ON}
+     if not FOwner.isDestroying then
       logDebugMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
     {$ENDIF}
     if FOwner <> nil then
@@ -1397,7 +1411,8 @@ begin
   end else if (FBytesTransferred = 0) then
   begin      // no data recvd, socket is break
     {$IFDEF DEBUG_MSG_ON}
-      logDebugMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
+      if not FOwner.isDestroying then
+        logDebugMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
     {$ENDIF}
     FClientContext.DoDisconnect;
   end else
@@ -1419,6 +1434,7 @@ begin
       end else
       begin
         {$IFDEF DEBUG_MSG_ON}
+         if not FOwner.isDestroying then
           logDebugMessage('IocpRecvRequest response Owner is deactive',  []);
         {$ENDIF}
         FClientContext.DoDisconnect;
@@ -1454,6 +1470,7 @@ begin
     if not Result then
     begin
       {$IFDEF DEBUG_MSG_ON}
+       if not FOwner.isDestroying then
         logDebugMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
       {$ENDIF}
 
@@ -1553,6 +1570,7 @@ begin
   if FErrorCode <> 0 then
   begin
     {$IFDEF DEBUG_MSG_ON}
+     if not FOwner.isDestroying then
       logDebugMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
     {$ENDIF}
     FOwner.DoClientContextError(FClientContext, FErrorCode);
@@ -1586,6 +1604,7 @@ begin
       if not checkSendNextBlock then
       begin
         {$IFDEF DEBUG_MSG_ON}
+         if not FOwner.isDestroying then
            logDebugMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
         {$ENDIF}
 
@@ -1625,6 +1644,7 @@ begin
     begin
        FIsBusying := False;
     {$IFDEF DEBUG_MSG_ON}
+      if not FOwner.isDestroying then
        logDebugMessage('TIocpSendRequest.InnerPostRequest Error:%d',  [lvRet]);
     {$ENDIF}
 
