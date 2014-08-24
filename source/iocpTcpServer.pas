@@ -568,6 +568,7 @@ type
     /// </summary>
     property ClientCount: Integer read GetClientCount;
     property DataMoniter: TIocpDataMonitor read FDataMoniter;
+    property IocpEngine: TIocpEngine read FIocpEngine;
 
     /// <summary>
     ///   set socket Keep alive option when acceptex
