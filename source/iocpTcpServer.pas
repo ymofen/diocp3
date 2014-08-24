@@ -559,6 +559,10 @@ type
 
     property Active: Boolean read FActive write SetActive;
 
+    procedure open();
+
+    procedure close;
+
     /// <summary>
     ///   client connections counter
     /// </summary>
@@ -890,6 +894,11 @@ begin
   //Result := FOnlineContextList.IndexOf(pvClientContext) <> -1;
 end;
 
+procedure TIocpTcpServer.close;
+begin
+  SetActive(False);
+end;
+
 constructor TIocpTcpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -1065,6 +1074,11 @@ procedure TIocpTcpServer.onCreateClientContext(
   const context: TIocpClientContext);
 begin
 
+end;
+
+procedure TIocpTcpServer.open;
+begin
+  SetActive(true);
 end;
 
 procedure TIocpTcpServer.registerContextClass(pvContextClass: TIocpClientContextClass);
