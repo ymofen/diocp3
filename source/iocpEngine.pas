@@ -23,7 +23,7 @@ uses
 
 {$if CompilerVersion >= 18}
   {$DEFINE INLINE}
-{$ENDIF}
+{$IFEND}
 
 const
   WORKER_ISBUSY =  $01;    // worker is busy
