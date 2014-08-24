@@ -566,7 +566,7 @@ begin
   inherited Create;
   FWokerLocker := TIocpLocker.Create;
 
-  FWorkerCount := getCPUCount * 2 - 1;
+  FWorkerCount := getCPUCount shl 2 - 1;
   FWorkerList := TList.Create();
   FIocpCore := TIocpCore.Create;
   FIocpCore.doInitialize;
@@ -649,7 +649,12 @@ end;
 procedure TIocpEngine.setWorkerCount(AWorkerCount: Integer);
 begin
   if FActive then safeStop;
-  FWorkerCount := AWorkerCount;
+  if AWorkerCount <= 0 then
+    FWorkerCount := (getCPUCount shl 2) -1
+  else
+    FWorkerCount := AWorkerCount;
+  
+
 end;
 
 procedure TIocpEngine.start;
