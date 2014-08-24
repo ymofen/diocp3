@@ -240,6 +240,9 @@ type
     procedure decAliveWorker(const pvWorker: TIocpWorker);
   public
     procedure writeStateINfo(const pvStrings:TStrings);
+
+    function getStateINfo: String;
+
     constructor Create;
 
     destructor Destroy; override;
@@ -595,6 +598,19 @@ begin
   FreeAndNil(FWorkerList);
   FWokerLocker.Free;
   inherited Destroy;
+end;
+
+function TIocpEngine.getStateINfo: String;
+var
+  lvStrings :TStrings;
+begin
+  lvStrings := TStringList.Create;
+  try
+    writeStateINfo(lvStrings);
+    Result := lvStrings.Text;
+  finally
+    lvStrings.Free;
+  end;
 end;
 
 procedure TIocpEngine.incAliveWorker;

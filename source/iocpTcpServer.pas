@@ -436,7 +436,7 @@ type
     FClientContextClass:TIocpClientContextClass;
 
     FIocpSendRequestClass:TIocpSendRequestClass;
-  public
+  private
     // clientContext pool
     FContextPool: TBaseQueue;
 
