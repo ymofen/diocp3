@@ -4,11 +4,10 @@ object dmMain: TdmMain
   Height = 291
   Width = 451
   object conMain: TADOConnection
-    Connected = True
     ConnectionString = 
       'Provider=Microsoft.Jet.OLEDB.4.0;Data Source=E:\workspace\d_work' +
       'space\diocp3\samples\socket-Coder\DataModuleDEMO\BIN\cnzzz.mdb;P' +
-      'ersist Security Info=False'
+      'ersist Security Info=False;'
     LoginPrompt = False
     Mode = cmShareDenyNone
     Provider = 'Microsoft.Jet.OLEDB.4.0'

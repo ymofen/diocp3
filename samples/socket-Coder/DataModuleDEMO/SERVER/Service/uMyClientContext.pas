@@ -39,52 +39,61 @@ var
   vData:OleVariant;
   lvResult:Boolean;
 begin
+  lvMsgPack := TQMsgPack.Create;
   try
-    lvStream :=TStream(pvDataObject);
+    try
+      if FdmMain = nil then FdmMain := TdmMain.Create(nil);
+
+      lvStream :=TStream(pvDataObject);
+      lvStream.Position := 0;
+
+      // upZip
+      TZipTools.unCompressStreamEX(lvStream);
+
+      lvStream.Position := 0;
+      
+      // unpack
+      lvMsgPack.LoadFromStream(lvStream);
+
+      // get param
+      vData := lvMsgPack.ForcePath('cmd.data').AsVariant;
+
+      // invoke dataModule function
+      lvResult := FdmMain.Execute(lvMsgPack.ForcePath('cmd.index').AsInteger, vData);
+
+      // write result info
+      lvMsgPack.Clear;
+      lvMsgPack.ForcePath('__result.result').AsBoolean := lvResult;
+      lvMsgPack.ForcePath('__result.data').AsVariant := vData;
+    except
+      on E:Exception do
+      begin
+        lvMsgPack.Clear;
+        lvMsgPack.ForcePath('__result.result').AsBoolean := false;
+        lvMsgPack.ForcePath('__result.msg').AsString := e.Message;
+      end;
+    end;
+
+    lvStream.Size := 0;
+    lvMsgPack.SaveToStream(lvStream);
+
     lvStream.Position := 0;
 
-    // upZip
-    TZipTools.unCompressStreamEX(lvStream);
+    // zipStream
+    TZipTools.compressStreamEX(lvStream);
+    lvStream.Position := 0;
 
-    // unpack
-    lvMsgPack.LoadFromStream(lvStream);
-
-    // get param
-    vData := lvMsgPack.ForcePath('cmd.data').AsVariant;
-
-    // invoke dataModule function
-    lvResult := dmMain.Execute(lvMsgPack.ForcePath('cmd.index').AsInteger, vData);
-
-    // write result info
-    lvMsgPack.Clear;
-    lvMsgPack.ForcePath('__result.result').AsBoolean := lvResult;
-    lvMsgPack.ForcePath('__result.data').AsVariant := vData;
-  except
-    on E:Exception do
-    begin
-      lvMsgPack.Clear;
-      lvMsgPack.ForcePath('__result.result').AsBoolean := false;
-      lvMsgPack.ForcePath('__result.msg').AsString := e.Message;
-    end;
+    // send to client
+    self.writeObject(lvStream);
+  finally
+    lvMsgPack.Free;
   end;
 
-  lvStream.Size := 0;
-  lvMsgPack.SaveToStream(lvStream);
-
-  lvStream.Position := 0;
-
-  // zipStream
-  TZipTools.compressStreamEX(lvStream);
-  lvStream.Position := 0;
-
-  // send to client
-  self.writeObject(lvStream);
 end;
 
 procedure TMyClientContext.OnConnected;
 begin
   inherited;
-  FdmMain := TdmMain.Create(nil);
 end;
 
 procedure TMyClientContext.OnDiscounnected;

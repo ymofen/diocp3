@@ -5,22 +5,25 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, StdCtrls, iocpLogger, iocpTask, RawTcpClient,
-  uStreamCoderSocket, uRawTcpClientCoderImpl, Grids, DBGrids;
+  uStreamCoderSocket, uRawTcpClientCoderImpl, Grids, DBGrids,
+  uIRemoteServer, uRemoteServerDIOCPImpl, DB, DBClient;
 
 type
   TfrmMain = class(TForm)
-    mmoRecvMessage: TMemo;
+    mmoSQL: TMemo;
     btnConnect: TButton;
     edtHost: TEdit;
     edtPort: TEdit;
     DBGrid1: TDBGrid;
     btnOpen: TButton;
+    cdsMain: TClientDataSet;
+    dsMain: TDataSource;
     procedure btnConnectClick(Sender: TObject);
-    procedure btnSendObjectClick(Sender: TObject);
+    procedure btnOpenClick(Sender: TObject);
   private
     { Private declarations }
-    FTcpClient:TRawTcpClient;
-
+    FRemoteSvrObj:TRemoteServerDIOCPImpl;
+    FRemoteSvr:IRemoteServer;
 
   public
     { Public declarations }
@@ -45,65 +48,32 @@ implementation
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited;
-  uiLogger.setLogLines(mmoRecvMessage.Lines);
-  FTcpClient := TRawTcpClient.Create(Self);
-
+  FRemoteSvrObj := TRemoteServerDIOCPImpl.Create;
+  FRemoteSvr := FRemoteSvrObj;
 end;
 
 destructor TfrmMain.Destroy;
 begin
-  FTcpClient.Disconnect;
-  
+  FRemoteSvr := nil;
   inherited Destroy;
 end;
 
 procedure TfrmMain.btnConnectClick(Sender: TObject);
 begin
-  if FTcpClient.Active then
-  begin
-    uiLogger.logMessage('already connected...');
-    Exit;
-  end;
-  FTcpClient.Host := edtHost.Text;
-  FTcpClient.Port := StrToInt(edtPort.Text);
-  FTcpClient.Connect;
-
-  mmoRecvMessage.Clear;
-
-  mmoRecvMessage.Lines.Add('connected...');
+  FRemoteSvrObj.setHost(edtHost.Text);
+  FRemoteSvrObj.setPort(StrToInt(edtPort.Text));
+  FRemoteSvrObj.Open();
 end;
 
-procedure TfrmMain.btnSendObjectClick(Sender: TObject);
+procedure TfrmMain.btnOpenClick(Sender: TObject);
 var
-  lvList:TList;
-  i: Integer;
-  lvStream:TMemoryStream;
-  s:AnsiString;
+  vData:OleVariant;
 begin
-  lvStream := TMemoryStream.Create;
-  try
-   // lvStream.LoadFromFile('C:\1.txt');
-    s := 'this message will send to server';
-    lvStream.Write(s[1], Length(s));
-
-    lvStream.Position := 0;
-
-    TStreamCoderSocket.SendObject(TRawTcpClientCoderImpl.Create(FTcpClient), lvStream);
-
-    lvStream.Clear;
-
-    // recv
-    TStreamCoderSocket.RecvObject(TRawTcpClientCoderImpl.Create(FTcpClient), lvStream);
-
-    SetLength(s, lvStream.Size);
-    lvStream.Position := 0;
-    lvStream.Read(s[1], lvStream.Size);
-
-    uiLogger.logMessage('recv msg from server:' + sLineBreak + '    ' + s);
-  finally
-    lvStream.Free;
+  vData := mmoSQL.Lines.Text;
+  if FRemoteSvr.Execute(1, vData) then
+  begin
+    self.cdsMain.Data := vData;  
   end;
-
 end;
 
 end.

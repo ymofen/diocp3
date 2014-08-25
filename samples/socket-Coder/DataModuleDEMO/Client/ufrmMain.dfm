@@ -13,13 +13,13 @@ object frmMain: TfrmMain
   OldCreateOrder = False
   PixelsPerInch = 96
   TextHeight = 13
-  object mmoRecvMessage: TMemo
+  object mmoSQL: TMemo
     Left = 8
     Top = 40
     Width = 673
     Height = 105
     Lines.Strings = (
-      'iocp tcp client demo')
+      'select * from YesoulChenYu')
     TabOrder = 0
   end
   object btnConnect: TButton
@@ -52,6 +52,7 @@ object frmMain: TfrmMain
     Top = 151
     Width = 801
     Height = 234
+    DataSource = dsMain
     TabOrder = 4
     TitleFont.Charset = DEFAULT_CHARSET
     TitleFont.Color = clWindowText
@@ -66,5 +67,17 @@ object frmMain: TfrmMain
     Height = 25
     Caption = 'btnOpen'
     TabOrder = 5
+    OnClick = btnOpenClick
+  end
+  object cdsMain: TClientDataSet
+    Aggregates = <>
+    Params = <>
+    Left = 408
+    Top = 208
+  end
+  object dsMain: TDataSource
+    DataSet = cdsMain
+    Left = 376
+    Top = 208
   end
 end

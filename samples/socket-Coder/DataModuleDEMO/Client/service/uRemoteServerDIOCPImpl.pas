@@ -27,7 +27,9 @@ type
     function Execute(pvCmdIndex: Integer; var vData: OleVariant): Boolean; stdcall;
   public
     constructor Create;
-    procedure setHost(pvHost: string; pvPort: Integer);
+    procedure setHost(pvHost: string);
+    procedure setPort(pvPort:Integer);
+    procedure open;
     destructor Destroy; override;
   end;
 
@@ -88,10 +90,20 @@ begin
   vData := FMsgPack.ForcePath('__result.data').AsVariant;
 end;
 
-procedure TRemoteServerDIOCPImpl.setHost(pvHost: string; pvPort: Integer);
+procedure TRemoteServerDIOCPImpl.open;
+begin
+  FTcpClient.Disconnect;
+  FTcpClient.Connect;
+end;
+
+procedure TRemoteServerDIOCPImpl.setHost(pvHost: string);
 begin
   FTcpClient.Host := pvHost;
-  FTcpClient.Port := pvPort;
+end;
+
+procedure TRemoteServerDIOCPImpl.setPort(pvPort: Integer);
+begin
+  FTcpClient.Port := pvPort;  
 end;
 
 end.

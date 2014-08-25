@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  ComObj, ComCtrls;
+  ComObj, ComCtrls, uMyClientContext;
 
 type
   TfrmMain = class(TForm)
@@ -48,7 +48,10 @@ begin
   FTcpServer.createDataMonitor;
   // register decoder and encoder class
   FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
+
+  FTcpServer.registerContextClass(TMyClientContext);
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
+  FTcpServer.LogicWorkerNeedCoInitialize := true;
 end;
 
 destructor TfrmMain.Destroy;

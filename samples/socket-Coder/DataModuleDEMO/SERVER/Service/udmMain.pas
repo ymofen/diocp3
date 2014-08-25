@@ -44,7 +44,7 @@ begin
     lvStr := lvINI.ReadString('main', 'connectionString', '');
     if lvStr <> '' then
     begin
-      dmMain.conMain.ConnectionString := lvStr;
+      conMain.ConnectionString := lvStr;
     end else
     begin
       lvINI.WriteString('main', 'connectionString', dmMain.conMain.ConnectionString);
@@ -61,6 +61,7 @@ begin
       begin
         // 返回服务端时间给客户端
         vData := Now();
+        Result := true;
       end;
     1:  // 查询数据
       begin
@@ -70,7 +71,8 @@ begin
         qryMain.SQL.Add(vData);
         qryMain.Open;
 
-        Result := dspMain.Data;
+        vData := dspMain.Data;
+        Result := true;
       end;
     2:
       begin
@@ -82,6 +84,12 @@ begin
           qryMain.SQL.Add(vData);
           qryMain.ExecSQL;
           conMain.CommitTrans;
+
+          VarClear(vData);
+          
+          Result := true;
+
+
         except
           conMain.RollbackTrans;
           raise;
