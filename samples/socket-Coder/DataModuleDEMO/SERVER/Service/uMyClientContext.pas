@@ -35,7 +35,8 @@ implementation
 procedure TMyClientContext.dataReceived(const pvDataObject: TObject);
 var
   lvMsgPack:TQMsgPack;
-  lvStream, lvStream2:TMemoryStream;
+  lvStream :TStream;
+  lvStream2:TMemoryStream;
   vData:OleVariant;
   lvResult:Boolean;
 begin
@@ -44,7 +45,7 @@ begin
     try
       if FdmMain = nil then FdmMain := TdmMain.Create(nil);
 
-      lvStream :=TStream(pvDataObject);
+      lvStream := TStream(pvDataObject);
       lvStream.Position := 0;
 
       // upZip
@@ -88,6 +89,7 @@ begin
       lvStream2.CopyFrom(lvStream, lvStream.Position);
      TZipTools.unCompressStreamEX(lvStream2);
 
+     lvStream2.Position := 0;
      lvStream2.SaveToFile('C:\1.dat');
 
     finally

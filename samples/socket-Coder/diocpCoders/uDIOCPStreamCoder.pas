@@ -151,6 +151,7 @@ begin
 
   //veri value
   lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
+
   ouBuf.AddBuffer(@lvVerifyValue, SizeOf(lvVerifyValue));
 
 

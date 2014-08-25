@@ -45,7 +45,7 @@ constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FTcpServer := TIOCPConsole.Create(Self);
-  FTcpServer.KeepAlive := true;
+  //FTcpServer.KeepAlive := true;
   FTcpServer.createDataMonitor;
   // register decoder and encoder class
   FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
