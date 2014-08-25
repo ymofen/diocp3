@@ -107,6 +107,7 @@ type
 
     FEncoder: TIOCPEncoder;
     FDecoder: TIOCPDecoder;
+    FLogicWorkerNeedCoInitialize: Boolean;
     FOnDataObjectReceived: TOnDataObjectReceived;
   public
     constructor Create(AOwner: TComponent); override;
@@ -131,11 +132,14 @@ type
 
   published
 
+    property LogicWorkerNeedCoInitialize: Boolean read FLogicWorkerNeedCoInitialize write FLogicWorkerNeedCoInitialize;
     /// <summary>
     ///   on clientContext received a object
     /// </summary>
     property OnDataObjectReceived: TOnDataObjectReceived read FOnDataObjectReceived
         write FOnDataObjectReceived;
+
+
 
 
   end;
@@ -204,6 +208,9 @@ procedure TIOCPCoderClientContext.OnExecuteJob(pvJob: PQJob);
 var
   lvObj:TObject;
 begin
+//  if TIOCPConsole(Owner).FLogicWorkerNeedCoInitialize then
+//    pvJob.
+    
   lvObj := TObject(pvJob.Data);
   try
     dataReceived(lvObj);
@@ -217,6 +224,9 @@ procedure TIOCPCoderClientContext.OnExecuteJob(pvTaskRequest: TIocpTaskRequest);
 var
   lvObj:TObject;
 begin
+  if TIOCPConsole(Owner).FLogicWorkerNeedCoInitialize then
+    pvTaskRequest.iocpWorker.checkCoInitializeEx();
+  
   lvObj := TObject(pvTaskRequest.TaskData);
   try
     dataReceived(lvObj);
