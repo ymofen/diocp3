@@ -56,6 +56,8 @@ type
     function selectSocket(vReadReady, vWriteReady, vExceptFlag: PBoolean;
         pvTimeOut: Integer = 0): Integer;
 
+    function setReadTimeOut(const pvTimeOut: Cardinal): Integer;
+
     /// <summary>
     ///   default 5000 check alive
     /// </summary>
@@ -265,6 +267,12 @@ var
 begin
   bNoDelay := pvOption;
   Result := setsockopt(FSocketHandle, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay)) <> SOCKET_ERROR;
+end;
+
+function TRawSocket.setReadTimeOut(const pvTimeOut: Cardinal): Integer;
+begin
+  Result := setsockopt(FSocketHandle,
+   SOL_SOCKET, SO_RCVTIMEO, PAnsiChar(@pvTimeOut), SizeOf(Cardinal));
 end;
 
 function TRawSocket.UpdateAcceptContext(pvSocket: TSocket): Boolean;

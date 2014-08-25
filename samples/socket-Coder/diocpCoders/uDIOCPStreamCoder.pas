@@ -3,7 +3,7 @@ unit uDIOCPStreamCoder;
 interface
 
 uses
-  uIocpCoder, uBuffer, Classes, SysUtils;
+  uIocpCoder, uBuffer, Classes, SysUtils, uZipTools;
 
 type
   TIOCPStreamDecoder = class(TIOCPDecoder)
@@ -37,7 +37,7 @@ uses
 const
   PACK_FLAG = $D10;
 
-  //PACK_FLAG  + STREAM_LEN + STREAM_DATA
+  //PACK_FLAG  + CRC_VALUE + STREAM_LEN + STREAM_DATA
 
   MAX_OBJECT_SIZE = 1024 * 1024 * 10;  //最大对象大小 10M , 大于10M 则会认为错误的包。
 
@@ -49,6 +49,7 @@ var
   lvValidCount, lvReadL:Integer;
   lvPACK_FLAG:Word;
   lvDataLen: Integer;
+  lvVerifyValue, lvVerifyDataValue:Cardinal;
   lvZiped:Byte;
 begin
   Result := nil;
@@ -71,6 +72,9 @@ begin
     Result := TObject(-1);
     exit;
   end;
+
+  //veri value
+  inBuf.readBuffer(@lvVerifyValue, SizeOf(lvVerifyValue));
 
   //headlen
   inBuf.readBuffer(@lvReadL, SizeOf(lvReadL));
@@ -96,6 +100,17 @@ begin
     TMemoryStream(Result).SetSize(lvDataLen);
     inBuf.readBuffer(TMemoryStream(Result).Memory, lvDataLen);
     TMemoryStream(Result).Position := 0;
+
+    lvVerifyDataValue := TZipTools.verifyData(TMemoryStream(Result).Memory^, lvDataLen);
+
+    if lvVerifyValue <> lvVerifyDataValue then
+    begin
+      Result.Free;
+      Result := nil;
+      Result := TObject(-2);
+    end;
+
+
   end else
   begin
     Result := nil;
@@ -110,6 +125,7 @@ var
   lvPACK_FLAG: WORD;
   lvDataLen, lvWriteIntValue: Integer;
   lvBuf: TBytes;
+  lvVerifyValue:Cardinal;
 begin
   lvPACK_FLAG := PACK_FLAG;
 
@@ -123,18 +139,28 @@ begin
 
 
 
+
   //pack_flag
   ouBuf.AddBuffer(@lvPACK_FLAG, 2);
 
   //
   lvDataLen := TStream(pvDataObject).Size;
+  // stream data
+  SetLength(lvBuf, lvDataLen);
+  TStream(pvDataObject).Read(lvBuf[0], lvDataLen);
+
+  //veri value
+  lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
+  ouBuf.AddBuffer(@lvVerifyValue, SizeOf(lvVerifyValue));
+
+
+  // data_len
   lvWriteIntValue := TByteTools.swap32(lvDataLen);
 
   // stream len
   ouBuf.AddBuffer(@lvWriteIntValue, SizeOf(lvWriteIntValue));
 
-  SetLength(lvBuf, lvDataLen);
-  TStream(pvDataObject).Read(lvBuf[0], lvDataLen);
+
 
   // stream
   ouBuf.AddBuffer(@lvBuf[0], lvDataLen);  

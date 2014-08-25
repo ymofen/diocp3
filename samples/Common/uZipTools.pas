@@ -47,6 +47,8 @@ type
 
     //Ω‚—π(”ÎJAVAºÊ»›)
     class function unCompressBuf(const zipBuffer; Count: Longint): TBytes;
+
+    class function verifyData(const buf; len:Cardinal):Cardinal;
   end;
 
 implementation
@@ -142,6 +144,22 @@ begin
 end;
 
 
+
+class function TZipTools.verifyData(const buf; len: Cardinal): Cardinal;
+var
+  i:Cardinal;
+  p:PByte;
+begin
+  i := 0;
+  Result := 0;
+  p := PByte(@buf);
+  while i < len do
+  begin
+    Result := Result + p^;
+    Inc(p);
+    Inc(i);
+  end;
+end;
 
 class function TZipTools.unCompressStream(const pvZipStream, pvStream:TStream):
     Boolean;

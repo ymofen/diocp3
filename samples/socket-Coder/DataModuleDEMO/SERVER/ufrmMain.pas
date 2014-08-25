@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  ComObj, ComCtrls, uMyClientContext;
+  ComObj, ComCtrls, uMyClientContext, System.Actions;
 
 type
   TfrmMain = class(TForm)
@@ -45,6 +45,7 @@ constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FTcpServer := TIOCPConsole.Create(Self);
+  FTcpServer.KeepAlive := true;
   FTcpServer.createDataMonitor;
   // register decoder and encoder class
   FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);

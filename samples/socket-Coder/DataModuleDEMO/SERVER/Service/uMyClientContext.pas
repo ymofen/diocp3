@@ -35,7 +35,7 @@ implementation
 procedure TMyClientContext.dataReceived(const pvDataObject: TObject);
 var
   lvMsgPack:TQMsgPack;
-  lvStream:TStream;
+  lvStream, lvStream2:TMemoryStream;
   vData:OleVariant;
   lvResult:Boolean;
 begin
@@ -81,6 +81,19 @@ begin
 
     // zipStream
     TZipTools.compressStreamEX(lvStream);
+    lvStream.Position := 0;
+
+    lvStream2 := TMemoryStream.Create;
+    try
+      lvStream2.CopyFrom(lvStream, lvStream.Position);
+     TZipTools.unCompressStreamEX(lvStream2);
+
+     lvStream2.SaveToFile('C:\1.dat');
+
+    finally
+      lvStream2.Free;
+    end;
+
     lvStream.Position := 0;
 
     // send to client

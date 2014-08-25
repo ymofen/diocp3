@@ -224,14 +224,21 @@ procedure TIOCPCoderClientContext.OnExecuteJob(pvTaskRequest: TIocpTaskRequest);
 var
   lvObj:TObject;
 begin
-  if TIOCPConsole(Owner).FLogicWorkerNeedCoInitialize then
-    pvTaskRequest.iocpWorker.checkCoInitializeEx();
-  
-  lvObj := TObject(pvTaskRequest.TaskData);
   try
-    dataReceived(lvObj);
-  finally
-    lvObj.Free;
+    if TIOCPConsole(Owner).FLogicWorkerNeedCoInitialize then
+      pvTaskRequest.iocpWorker.checkCoInitializeEx();
+
+    lvObj := TObject(pvTaskRequest.TaskData);
+    try
+      dataReceived(lvObj);
+    finally
+      lvObj.Free;
+    end;
+  except
+   on E:Exception do
+    begin
+      TIOCPFileLogger.logErrMessage('截获处理逻辑异常!' + e.Message);
+    end;
   end;
 end;
 {$ENDIF}

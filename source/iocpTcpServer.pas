@@ -671,11 +671,15 @@ begin
       begin
         FOwner.FOnClientContextDisconnected(Self);
       end;
-      OnDiscounnected;
+      try
+        OnDiscounnected;
+      except
+      end;
     finally
       FOwner.FOnlineContextList.remove(self);
       FOwner.releaseClientContext(Self);
-    end;   
+    end;
+
   end;
 end;
 
@@ -779,7 +783,10 @@ begin
       FOwner.FOnClientContextConnected(Self);
     end;
 
-    OnConnected();
+    try
+      OnConnected();
+    except
+    end;
 
     PostWSARecvRequest;
 

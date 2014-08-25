@@ -3,7 +3,7 @@ unit uStreamCoderSocket;
 interface
 
 uses
-  uICoderSocket, Classes, SysUtils;
+  uICoderSocket, Classes, SysUtils, uZipTools;
 
 type
   {$if CompilerVersion < 18}
@@ -34,6 +34,8 @@ type
 
 implementation
 
+  //PACK_FLAG  + CRC_VALUE + STREAM_LEN + STREAM_DATA
+
 uses
   uByteTools;
 
@@ -49,6 +51,7 @@ const
 resourcestring
   strRecvException_ErrorFlag = '错误的包头数据,断开与服务器的连接';
   strRecvException_ErrorData = '错误的数据,断开与服务器的连接';
+  strRecvException_VerifyErr = '错误的数据包，校验失败!';
   strSendException_TooBig = '数据包太大,请在业务层分拆发送,最大数据包[%d]!';
   strSendException_NotEqual = '发送Buffer错误指定发送%d,实际发送:%d';
 
@@ -62,9 +65,11 @@ class function TStreamCoderSocket.RecvObject(pvSocket: ICoderSocket;
   pvObject: TObject): Boolean;
 var
   lvBytes:TBytes;
-  lvReadL:Integer;
+  lvReadL, lvTempL:Integer;
   lvPACK_FLAG:Word;
   lvDataLen: Integer;
+  lvVerifyValue, lvVerifyDataValue:Cardinal;
+  lvPByte:PByte;
 begin
   pvSocket.recvBuf(@lvPACK_FLAG, 2);
 
@@ -74,6 +79,9 @@ begin
     //错误的包数据
     raise Exception.Create(strRecvException_ErrorFlag);
   end;
+
+  //veri value
+  pvSocket.recvBuf(@lvVerifyValue, SizeOf(lvVerifyValue));
 
   //headlen
   pvSocket.recvBuf(@lvReadL, SizeOf(lvReadL));
@@ -89,7 +97,22 @@ begin
   end;
 
   SetLength(lvBytes,lvDataLen);
-  pvSocket.recvBuf(@lvBytes[0], lvDataLen);
+  lvPByte := PByte(@lvBytes[0]);
+  lvReadL := 0;
+  while lvReadL < lvDataLen do
+  begin
+    lvTempL := pvSocket.recvBuf(lvPByte, lvDataLen - lvReadL);
+    Inc(lvPByte, lvTempL);
+    lvReadL := lvReadL + lvTempL;
+  end;
+
+
+  lvVerifyDataValue := TZipTools.verifyData(lvBytes[0], lvDataLen);
+  if lvVerifyDataValue <> lvVerifyValue then
+  begin
+    raise Exception.Create(strRecvException_VerifyErr);
+  end;
+
 
   TStream(pvObject).Write(lvBytes[0], lvDataLen);
   Result := true;                                
@@ -102,6 +125,7 @@ var
   lvDataLen, lvWriteIntValue: Integer;
   lvBuf: TBytes;
   lvStream:TMemoryStream;
+  lvVerifyValue:Cardinal;
 begin
   lvPACK_FLAG := PACK_FLAG;
 
@@ -119,13 +143,22 @@ begin
 
     //
     lvDataLen := TStream(pvObject).Size;
+
+    // stream data
+    SetLength(lvBuf, lvDataLen);
+    TStream(pvObject).Read(lvBuf[0], lvDataLen);
+    //veri value
+    lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
+    lvStream.Write(lvVerifyValue, SizeOf(lvVerifyValue));
+
+
     lvWriteIntValue := TByteTools.swap32(lvDataLen);
-    
+
     // stream len
     lvStream.Write(lvWriteIntValue, SizeOf(lvWriteIntValue));
 
     // send pack
-    lvStream.CopyFrom(TStream(pvObject), lvDataLen);
+    lvStream.write(lvBuf[0], lvDataLen);
 
     Result := SendStream(pvSocket, lvStream);
   finally

@@ -67,12 +67,15 @@ begin
       begin
         // vData 认为是传入的SQL语句
         //   执行后, vData为查询的数据，可以用于对ClientData.Data的赋值
+
         qryMain.Close;
+        qryMain.SQL.Clear;
         qryMain.SQL.Add(vData);
         qryMain.Open;
 
         vData := dspMain.Data;
         Result := true;
+        qryMain.Close;
       end;
     2:
       begin

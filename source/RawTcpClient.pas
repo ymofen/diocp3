@@ -67,7 +67,7 @@ begin
   
     
   FRawSocket.createTcpSocket;
-  
+  FRawSocket.setReadTimeOut(10000);
   FActive := FRawSocket.connect(FHost, FPort);
   if not FActive then
   begin
@@ -87,11 +87,19 @@ end;
 function TRawTcpClient.RecvBuffer(buf: Pointer; len: cardinal): Integer;
 begin
   Result := FRawSocket.Recv(buf^, len);
+  if Result = SOCKET_ERROR then
+  begin
+    RaiseLastOSError;
+  end;
 end;
 
 function TRawTcpClient.SendBuffer(buf: Pointer; len: cardinal): Integer;
 begin
   Result := FRawSocket.Send(buf^, len);
+  if Result = SOCKET_ERROR then
+  begin
+    RaiseLastOSError;
+  end;
 end;
 
 procedure TRawTcpClient.SetActive(const Value: Boolean);

@@ -63,6 +63,8 @@ function TRemoteServerDIOCPImpl.Execute(pvCmdIndex: Integer; var vData:
     OleVariant): Boolean;
 begin
   if not FTcpClient.Active then FTcpClient.Connect;
+  FSendStream.Clear;
+  FRecvStream.Clear;
   FMsgPack.Clear;
   FMsgPack.ForcePath('cmd.index').AsInteger := pvCmdIndex;
   FMsgPack.ForcePath('cmd.data').AsVariant := vData;
