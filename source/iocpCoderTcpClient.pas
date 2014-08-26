@@ -138,7 +138,7 @@ begin
   while True do
   begin
     //调用注册的解码器<进行解码>
-    lvObject := FDecoder.Decode(FRecvBufferLink);
+    lvObject := FDecoder.Decode(FRecvBufferLink, Self);
     if Integer(lvObject) = -1 then
     begin
       self.Disconnect;

@@ -3,7 +3,7 @@ unit uIocpCoder;
 interface
 
 uses
-  uBuffer, iocpTcpServer;
+  uBuffer;
 
 type
 
@@ -16,8 +16,8 @@ type
     ///   返回解码好的对象
     /// </returns>
     /// <param name="inBuf"> 接收到的流数据 </param>
-    function Decode(const inBuf: TBufferLink; pvIocpClientContext:
-        TIocpClientContext): TObject; virtual; abstract;
+    function Decode(const inBuf: TBufferLink; pvContext: TObject): TObject;
+        virtual; abstract;
   end;
 
   TIOCPDecoderClass = class of TIOCPDecoder;
