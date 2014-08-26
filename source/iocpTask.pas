@@ -33,6 +33,8 @@ type
 
   TIocpTaskRequest = class(TIocpRequest)
   private
+    FStartTime: Cardinal;
+    FEndTime: Cardinal;
     FOwner:TIocpTaskMananger;
     FMessageEvent: TEvent;
     FStrData:String;
@@ -48,6 +50,7 @@ type
     procedure InnerDoTask;
   protected
     procedure HandleResponse; override;
+    function getStateINfo():String; override;
   public
     constructor Create;
     destructor Destroy; override;
@@ -131,6 +134,10 @@ implementation
 var
   /// iocpRequestPool
   requestPool:TBaseQueue;
+
+resourcestring
+  strDebugRequest_State = 'runInMainThread: %s, done: %s, time(ms): %d';
+
 
 
 function MakeTaskProc(const pvData: Pointer; const AProc: TOnTaskWorkProc):
@@ -441,8 +448,25 @@ begin
   FOwner := nil;
 end;
 
+function TIocpTaskRequest.getStateINfo: String;
+var
+  lvEndTime:Cardinal;
+begin
+  if FEndTime <> 0 then lvEndTime := FEndTime else lvEndTime := GetTickCount;
+  Result := '';
+  if Remark <> '' then
+  begin
+    Result := Remark + sLineBreak;
+  end;
+
+  Result := Result + Format(strDebugRequest_State, [BoolToStr(FRunInMainThread, True),
+    BoolToStr(FEndTime <> 0, True), lvEndTime - FEndTime]);
+end;
+
 procedure TIocpTaskRequest.HandleResponse;
 begin
+  FStartTime := GetTickCount;
+  FEndTime := 0;
   FOwner.incResponseCounter;
   if FOwner.Active then
   begin
@@ -469,9 +493,13 @@ begin
       end;
     end else
     begin
-      InnerDoTask;
+      try
+        InnerDoTask;
+      except
+      end;
     end;
   end;
+  FEndTime := GetTickCount;
   requestPool.Push(Self);
 end;
 

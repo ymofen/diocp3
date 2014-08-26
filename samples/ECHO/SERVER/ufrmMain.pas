@@ -20,9 +20,11 @@ type
     TabSheet2: TTabSheet;
     mmoLog: TMemo;
     pnlMonitor: TPanel;
+    btnGetWorkerState: TButton;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
     procedure btnDisconectAllClick(Sender: TObject);
+    procedure btnGetWorkerStateClick(Sender: TObject);
   private
     { Private declarations }
     FTcpServer: TIocpTcpServer;
@@ -89,6 +91,11 @@ end;
 procedure TfrmMain.btnDisconectAllClick(Sender: TObject);
 begin
   FTcpServer.DisConnectAll();
+end;
+
+procedure TfrmMain.btnGetWorkerStateClick(Sender: TObject);
+begin
+  ShowMessage(FTcpServer.IocpEngine.getStateINfo);
 end;
 
 procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;

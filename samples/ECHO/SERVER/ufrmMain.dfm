@@ -75,6 +75,15 @@ object frmMain: TfrmMain
       end
     end
   end
+  object btnGetWorkerState: TButton
+    Left = 400
+    Top = 4
+    Width = 121
+    Height = 25
+    Caption = 'btnGetWorkerState'
+    TabOrder = 4
+    OnClick = btnGetWorkerStateClick
+  end
   object actlstMain: TActionList
     Left = 248
     Top = 104
