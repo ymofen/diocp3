@@ -6,8 +6,7 @@ uses
   Forms,
   ufrmMain in 'ufrmMain.pas' {frmMain},
   uFMMonitor in '..\..\Common\Frames\uFMMonitor.pas' {FMMonitor: TFrame},
-  uRunTimeINfoTools in '..\..\Common\Frames\uRunTimeINfoTools.pas',
-  safeLogger in '..\..\..\source\safeLogger.pas';
+  uRunTimeINfoTools in '..\..\Common\Frames\uRunTimeINfoTools.pas';
 
 {$R *.res}
 

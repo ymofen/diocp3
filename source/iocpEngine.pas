@@ -66,6 +66,8 @@ type
     FCompletionKey:NativeUInt;
   protected
     procedure HandleResponse; virtual; abstract;
+    function getStateINfo():String; virtual;
+
   public
     constructor Create;
 
@@ -309,16 +311,22 @@ type
 
   end;
 
-
-
-
-
 implementation
 
 {$IFDEF __DEBUG}
 var
   workerCounter:Integer;
 {$ENDIF}
+
+resourcestring
+  strDebugINfo               = 'active : %s, worker count: %d';
+  strDebug_WorkerTitle       = '----------------------- woker %d --------------------';
+  strDebug_Worker_INfo       = 'thread id: %d, response count: %d';
+  strDebug_Worker_StateINfo  = 'busying:%s, waiting:%s, reserved:%s ';
+  strDebug_Request_Title     = 'request state info:';
+  
+
+
 
 function getCPUCount: Integer;
 {$IFDEF MSWINDOWS}
@@ -505,21 +513,28 @@ begin
 end;
 
 procedure TIocpWorker.writeStateINfo(const pvStrings: TStrings);
+var
+  s:String;
 begin
-  pvStrings.Add(Format('worker thread id:%d', [self.ThreadID]));
-  pvStrings.Add(Format('response counter:%d', [FResponseCounter]));
+  pvStrings.Add(Format(strDebug_Worker_INfo, [self.ThreadID, FResponseCounter]));
   if checkFlag(WORKER_OVER) then
   begin
-    pvStrings.Add('worker over!!!');
+    pvStrings.Add('work done!!!');
   end else
   begin
-    pvStrings.Add(Format('busying:%s, waiting:%s, reserved:%s',
-     [boolToStr(checkFlag(WORKER_ISBUSY), true),
-      boolToStr(checkFlag(WORKER_ISWATING), true),
-      boolToStr(checkFlag(WORKER_RESERVED), true)]));
-    if (FLastRequest <> nil) and (FLastRequest.Remark <> '') then
+    pvStrings.Add(Format(strDebug_Worker_StateINfo,
+       [boolToStr(checkFlag(WORKER_ISBUSY), true),
+        boolToStr(checkFlag(WORKER_ISWATING), true),
+        boolToStr(checkFlag(WORKER_RESERVED), true)]));
+        
+    if (FLastRequest <> nil) then
     begin
-      pvStrings.Add(Format('last request remark:%s', [FLastRequest.Remark]));
+      s := FLastRequest.getStateINfo;
+      if s <> '' then
+      begin
+        pvStrings.Add(strDebug_Request_Title);
+        pvStrings.Add(s);
+      end;
     end;
   end;
 end;
@@ -726,13 +741,13 @@ procedure TIocpEngine.writeStateINfo(const pvStrings:TStrings);
 var
   i:Integer;
 begin
-  pvStrings.Add('active:' + BoolToStr(self.FActive, True));
-  pvStrings.Add(Format('workercount: %d', [self.WorkerCount]));
+  pvStrings.Add(Format(strDebugINfo, [BoolToStr(self.FActive, True), self.WorkerCount]));
+  
   self.FWokerLocker.lock;
   try
     for i := 0 to FWorkerList.Count - 1 do
     begin
-      pvStrings.Add(Format('----- worker:%d  ----', [i]));
+      pvStrings.Add(Format(strDebug_WorkerTitle, [i + 1]));
       TIocpWorker(FWorkerList[i]).writeStateINfo(pvStrings);
     end;
   finally
@@ -917,6 +932,11 @@ begin
   finally
     FLocker.unLock;
   end;
+end;
+
+function TIocpRequest.getStateINfo: String;
+begin
+  Result := FRemark;
 end;
 
 initialization

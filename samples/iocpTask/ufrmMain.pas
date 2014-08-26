@@ -98,7 +98,7 @@ begin
 //  iocpTaskManager.PostATask(OnTaskWork, '2');
 //  iocpTaskManager.PostATask(OnTaskWork, '3');
 
-  iocpTaskManager.PostATask(TaskProcGlobal, nil, False);
+  iocpTaskManager.PostATask(TaskProcGlobal, nil, True);
 end;
 
 procedure TfrmMain.Button1Click(Sender: TObject);
