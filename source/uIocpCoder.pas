@@ -3,7 +3,7 @@ unit uIocpCoder;
 interface
 
 uses
-  uBuffer;
+  uBuffer, iocpTcpServer;
 
 type
 
@@ -16,7 +16,8 @@ type
     ///   返回解码好的对象
     /// </returns>
     /// <param name="inBuf"> 接收到的流数据 </param>
-    function Decode(const inBuf: TBufferLink): TObject; virtual; abstract;
+    function Decode(const inBuf: TBufferLink; pvIocpClientContext:
+        TIocpClientContext): TObject; virtual; abstract;
   end;
 
   TIOCPDecoderClass = class of TIOCPDecoder;
@@ -28,7 +29,7 @@ type
     /// </summary>
     /// <param name="pvDataObject"> 要进行编码的对象 </param>
     /// <param name="ouBuf"> 编码好的数据 </param>
-    procedure Encode(pvDataObject:TObject; const ouBuf: TBufferLink); virtual;
+    procedure Encode(pvDataObject: TObject; const ouBuf: TBufferLink); virtual;
         abstract;
   end;
 

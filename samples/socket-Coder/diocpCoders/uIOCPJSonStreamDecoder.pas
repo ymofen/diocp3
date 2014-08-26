@@ -3,7 +3,8 @@ unit uIOCPJSonStreamDecoder;
 interface
 
 uses
-  uIocpCoder, uBuffer, Classes, JSonStream, uIOCPFileLogger, SysUtils, uMyTypes;
+  uIocpCoder, uBuffer, Classes, JSonStream, uIOCPFileLogger, SysUtils,
+  uMyTypes, iocpTcpServer;
 
 const
   MAX_OBJECT_SIZE = 1024 * 1024 * 10;  //最大对象大小 10M , 大于10M 则会认为错误的包。 
@@ -18,7 +19,8 @@ type
     ///   返回解码好的对象
     /// </returns>
     /// <param name="inBuf"> 接收到的流数据 </param>
-    function Decode(const inBuf: TBufferLink): TObject; override;
+    function Decode(const inBuf: TBufferLink; pvIocpClientContext:
+        TIocpClientContext): TObject; override;
   end;
 
 
@@ -27,7 +29,8 @@ implementation
 uses
   Windows, superobject, uZipTools, FileLogger, uByteTools, AnsiStringTools;
 
-function TIOCPJSonStreamDecoder.Decode(const inBuf: TBufferLink): TObject;
+function TIOCPJSonStreamDecoder.Decode(const inBuf: TBufferLink;
+    pvIocpClientContext: TIocpClientContext): TObject;
 var
   lvJSonLength, lvStreamLength:Integer;
   lvMsg, lvData:String;

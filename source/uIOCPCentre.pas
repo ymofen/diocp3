@@ -187,7 +187,7 @@ end;
 
 function TIOCPCoderClientContext.decodeObject: TObject;
 begin
-  Result := TIocpConsole(Owner).FDecoder.Decode(FrecvBuffers);
+  Result := TIocpConsole(Owner).FDecoder.Decode(FrecvBuffers, Self);
 end;
 
 function TIOCPCoderClientContext.GetStateINfo: String;
