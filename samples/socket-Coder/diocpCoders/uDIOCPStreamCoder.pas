@@ -15,8 +15,8 @@ type
     ///   返回解码好的对象
     /// </returns>
     /// <param name="inBuf"> 接收到的流数据 </param>
-    function Decode(const inBuf: TBufferLink; pvIocpClientContext:
-        TIocpClientContext): TObject; override;
+    function Decode(const inBuf: TBufferLink; pvContext: TObject): TObject;
+        override;
   end;
 
 
@@ -44,8 +44,8 @@ const
 
 
 
-function TIOCPStreamDecoder.Decode(const inBuf: TBufferLink;
-    pvIocpClientContext: TIocpClientContext): TObject;
+function TIOCPStreamDecoder.Decode(const inBuf: TBufferLink; pvContext:
+    TObject): TObject;
 var
   lvBytes, lvHeadBytes:SysUtils.TBytes;
   lvValidCount, lvReadL:Integer;

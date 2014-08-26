@@ -9,7 +9,8 @@ uses
   uFMMonitor in '..\..\..\Common\Frames\uFMMonitor.pas' {FMMonitor: TFrame},
   uRunTimeINfoTools in '..\..\..\Common\Frames\uRunTimeINfoTools.pas',
   FileTransProtocol in '..\Common\FileTransProtocol.pas',
-  uMyClientContext in 'uMyClientContext.pas';
+  uMyClientContext in 'uMyClientContext.pas',
+  uZipTools in '..\..\diocpCoders\uZipTools.pas';
 
 {$R *.res}
 

@@ -9,13 +9,18 @@ unit uZipTools;
 interface
 
 uses
-  ZLib, Windows, Classes, SysUtils, uMyTypes;
+  ZLib, Windows, Classes, SysUtils;
 
 {$if CompilerVersion>= 21}
   {$define NEWZLib}
 {$IFEND}
 
 type
+//2007以上直接=TBytes
+{$if CompilerVersion< 18.5}
+  TMyBytes = array of Byte;
+{$IFEND}
+
   TZipTools = class(TObject)
   public
     //压缩字符串(与JAVA兼容)
@@ -42,6 +47,8 @@ type
 
     //解压(与JAVA兼容)
     class function unCompressBuf(const zipBuffer; Count: Longint): TBytes;
+
+    class function verifyData(const buf; len:Cardinal):Cardinal;
   end;
 
 implementation
@@ -137,6 +144,22 @@ begin
 end;
 
 
+
+class function TZipTools.verifyData(const buf; len: Cardinal): Cardinal;
+var
+  i:Cardinal;
+  p:PByte;
+begin
+  i := 0;
+  Result := 0;
+  p := PByte(@buf);
+  while i < len do
+  begin
+    Result := Result + p^;
+    Inc(p);
+    Inc(i);
+  end;
+end;
 
 class function TZipTools.unCompressStream(const pvZipStream, pvStream:TStream):
     Boolean;
