@@ -6,7 +6,7 @@ uses
   iocpWinsock2, Windows, SysUtils;
 
 type
-  TSocketState = (ssDisconnected, ssConnected, ssConnecting, ssListenning);
+  TSocketState = (ssDisconnected, ssConnected, ssConnecting, ssListening);
 
 
 type

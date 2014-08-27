@@ -153,7 +153,7 @@ type
 
     /// <summary>
     ///   post connectEx request to iocp queue
-    /// </summary>
+    /// </summary>                                      l
     function PostRequest: Boolean;
   public
     constructor Create;
