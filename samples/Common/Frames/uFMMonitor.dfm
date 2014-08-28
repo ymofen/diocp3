@@ -130,6 +130,15 @@ object FMMonitor: TFMMonitor
     Height = 13
     Caption = 'sending queue'
   end
+  object btnWorkState: TButton
+    Left = 96
+    Top = 280
+    Width = 105
+    Height = 25
+    Caption = 'worker state'
+    TabOrder = 0
+    OnClick = btnWorkStateClick
+  end
   object tmrReader: TTimer
     Enabled = False
     OnTimer = tmrReaderTimer
