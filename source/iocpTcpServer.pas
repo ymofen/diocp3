@@ -135,7 +135,7 @@ type
 
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); virtual;
 
-    procedure OoDisconnected; virtual;
+    procedure OnDisconnected; virtual;
 
     procedure OnConnected;virtual;
   public
@@ -672,7 +672,7 @@ begin
         FOwner.FOnClientContextDisconnected(Self);
       end;
       try
-        OoDisconnected;
+        OnDisconnected;
       except
       end;
     finally
@@ -827,7 +827,7 @@ begin
   
 end;
 
-procedure TIocpClientContext.OoDisconnected;
+procedure TIocpClientContext.OnDisconnected;
 begin
 
 end;
