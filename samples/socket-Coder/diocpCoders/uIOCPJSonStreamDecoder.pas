@@ -19,8 +19,8 @@ type
     ///   返回解码好的对象
     /// </returns>
     /// <param name="inBuf"> 接收到的流数据 </param>
-    function Decode(const inBuf: TBufferLink; pvIocpClientContext:
-        TIocpClientContext): TObject; override;
+    function Decode(const inBuf: TBufferLink; pvContext: TObject): TObject;
+        override;
   end;
 
 
@@ -29,8 +29,8 @@ implementation
 uses
   Windows, superobject, uZipTools, FileLogger, uByteTools, AnsiStringTools;
 
-function TIOCPJSonStreamDecoder.Decode(const inBuf: TBufferLink;
-    pvIocpClientContext: TIocpClientContext): TObject;
+function TIOCPJSonStreamDecoder.Decode(const inBuf: TBufferLink; pvContext:
+    TObject): TObject;
 var
   lvJSonLength, lvStreamLength:Integer;
   lvMsg, lvData:String;

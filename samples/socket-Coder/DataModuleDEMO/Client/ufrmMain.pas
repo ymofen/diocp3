@@ -63,16 +63,22 @@ begin
   FRemoteSvrObj.setHost(edtHost.Text);
   FRemoteSvrObj.setPort(StrToInt(edtPort.Text));
   FRemoteSvrObj.Open();
+  ShowMessage('open succ!');
 end;
 
 procedure TfrmMain.btnOpenClick(Sender: TObject);
 var
   vData:OleVariant;
+  l : Cardinal;
 begin
   vData := mmoSQL.Lines.Text;
+
+  l := GetTickCount;
   if FRemoteSvr.Execute(1, vData) then
   begin
-    self.cdsMain.Data := vData;  
+    self.cdsMain.Data := vData;
+    Self.Caption := Format('query: count:%d, time:%d',
+      [self.cdsMain.RecordCount, GetTickCount - l]);
   end;
 end;
 

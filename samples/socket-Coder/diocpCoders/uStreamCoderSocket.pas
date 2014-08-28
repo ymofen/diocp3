@@ -102,6 +102,10 @@ begin
   while lvReadL < lvDataLen do
   begin
     lvTempL := pvSocket.recvBuf(lvPByte, lvDataLen - lvReadL);
+    if lvTempL = -1 then
+    begin
+      RaiseLastOSError;
+    end;         
     Inc(lvPByte, lvTempL);
     lvReadL := lvReadL + lvTempL;
   end;
@@ -170,7 +174,8 @@ class function TStreamCoderSocket.SendStream(pvSocket: ICoderSocket; pvStream:
     TStream): Integer;
 var
   lvBufBytes:array[0..BUF_BLOCK_SIZE-1] of byte;
-  l, j, lvTotal:Integer;
+  l, j, r, lvTotal:Integer;
+  P:PByte;
 begin
   Result := 0;
   if pvStream = nil then Exit;
@@ -183,14 +188,19 @@ begin
     l := pvStream.Read(lvBufBytes[0], SizeOf(lvBufBytes));
     if (l > 0) then
     begin
-      j:=pvSocket.sendBuf(@lvBufBytes[0], l);
-      if j <> l then
+      P := PByte(@lvBufBytes[0]);
+      j := l;
+      while j > 0 do
       begin
-        raise Exception.CreateFmt(strSendException_NotEqual, [j, l]);
-      end else
-      begin
-        lvTotal := lvTotal + j;
+        r := pvSocket.sendBuf(P, j);
+        if r = -1 then
+        begin
+          RaiseLastOSError;
+        end;
+        Inc(P, r);
+        Dec(j, r);
       end;
+      lvTotal := lvTotal + l;
     end else Break;
   until (l = 0);
   Result := lvTotal;

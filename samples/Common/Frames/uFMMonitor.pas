@@ -27,8 +27,7 @@ type
     lblSentSize: TLabel;
     lblSendQueue: TLabel;
     Label8: TLabel;
-    btnWorkState: TButton;
-    procedure btnWorkStateClick(Sender: TObject);
+    procedure lblWorkerCountClick(Sender: TObject);
     procedure tmrReaderTimer(Sender: TObject);
     procedure refreshState;
   private
@@ -44,14 +43,6 @@ implementation
 
 {$R *.dfm}
 
-procedure TFMMonitor.btnWorkStateClick(Sender: TObject);
-begin
-  if IocpTcpServer <> nil then
-  begin
-    ShowMessage(IocpTcpServer.IocpEngine.getStateINfo);
-  end;
-end;
-
 class function TFMMonitor.createAsChild(pvParent: TWinControl; pvIOCPTcpServer:
     TIocpTcpServer): TFMMonitor;
 begin
@@ -60,10 +51,15 @@ begin
   Result.Align := alClient;
   Result.IocpTcpServer := pvIOCPTcpServer;
   Result.tmrReader.Enabled := True;
-  Result.refreshState;
+  Result.refreshState;   
+end;
 
-
-
+procedure TFMMonitor.lblWorkerCountClick(Sender: TObject);
+begin
+  if IocpTcpServer <> nil then
+  begin
+    ShowMessage(IocpTcpServer.IocpEngine.getStateINfo);
+  end;
 end;
 
 procedure TFMMonitor.tmrReaderTimer(Sender: TObject);
@@ -76,7 +72,6 @@ begin
   if FIocpTcpServer = nil then
   begin
     lblsvrState.Caption := 'iocp server is null';
-    btnWorkState.Visible := false;
     exit;
   end;
 

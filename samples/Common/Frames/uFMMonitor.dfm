@@ -91,9 +91,18 @@ object FMMonitor: TFMMonitor
   object lblWorkerCount: TLabel
     Left = 96
     Top = 231
-    Width = 74
+    Width = 79
     Height = 13
+    Cursor = crHandPoint
+    AutoSize = False
     Caption = 'lblWorkerCount'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clBlue
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
+    OnClick = lblWorkerCountClick
   end
   object Label7: TLabel
     Left = 16
@@ -129,15 +138,6 @@ object FMMonitor: TFMMonitor
     Width = 70
     Height = 13
     Caption = 'sending queue'
-  end
-  object btnWorkState: TButton
-    Left = 96
-    Top = 280
-    Width = 105
-    Height = 25
-    Caption = 'worker state'
-    TabOrder = 0
-    OnClick = btnWorkStateClick
   end
   object tmrReader: TTimer
     Enabled = False

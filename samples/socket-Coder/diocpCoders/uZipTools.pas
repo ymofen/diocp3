@@ -49,6 +49,8 @@ type
     class function unCompressBuf(const zipBuffer; Count: Longint): TBytes;
 
     class function verifyData(const buf; len:Cardinal):Cardinal;
+
+    class function verifyStream(pvStream:TStream; len:Cardinal): Cardinal;
   end;
 
 implementation
@@ -211,6 +213,34 @@ begin
   CopyMemory(@s[1], @lvOutBytes[0], Length(lvOutBytes));
   Result := s;
 
+end;
+
+class function TZipTools.verifyStream(pvStream:TStream; len:Cardinal): Cardinal;
+var
+  l, j:Cardinal;
+  lvBytes:TBytes;
+begin
+  SetLength(lvBytes, 1024);
+
+  if len = 0 then
+  begin
+    j := pvStream.Size - pvStream.Position;
+  end else
+  begin
+    j := len;
+  end;
+
+  Result := 0;
+
+  while j > 0 do
+  begin
+    if j <1024 then l := j else l := 1024;
+    
+    pvStream.ReadBuffer(lvBytes[0], l);
+
+    Result := verifyData(lvBytes[0], l);
+    Dec(j, l);
+  end;
 end;
 
 

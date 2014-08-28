@@ -12,7 +12,7 @@ type
 
   protected
 
-    procedure OnDiscounnected;override;
+    procedure OnDisconnected; override;
 
     procedure OnConnected;override;
 
@@ -111,7 +111,7 @@ begin
   inherited;
 end;
 
-procedure TMyClientContext.OnDiscounnected;
+procedure TMyClientContext.OnDisconnected;
 begin
   inherited;
   if FdmMain <> nil then

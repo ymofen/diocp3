@@ -77,7 +77,7 @@ end;
 procedure TfrmMain.actOpenExecute(Sender: TObject);
 begin
   FTcpServer.Port := StrToInt(edtPort.Text);
- // FTcpServer.SetWorkerCount(2);
+  FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.Active := true;
   refreshState;
 end;

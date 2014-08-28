@@ -16,7 +16,7 @@ uses
   qrbtree in '..\..\..\qdac3-source\qrbtree.pas',
   qstring in '..\..\..\qdac3-source\qstring.pas',
   qworker in '..\..\..\qdac3-source\qworker.pas',
-  uZipTools in '..\..\..\Common\uZipTools.pas';
+  uZipTools in '..\..\diocpCoders\uZipTools.pas';
 
 {$R *.res}
 
