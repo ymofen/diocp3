@@ -18,7 +18,7 @@ uses
 type
 //2007以上直接=TBytes
 {$if CompilerVersion< 18.5}
-  TMyBytes = array of Byte;
+  TBytes = array of Byte;
 {$IFEND}
 
   TZipTools = class(TObject)
@@ -238,7 +238,7 @@ begin
     
     pvStream.ReadBuffer(lvBytes[0], l);
 
-    Result := verifyData(lvBytes[0], l);
+    Result := Result + verifyData(lvBytes[0], l);
     Dec(j, l);
   end;
 end;
