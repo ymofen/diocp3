@@ -662,23 +662,24 @@ procedure TIocpClientContext.DoDisconnect;
 begin
   if lock_cmp_exchange(True, False, FActive) then
   begin
-    FRawSocket.close;
-    checkReleaseRes;
-    Assert(FOwner <> nil);
-
     try
-      if Assigned(FOwner.FOnClientContextDisconnected) then
-      begin
-        FOwner.FOnClientContextDisconnected(Self);
-      end;
+      FRawSocket.close;
+      checkReleaseRes;
+      Assert(FOwner <> nil);
+      FOwner.FOnlineContextList.remove(self);
+
       try
+        if Assigned(FOwner.FOnClientContextDisconnected) then
+        begin
+          FOwner.FOnClientContextDisconnected(Self);
+        end;
         OnDisconnected;
       except
       end;
     finally
-      FOwner.FOnlineContextList.remove(self);
       FOwner.releaseClientContext(Self);
     end;
+
 
   end;
 end;
@@ -1201,7 +1202,7 @@ end;
 
 procedure TIocpTcpServer.getOnlineContextList(pvList:TList);
 begin
-  FOnlineContextList.write2List(pvList);;
+  FOnlineContextList.write2List(pvList);
 end;
 
 function TIocpTcpServer.getSendRequest: TIocpSendRequest;

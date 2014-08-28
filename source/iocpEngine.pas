@@ -48,6 +48,7 @@ type
   /// </summary>
   TIocpRequest = class(TObject)
   private
+    /// io request response info
     FiocpWorker: TIocpWorker;
 
     FPre: TIocpRequest;
@@ -56,16 +57,20 @@ type
 
     // next Request
     FNext: TIocpRequest;
+
+    FOnResponse: TNotifyEvent;
   protected
+    FErrorCode: Integer;
+
     //post request to iocp queue.
     FOverlapped: OVERLAPPEDEx;
 
-    /// io request response info
-    FErrorCode:Integer;
     FBytesTransferred:NativeUInt;
     FCompletionKey:NativeUInt;
   protected
+
     procedure HandleResponse; virtual; abstract;
+
     function getStateINfo():String; virtual;
 
   public
@@ -73,10 +78,15 @@ type
 
     property iocpWorker: TIocpWorker read FiocpWorker;
 
+    property OnResponse: TNotifyEvent read FOnResponse write FOnResponse;
+
+    property ErrorCode: Integer read FErrorCode;
     /// <summary>
     ///   remark
     /// </summary>
     property Remark: String read FRemark write FRemark;
+
+
   end;
 
   /// <summary>
@@ -471,7 +481,14 @@ begin
         lpOverlapped.iocpRequest.FErrorCode := lvErrCode;
         lpOverlapped.iocpRequest.FBytesTransferred := lvBytesTransferred;
         lpOverlapped.iocpRequest.FCompletionKey := lpCompletionKey;
-        lpOverlapped.iocpRequest.HandleResponse();
+        if Assigned(lpOverlapped.iocpRequest.FOnResponse) then
+        begin
+          lpOverlapped.iocpRequest.FOnResponse(lpOverlapped.iocpRequest);
+        end else
+        begin
+          lpOverlapped.iocpRequest.HandleResponse();
+        end;
+
       end else
       begin
         /// exit
