@@ -30,7 +30,7 @@ type
 
     function GetEnterCount: Integer;
   public
-    constructor Create;
+    constructor Create(pvName: String = '');
     destructor Destroy; override;
 
     procedure lock(pvDebugInfo: String = '');
@@ -50,7 +50,7 @@ type
 
 implementation
 
-constructor TIocpLocker.Create;
+constructor TIocpLocker.Create(pvName: String = '');
 begin
   inherited Create;
   {$IFDEF USECriticalSection}
@@ -58,6 +58,7 @@ begin
   {$ELSE}
     InitializeCriticalSection(FSection);
   {$ENDIF}
+  Name := pvName;
 end;
 
 destructor TIocpLocker.Destroy;

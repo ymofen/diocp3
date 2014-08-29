@@ -57,6 +57,8 @@ type
   /// </summary>
   TIocpClientContext = class(TObject)
   private
+    FSendingLocker:TIocpLocker;
+
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
   private
@@ -132,6 +134,8 @@ type
     procedure DoConnected;
 
     procedure DoCleanUp;virtual;
+
+    procedure InnerDisconnect;
 
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); virtual;
 
@@ -658,7 +662,7 @@ asm
 end;
 
 
-procedure TIocpClientContext.DoDisconnect;
+procedure TIocpClientContext.InnerDisconnect;
 begin
   if lock_cmp_exchange(True, False, FActive) then
   begin
@@ -706,14 +710,21 @@ begin
       {$ENDIF}
 
       /// kick out the clientContext
-      DoDisconnect;
+      InnerDisconnect;
     end;
   end else
   begin  // no request to send
-    if lock_cmp_exchange(True, false, FSending) = False then
-    begin
-      FSending := FSending;
+    FSendingLocker.lock();
+    try
+      FSending := false;
+    finally
+      FSendingLocker.unLock;
     end;
+//    if lock_cmp_exchange(True, false, FSending) = True then
+//    begin
+//      // if pre is true
+//      checkNextSendRequest;
+//    end;
   end;
 end;
 
@@ -737,6 +748,7 @@ end;
 constructor TIocpClientContext.Create;
 begin
   inherited Create;
+  FSendingLocker := TIocpLocker.Create('sendinglocker');
   FAlive := False;
   FRawSocket := TRawSocket.Create();
   FActive := false;
@@ -748,6 +760,7 @@ end;
 destructor TIocpClientContext.Destroy;
 begin
 
+
   FRawSocket.close;
   FRawSocket.Free;
 
@@ -756,7 +769,7 @@ begin
   Assert(FSendRequestLink.Count = 0);
 
   FSendRequestLink.Free;
-  
+  FSendingLocker.Free;
   inherited Destroy;
 end;
 
@@ -795,6 +808,11 @@ begin
   begin
     FActive := FActive;
   end;
+end;
+
+procedure TIocpClientContext.DoDisconnect;
+begin
+  FRawSocket.close;
 end;
 
 procedure TIocpClientContext.DoReceiveData;
@@ -841,6 +859,8 @@ end;
 
 function TIocpClientContext.postSendRequest(
   pvSendRequest: TIocpSendRequest): Boolean;
+var
+  lvDo:Boolean;
 begin
   if FSendRequestLink.Push(pvSendRequest) then
   begin
@@ -851,11 +871,29 @@ begin
 
     Result := true;
 
-    if lock_cmp_exchange(False, True, FSending) = False then
+    FSendingLocker.lock();
+    try
+      if not FSending then
+      begin
+        lvDo := true;
+        FSending := true;
+
+      end;
+
+    finally
+      FSendingLocker.Leave;
+    end;
+
+    if lvDo then
     begin
-      // start sending
       checkNextSendRequest;
     end;
+
+//    if lock_cmp_exchange(False, True, FSending) = False then
+//    begin
+//      // start sending
+//      checkNextSendRequest;
+//    end;
   end else
   begin
     {$IFDEF DEBUG_MSG_ON}
@@ -865,7 +903,7 @@ begin
     {$ENDIF}
 
     FOwner.releaseSendRequest(pvSendRequest);
-    DoDisconnect;
+    InnerDisconnect;
     Result := false;
   end;
 end;
@@ -957,7 +995,7 @@ begin
     lvClientContext := FOnlineContextList.Pop;
     if lvClientContext <> nil then
     begin
-      lvClientContext.DoDisconnect;
+      lvClientContext.InnerDisconnect;
     end else
     begin
       Break;
@@ -1426,7 +1464,7 @@ begin
     if FOwner <> nil then
     begin
       FOwner.DoClientContextError(FClientContext, FErrorCode);
-      FClientContext.DoDisconnect;
+      FClientContext.InnerDisconnect;
     end else
     begin
       Self.Free;
@@ -1437,7 +1475,7 @@ begin
       if not FOwner.isDestroying then
         logDebugMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
     {$ENDIF}
-    FClientContext.DoDisconnect;
+    FClientContext.InnerDisconnect;
   end else
   begin
     try
@@ -1460,7 +1498,7 @@ begin
          if not FOwner.isDestroying then
           logDebugMessage('IocpRecvRequest response Owner is deactive',  []);
         {$ENDIF}
-        FClientContext.DoDisconnect;
+        FClientContext.InnerDisconnect;
       end;
     end;
   end;
@@ -1501,7 +1539,7 @@ begin
       FOwner.DoClientContextError(FClientContext, lvRet);
 
       // kick out clientContext
-      FClientContext.DoDisconnect;
+      FClientContext.InnerDisconnect;
     end else
     begin
       if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
@@ -1597,7 +1635,7 @@ begin
       logDebugMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
     {$ENDIF}
     FOwner.DoClientContextError(FClientContext, FErrorCode);
-    FClientContext.DoDisconnect;
+    FClientContext.InnerDisconnect;
 
     // release request
     FOwner.releaseSendRequest(Self);
@@ -1632,7 +1670,7 @@ begin
         {$ENDIF}
 
         /// kick out the clientContext
-        FClientContext.DoDisconnect;
+        FClientContext.InnerDisconnect;
       end;
     end;
   end;
@@ -1674,7 +1712,7 @@ begin
        FOwner.DoClientContextError(FClientContext, lvRet);
 
        /// kick out the clientContext
-       FClientContext.DoDisconnect;
+       FClientContext.InnerDisconnect;
 
        FOwner.releaseSendRequest(Self);
     end else
@@ -1748,8 +1786,8 @@ begin
     FPushSendQueueCounter := 0;
     FResponseSendObjectCounter := 0;
     
-    FPostWSAAcceptExCounter:=0;
-    FResponseWSAAcceptExCounter:=0;
+    //FPostWSAAcceptExCounter:=0;
+    //FResponseWSAAcceptExCounter:=0;
   finally
     FLocker.Leave;
   end;

@@ -18,12 +18,16 @@ object FMMonitor: TFMMonitor
     Height = 13
     Caption = 'lblsvrState'
   end
-  object Label2: TLabel
+  object lblRecv: TLabel
     Left = 16
     Top = 48
     Width = 25
     Height = 13
+    Hint = 'double click to reset'
     Caption = 'recv:'
+    ParentShowHint = False
+    ShowHint = True
+    OnDblClick = lblRecvDblClick
   end
   object lblPostRecvINfo: TLabel
     Left = 96

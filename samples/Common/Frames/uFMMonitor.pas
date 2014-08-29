@@ -11,7 +11,7 @@ type
     Label1: TLabel;
     tmrReader: TTimer;
     lblsvrState: TLabel;
-    Label2: TLabel;
+    lblRecv: TLabel;
     lblPostRecvINfo: TLabel;
     Label3: TLabel;
     lblSend: TLabel;
@@ -27,6 +27,7 @@ type
     lblSentSize: TLabel;
     lblSendQueue: TLabel;
     Label8: TLabel;
+    procedure lblRecvDblClick(Sender: TObject);
     procedure lblWorkerCountClick(Sender: TObject);
     procedure tmrReaderTimer(Sender: TObject);
     procedure refreshState;
@@ -52,6 +53,11 @@ begin
   Result.IocpTcpServer := pvIOCPTcpServer;
   Result.tmrReader.Enabled := True;
   Result.refreshState;   
+end;
+
+procedure TFMMonitor.lblRecvDblClick(Sender: TObject);
+begin
+  FIocpTcpServer.DataMoniter.clear;
 end;
 
 procedure TFMMonitor.lblWorkerCountClick(Sender: TObject);
