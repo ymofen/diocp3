@@ -14,7 +14,7 @@ type
     procedure checkFreeFileStream;
     procedure checkCreateFileStream(pvFileName: string);
   protected
-    procedure OnDiscounnected; override;
+    procedure OnDisconnected; override;
 
     procedure OnConnected; override;
   protected
@@ -168,7 +168,7 @@ begin
 
 end;
 
-procedure TMyClientContext.OnDiscounnected;
+procedure TMyClientContext.OnDisconnected;
 begin
   checkFreeFileStream;
 end;
