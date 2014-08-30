@@ -692,7 +692,17 @@ procedure TIocpClientContext.checkNextSendRequest;
 var
   lvRequest:TIocpSendRequest;
 begin
-  lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
+  FSendingLocker.lock();
+  try
+    lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
+    if lvRequest = nil then
+    begin
+      FSending := false;
+    end;
+  finally
+    FSendingLocker.unLock;
+  end;
+
   if lvRequest <> nil then
   begin
     FcurrSendRequest := lvRequest;
@@ -712,19 +722,6 @@ begin
       /// kick out the clientContext
       InnerDisconnect;
     end;
-  end else
-  begin  // no request to send
-    FSendingLocker.lock();
-    try
-      FSending := false;
-    finally
-      FSendingLocker.unLock;
-    end;
-//    if lock_cmp_exchange(True, false, FSending) = True then
-//    begin
-//      // if pre is true
-//      checkNextSendRequest;
-//    end;
   end;
 end;
 
