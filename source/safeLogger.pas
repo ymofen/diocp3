@@ -14,10 +14,14 @@ uses
   Classes, BaseQueue, SysUtils, SyncObjs{$IFDEF MSWINDOWS}, Windows, Messages {$ENDIF};
 
 type
-  TSafeLogger = class;
 
   TLogLevel=(lgvError, lgvWarning, lgvHint, lgvMessage, lgvDebug);
 
+const
+  TLogLevelCaption: array [TLogLevel] of string = ('error', 'warning', 'hint', 'message', 'debug');
+
+type
+  TSafeLogger = class;
   TSyncMainThreadType = (rtSync{$IFDEF MSWINDOWS}, rtPostMessage {$ENDIF});
 
   PLogDataObject = ^TLogDataObject;
@@ -27,9 +31,12 @@ type
     FTime:TDateTime;
     FLogLevel:TLogLevel;
     FMsg:string;
+    FMsgType:string;
   end;
 
   TBaseAppender = class(TObject)
+  protected
+    FOwner:TSafeLogger;
   protected
     procedure AppendLog(pvData:PLogDataObject); virtual; abstract;
   end;
@@ -41,6 +48,19 @@ type
     procedure AppendLog(pvData:PLogDataObject); override;
   public
     constructor Create(AStrings: TStrings);
+  end;
+
+  TLogFileAppender = class(TBaseAppender)
+  private
+    FAddThreadINfo: Boolean;
+    FBasePath: string;
+    FLogFile: TextFile;
+    function openLogFile(pvPre: String = ''): Boolean;
+  protected
+    procedure AppendLog(pvData:PLogDataObject); override;
+  public
+    constructor Create(pvAddThreadINfo: Boolean);
+    property AddThreadINfo: Boolean read FAddThreadINfo write FAddThreadINfo;
   end;
 
 
@@ -100,19 +120,27 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    /// <summary>
+    ///   task current info
+    /// </summary>
+    function getStateINfo: String;
 
     procedure start;
 
     procedure setAppender(pvAppender: TBaseAppender; pvOwnsAppender: Boolean =
         true);
 
-    procedure logMessage(pvMsg: string; pvLevel: TLogLevel = lgvMessage); overload;
-    procedure logMessage(pvMsg: string; const args: array of const; pvLevel: TLogLevel = lgvMessage); overload;
+    procedure logMessage(pvMsg: string; pvMsgType: string = ''; pvLevel: TLogLevel
+        = lgvMessage); overload;
+    procedure logMessage(pvMsg: string; const args: array of const; pvMsgType:
+        string = ''; pvLevel: TLogLevel = lgvMessage); overload;
 
     property SyncMainThreadType: TSyncMainThreadType read FSyncMainThreadType write
         FSyncMainThreadType;
     property AppendInMainThread: Boolean read FAppendInMainThread write
         FAppendInMainThread;
+
+
 
     property Enable: Boolean read FEnable write FEnable;
 
@@ -193,7 +221,14 @@ end;
 procedure TSafeLogger.ExecuteLogData(const pvData:PLogDataObject);
 begin
   incResponseCounter;
-  FAppender.AppendLog(pvData);
+  if FAppender = nil then
+  begin
+    incErrorCounter;
+  end else
+  begin
+    FAppender.AppendLog(pvData);
+  end;
+
 end;
 
 procedure TSafeLogger.incErrorCounter;
@@ -211,6 +246,21 @@ begin
   InterlockedDecrement(FErrorCounter);
 end;
 
+function TSafeLogger.getStateINfo: String;
+var
+  lvDebugINfo:TStrings;
+begin
+  lvDebugINfo := TStringList.Create;
+  try
+    lvDebugINfo.Add(Format('enable:%s', [boolToStr(FEnable, True)]));
+    lvDebugINfo.Add(Format('post/response/error counter:%d / %d / %d',
+       [self.FPostCounter,self.FResponseCounter,self.FErrorCounter]));
+    Result := lvDebugINfo.Text;
+  finally
+    lvDebugINfo.Free;
+  end;
+end;
+
 procedure TSafeLogger.incResponseCounter;
 begin
   InterlockedIncrement(FResponseCounter);
@@ -218,25 +268,30 @@ end;
 
 { TSafeLogger }
 
-procedure TSafeLogger.logMessage(pvMsg: string; pvLevel: TLogLevel = lgvMessage);
+procedure TSafeLogger.logMessage(pvMsg: string; pvMsgType: string = '';
+    pvLevel: TLogLevel = lgvMessage);
 var
   lvPData:PLogDataObject;
 begin
+  if not FEnable then exit;
+  if FLogWorker = nil then exit;
+  
   lvPData := __dataObjectPool.Pop;
   if lvPData = nil then New(lvPData);
   lvPData.FThreadID := TThread.CurrentThread.ThreadID;
   lvPData.FTime := Now();
   lvPData.FLogLevel := pvLevel;
   lvPData.FMsg := pvMsg;
+  lvPData.FMsgType := pvMsgType;
   FDataQueue.Push(lvPData);
   InterlockedIncrement(FPostCounter);
   FLogWorker.FNotify.SetEvent;
 end;
 
 procedure TSafeLogger.logMessage(pvMsg: string; const args: array of const;
-    pvLevel: TLogLevel = lgvMessage);
+    pvMsgType: string = ''; pvLevel: TLogLevel = lgvMessage);
 begin
-  logMessage(Format(pvMsg, args), pvLevel);
+  logMessage(Format(pvMsg, args), pvMsgType, pvLevel);
 end;
 
 procedure TSafeLogger.setAppender(pvAppender: TBaseAppender; pvOwnsAppender:
@@ -248,8 +303,12 @@ begin
     FAppender := nil;
   end;
 
-  FAppender := pvAppender;
-  FOwnsAppender := pvOwnsAppender;
+  if pvAppender <> nil then
+  begin
+    FAppender := pvAppender;
+    FOwnsAppender := pvOwnsAppender;
+    FAppender.FOwner := Self;
+  end;
 end;
 
 procedure TSafeLogger.start;
@@ -257,6 +316,7 @@ begin
   if FLogWorker = nil then
   begin
     FLogWorker := TLogWorker.Create(Self);
+
   end;
   FLogWorker.Resume;
 end;
@@ -297,6 +357,7 @@ end;
 constructor TLogWorker.Create(ASafeLogger: TSafeLogger);
 begin
   inherited Create(True);
+  FreeOnTerminate := true;
   FNotify := TEvent.Create(nil,false,false,'');
   FSafeLogger := ASafeLogger;
   FMessageEvent := TEvent.Create(nil, true, False, '');
@@ -379,7 +440,78 @@ procedure TStringsAppender.AppendLog(pvData:PLogDataObject);
 begin
   inherited;
   Assert(FStrings <> nil);
-  FStrings.Add(FormatDateTime('yyyy-MM-dd hh:nn:ss.zzz', pvData.FTime) + ':' + pvData.FMsg);
+  FStrings.Add(
+    Format('%s[%s]:%s',
+      [FormatDateTime('yyyy-MM-dd hh:nn:ss.zzz', pvData.FTime)
+        , TLogLevelCaption[pvData.FLogLevel]
+        , pvData.FMsg
+      ]
+      ));
+end;
+
+procedure TLogFileAppender.AppendLog(pvData: PLogDataObject);
+var
+  lvMsg:String;
+  lvFile:String;
+begin
+  if OpenLogFile(pvData.FMsgType) then
+  begin
+    try
+      if FAddThreadINfo then
+      begin
+        lvMsg := Format('%s[%s][PID:%d,ThreadID:%d]:%s',
+            [FormatDateTime('hh:nn:ss:zzz', pvData.FTime)
+              , TLogLevelCaption[pvData.FLogLevel]
+              , GetCurrentProcessID()
+              , pvData.FThreadID
+              , pvData.FMsg
+            ]
+            );
+      end else
+      begin
+        lvMsg := Format('%s[%s]:%s',
+            [FormatDateTime('hh:nn:ss:zzz', pvData.FTime)
+              , TLogLevelCaption[pvData.FLogLevel]
+              , pvData.FMsg
+            ]
+            );
+      end;
+      writeln(FLogFile, lvMsg);
+      flush(FLogFile);
+    finally
+      CloseFile(FLogFile);
+    end;
+  end else
+  begin
+    FOwner.incErrorCounter;
+  end;
+end;
+
+constructor TLogFileAppender.Create(pvAddThreadINfo: Boolean);
+begin
+  inherited Create;
+  FBasePath :=ExtractFilePath(ParamStr(0)) + 'log';
+  if not DirectoryExists(FBasePath) then CreateDir(FBasePath);
+  FAddThreadINfo := pvAddThreadINfo;
+end;
+
+function TLogFileAppender.openLogFile(pvPre: String = ''): Boolean;
+var
+  lvFileName:String;
+begin
+
+  lvFileName :=FBasePath + '\' + pvPre + FormatDateTime('yyyymmddhh', Now()) + '.log';
+  try
+    AssignFile(FLogFile, lvFileName);
+    if (FileExists(lvFileName)) then
+      append(FLogFile)
+    else
+      rewrite(FLogFile);
+
+    Result := true;
+  except
+    Result := false;
+  end;
 end;
 
 initialization
