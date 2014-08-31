@@ -189,6 +189,7 @@ destructor TIocpTaskMananger.Destroy;
 begin
   FIocpEngine.safeStop;
   FIocpEngine.Free;
+  DeallocateHWnd(FMessageHandle);
   inherited Destroy;
 end;
 
@@ -196,8 +197,8 @@ procedure TIocpTaskMananger.DoMainThreadWork(var AMsg: TMessage);
 begin
   if AMsg.Msg = WM_REQUEST_TASK then
   begin
-    if not FEnable then Exit;
     try
+      if not FEnable then Exit;
       TIocpTaskRequest(AMsg.WPARAM).InnerDoTask();
     finally
       if AMsg.LPARAM <> 0 then

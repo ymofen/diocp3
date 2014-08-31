@@ -49,6 +49,11 @@ type
     /// </summary>
     procedure FreeDataObject;
 
+    /// <summary>
+    ///   dispose all data
+    /// </summary>
+    procedure DisposeAllData;
+
     property Name: String read FName write FName;
 
 
@@ -108,6 +113,29 @@ begin
   Clear;
   FLocker.Free;
   inherited Destroy;
+end;
+
+procedure TBaseQueue.DisposeAllData;
+var
+  lvData:Pointer;
+begin
+  while True do
+  begin
+    lvData := nil;
+    if Pop(lvData) then
+    begin
+      if lvData = nil then
+      begin
+        lvData := nil;
+      end else
+      begin
+        Dispose(lvData);
+      end;
+    end else
+    begin
+      Break;
+    end;
+  end;
 end;
 
 { TBaseQueue }
