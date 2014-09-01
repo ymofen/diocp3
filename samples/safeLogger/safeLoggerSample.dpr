@@ -1,7 +1,7 @@
 program safeLoggerSample;
 
 uses
-  Vcl.Forms,
+  Forms,
   ufrmMain in 'ufrmMain.pas' {Form1};
 
 {$R *.res}

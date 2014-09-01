@@ -278,7 +278,11 @@ begin
   
   lvPData := __dataObjectPool.Pop;
   if lvPData = nil then New(lvPData);
+{$IFDEF MSWINDOWS}
+  lvPData.FThreadID := GetCurrentThreadId;
+{$ELSE}
   lvPData.FThreadID := TThread.CurrentThread.ThreadID;
+{$ENDIF};
   lvPData.FTime := Now();
   lvPData.FLogLevel := pvLevel;
   lvPData.FMsg := pvMsg;
