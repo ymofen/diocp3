@@ -24,9 +24,8 @@ type
   TSafeLogger = class;
   TSyncMainThreadType = (rtSync{$IFDEF MSWINDOWS}, rtPostMessage {$ENDIF});
 
-  PLogDataObject = ^TLogDataObject;
-
-  TLogDataObject = record
+  TLogDataObject = class(TObject)
+  public
     FThreadID:Cardinal;
     FTime:TDateTime;
     FLogLevel:TLogLevel;
@@ -38,14 +37,14 @@ type
   protected
     FOwner:TSafeLogger;
   protected
-    procedure AppendLog(pvData:PLogDataObject); virtual; abstract;
+    procedure AppendLog(pvData:TLogDataObject); virtual; abstract;
   end;
 
   TStringsAppender = class(TBaseAppender)
   private
     FStrings: TStrings;
   protected
-    procedure AppendLog(pvData:PLogDataObject); override;
+    procedure AppendLog(pvData:TLogDataObject); override;
   public
     constructor Create(AStrings: TStrings);
   end;
@@ -57,7 +56,7 @@ type
     FLogFile: TextFile;
     function openLogFile(pvPre: String = ''): Boolean;
   protected
-    procedure AppendLog(pvData:PLogDataObject); override;
+    procedure AppendLog(pvData:TLogDataObject); override;
   public
     constructor Create(pvAddThreadINfo: Boolean);
     property AddThreadINfo: Boolean read FAddThreadINfo write FAddThreadINfo;
@@ -72,8 +71,8 @@ type
     FSafeLogger: TSafeLogger;
     FNotify: TEvent;
     // temp for sync method
-    FTempLogData: PLogDataObject;
-    procedure ExecuteLogData(const pvData:PLogDataObject);
+    FTempLogData: TLogDataObject;
+    procedure ExecuteLogData(const pvData:TLogDataObject);
     procedure InnerSyncLogData;
   public
     constructor Create(ASafeLogger: TSafeLogger);
@@ -84,6 +83,8 @@ type
 
   TSafeLogger = class(TObject)
   private
+    FWorkerAlive:Boolean;
+    
     FLogWorker:TLogWorker;
     FDataQueue: TBaseQueue;
     FOwnsAppender:Boolean;
@@ -93,7 +94,7 @@ type
 
     FSyncMainThreadType: TSyncMainThreadType;
 
-    procedure ExecuteLogData(const pvData:PLogDataObject);
+    procedure ExecuteLogData(const pvData:TLogDataObject);
   private
     FEnable: Boolean;
     FWorkerCounter:Integer;
@@ -107,25 +108,28 @@ type
     /// <summary>
     ///   check worker thread is alive
     /// </summary>
-    function workersIsAlive: Boolean;
+    function workersIsAlive(const pvWorker: TLogWorker): Boolean;
 
+    procedure checkForWorker;
     procedure stopWorker;
   private
-    {$IFDEF MSWINDOWS}
+  {$IFDEF MSWINDOWS}
     FMessageHandle: HWND;
     procedure DoMainThreadWork(var AMsg: TMessage);
+  {$ENDIF}
     procedure incWorkerCount;
-    procedure decWorkerCounter;
-    {$ENDIF}
+    procedure decWorker(pvWorker: TLogWorker);
+
   public
     constructor Create;
     destructor Destroy; override;
+
+    procedure start;
+
     /// <summary>
     ///   task current info
     /// </summary>
     function getStateINfo: String;
-
-    procedure start;
 
     procedure setAppender(pvAppender: TBaseAppender; pvOwnsAppender: Boolean =
         true);
@@ -140,8 +144,6 @@ type
     property AppendInMainThread: Boolean read FAppendInMainThread write
         FAppendInMainThread;
 
-
-
     property Enable: Boolean read FEnable write FEnable;
 
 
@@ -153,6 +155,8 @@ var
 implementation
 
 
+
+
 var
   __dataObjectPool:TBaseQueue;
 
@@ -162,9 +166,39 @@ const
 
 {$ENDIF}
 
+/// compare target, cmp_val same set target = new_val
+/// return old value
+function lock_cmp_exchange(cmp_val, new_val: Boolean; var target: Boolean): Boolean; overload;
+asm
+{$ifdef win32}
+  lock cmpxchg [ecx], dl
+{$else}
+.noframe
+  mov rax, rcx
+  lock cmpxchg [r8], dl
+{$endif}
+end;
+
+procedure TSafeLogger.checkForWorker;
+begin
+  if lock_cmp_exchange(False, True, FWorkerAlive) = False then
+  begin
+    if FLogWorker = nil then
+    begin
+      FLogWorker := TLogWorker.Create(Self);
+      FLogWorker.Resume;
+    end;
+  end;
+  if FLogWorker <> nil then
+  begin
+    FLogWorker.FNotify.SetEvent;
+  end;
+end;
+
 constructor TSafeLogger.Create;
 begin
   inherited Create;
+  FWorkerAlive := False;
   FEnable := true;
   FSyncMainThreadType := rtSync;
 {$IFDEF MSWINDOWS}
@@ -175,17 +209,15 @@ begin
   FAppender := nil;
   FOwnsAppender := false;
   FWorkerCounter := 0;
-
-
-
 end;
 
 destructor TSafeLogger.Destroy;
 begin
   FEnable := false;
+  
   stopWorker;
 
-  FDataQueue.DisposeAllData;
+  FDataQueue.FreeDataObject;
   FreeAndNil(FDataQueue);
   if FOwnsAppender then
   begin
@@ -208,7 +240,7 @@ begin
   begin
     try
       if not FEnable then Exit;
-      ExecuteLogData(PLogDataObject(AMsg.WParam));
+      ExecuteLogData(TLogDataObject(AMsg.WParam));
     finally
       if AMsg.LPARAM <> 0 then
         TEvent(AMsg.LPARAM).SetEvent;
@@ -218,7 +250,7 @@ begin
 end;
 {$ENDIF}
 
-procedure TSafeLogger.ExecuteLogData(const pvData:PLogDataObject);
+procedure TSafeLogger.ExecuteLogData(const pvData:TLogDataObject);
 begin
   incResponseCounter;
   if FAppender = nil then
@@ -241,9 +273,11 @@ begin
   InterlockedIncrement(FWorkerCounter);
 end;
 
-procedure TSafeLogger.decWorkerCounter;
+procedure TSafeLogger.decWorker(pvWorker: TLogWorker);
 begin
-  InterlockedDecrement(FErrorCounter);
+  InterlockedDecrement(FWorkerCounter);
+  FWorkerAlive := false;
+  FLogWorker := nil;
 end;
 
 function TSafeLogger.getStateINfo: String;
@@ -252,7 +286,7 @@ var
 begin
   lvDebugINfo := TStringList.Create;
   try
-    lvDebugINfo.Add(Format('enable:%s', [boolToStr(FEnable, True)]));
+    lvDebugINfo.Add(Format('enable:%s, workerAlive:%s', [boolToStr(FEnable, True), boolToStr(FWorkerAlive, True)]));
     lvDebugINfo.Add(Format('post/response/error counter:%d / %d / %d',
        [self.FPostCounter,self.FResponseCounter,self.FErrorCounter]));
     Result := lvDebugINfo.Text;
@@ -271,13 +305,12 @@ end;
 procedure TSafeLogger.logMessage(pvMsg: string; pvMsgType: string = '';
     pvLevel: TLogLevel = lgvMessage);
 var
-  lvPData:PLogDataObject;
+  lvPData:TLogDataObject;
 begin
   if not FEnable then exit;
-  if FLogWorker = nil then exit;
-  
+
   lvPData := __dataObjectPool.Pop;
-  if lvPData = nil then New(lvPData);
+  if lvPData = nil then lvPData:=TLogDataObject.Create;
 {$IFDEF MSWINDOWS}
   lvPData.FThreadID := GetCurrentThreadId;
 {$ELSE}
@@ -289,7 +322,7 @@ begin
   lvPData.FMsgType := pvMsgType;
   FDataQueue.Push(lvPData);
   InterlockedIncrement(FPostCounter);
-  FLogWorker.FNotify.SetEvent;
+  checkForWorker;
 end;
 
 procedure TSafeLogger.logMessage(pvMsg: string; const args: array of const;
@@ -317,39 +350,38 @@ end;
 
 procedure TSafeLogger.start;
 begin
-  if FLogWorker = nil then
-  begin
-    FLogWorker := TLogWorker.Create(Self);
-
-  end;
-  FLogWorker.Resume;
+  //nothing to do ...
 end;
 
 procedure TSafeLogger.stopWorker;
 begin
   if FLogWorker <> nil then
   begin
-    FLogWorker.Terminate;
-    FLogWorker.FNotify.SetEvent;
+    FLogWorker := FLogWorker;
+    if FLogWorker <> nil then
+    begin
+      FLogWorker.Terminate;
+      FLogWorker.FNotify.SetEvent;
+    end;
+    while (FWorkerCounter > 0) and workersIsAlive(FLogWorker) do
+    begin
+      {$IFDEF MSWINDOWS}
+      SwitchToThread;
+      {$ELSE}
+      TThread.Yield;
+      {$ENDIF}
+    end;
+    FLogWorker := nil;
   end;
-  while (FWorkerCounter > 0) and workersIsAlive do
-  begin
-    {$IFDEF MSWINDOWS}
-    SwitchToThread;
-    {$ELSE}
-    TThread.Yield;
-    {$ENDIF}
-  end;
-  FLogWorker := nil;
 end;
 
-function TSafeLogger.workersIsAlive: Boolean;
+function TSafeLogger.workersIsAlive(const pvWorker: TLogWorker): Boolean;
 var
   i: Integer;
   lvCode:Cardinal;
 begin
   Result := false;
-  if GetExitCodeThread(FLogWorker.Handle, lvCode) then
+  if (pvWorker <> nil) and (GetExitCodeThread(pvWorker.Handle, lvCode)) then
   begin
     if lvCode=STILL_ACTIVE then
     begin
@@ -377,13 +409,15 @@ end;
 
 procedure TLogWorker.Execute;
 var
-  lvPData:PLogDataObject;
+  lvPData:TLogDataObject;
+  lvWaitResult:TWaitResult;
 begin
   FSafeLogger.incWorkerCount;
   try
     while not self.Terminated do
     begin
-      if (FNotify.WaitFor(INFINITE)=wrSignaled) then
+      lvWaitResult := FNotify.WaitFor(1000 * 30);
+      if (lvWaitResult=wrSignaled) then
       begin
         while not self.Terminated do
         begin
@@ -391,15 +425,21 @@ begin
           if lvPData = nil then Break;
 
           ExecuteLogData(lvPData);
+
+          /// push back to logData pool
+          __dataObjectPool.Push(lvPData);
         end;
+      end else if lvWaitResult = wrTimeout then
+      begin
+        Break;
       end;
     end;
   finally
-    FSafeLogger.decWorkerCounter;
+    FSafeLogger.decWorker(Self);
   end;
 end;
 
-procedure TLogWorker.ExecuteLogData(const pvData:PLogDataObject);
+procedure TLogWorker.ExecuteLogData(const pvData:TLogDataObject);
 begin
   if FSafeLogger.FAppendInMainThread then
   begin
@@ -440,7 +480,7 @@ begin
   FStrings := AStrings;
 end;
 
-procedure TStringsAppender.AppendLog(pvData:PLogDataObject);
+procedure TStringsAppender.AppendLog(pvData:TLogDataObject);
 begin
   inherited;
   Assert(FStrings <> nil);
@@ -453,7 +493,7 @@ begin
       ));
 end;
 
-procedure TLogFileAppender.AppendLog(pvData: PLogDataObject);
+procedure TLogFileAppender.AppendLog(pvData: TLogDataObject);
 var
   lvMsg:String;
   lvFile:String;
@@ -522,8 +562,10 @@ initialization
   __dataObjectPool := TBaseQueue.Create;
   __dataObjectPool.Name := 'safeLoggerDataPool';
   sfLogger := TSafeLogger.Create();
+  sfLogger.setAppender(TLogFileAppender.Create(True));
 
 finalization
+  __dataObjectPool.FreeDataObject;
   __dataObjectPool.Free;
   sfLogger.Free;
 
