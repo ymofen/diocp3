@@ -143,6 +143,9 @@ begin
     DoConnected;
   end else
   begin
+
+    DoError(TIocpConnectExRequest(pvObject).ErrorCode);
+
     if (FAutoReConnect) and (Owner.Active) then
     begin
       PostConnectRequest;
