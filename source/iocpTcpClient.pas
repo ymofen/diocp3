@@ -263,6 +263,7 @@ type
     function sendBufferAsync(pvBuffer:Pointer; pvLen:Cardinal): Boolean;
 
     procedure Disconnect;
+    property IOCPEngine: TIocpEngine read FIOCPEngine;
 
   published
 
