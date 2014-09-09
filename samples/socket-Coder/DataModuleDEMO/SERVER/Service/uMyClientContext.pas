@@ -84,20 +84,6 @@ begin
     TZipTools.compressStreamEX(lvStream);
     lvStream.Position := 0;
 
-    lvStream2 := TMemoryStream.Create;
-    try
-      lvStream2.CopyFrom(lvStream, lvStream.Position);
-     TZipTools.unCompressStreamEX(lvStream2);
-
-     lvStream2.Position := 0;
-     lvStream2.SaveToFile('C:\1.dat');
-
-    finally
-      lvStream2.Free;
-    end;
-
-    lvStream.Position := 0;
-
     // send to client
     self.writeObject(lvStream);
   finally

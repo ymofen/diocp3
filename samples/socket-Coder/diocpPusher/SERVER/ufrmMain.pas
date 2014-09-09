@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  ComObj, ComCtrls, System.Actions;
+  ComObj, ComCtrls;
 
 type
   TfrmMain = class(TForm)
@@ -45,13 +45,6 @@ uses
   uFMMonitor, uDIOCPStreamCoder, uRunTimeINfoTools, iocpTask;
 
 {$R *.dfm}
-
-function swap16(const v): Word;
-begin
-  Result := PByte(@v)^ shl 8;
-  inc(result, PByte(IntPtr(@v) + 1)^);
-end;
-
 
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
