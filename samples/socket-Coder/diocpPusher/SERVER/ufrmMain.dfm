@@ -3,8 +3,8 @@ object frmMain: TfrmMain
   Top = 0
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 pusher'
-  ClientHeight = 356
-  ClientWidth = 584
+  ClientHeight = 360
+  ClientWidth = 664
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -50,16 +50,17 @@ object frmMain: TfrmMain
   object pgcMain: TPageControl
     Left = 8
     Top = 39
-    Width = 566
+    Width = 648
     Height = 310
     ActivePage = tsPuller
     TabOrder = 4
     object tsPuller: TTabSheet
       Caption = 'tsPuller'
+      ExplicitWidth = 558
       object ListView1: TListView
         Left = 0
         Top = 41
-        Width = 558
+        Width = 640
         Height = 241
         Align = alClient
         Columns = <
@@ -77,29 +78,34 @@ object frmMain: TfrmMain
           end>
         TabOrder = 0
         ViewStyle = vsReport
+        ExplicitWidth = 558
       end
       object pnlPullerOperator: TPanel
         Left = 0
         Top = 0
-        Width = 558
+        Width = 640
         Height = 41
         Align = alTop
         BevelOuter = bvNone
         TabOrder = 1
+        ExplicitTop = -6
+        ExplicitWidth = 558
       end
     end
     object tsMoniter: TTabSheet
       Caption = 'Moniter'
       ImageIndex = 1
+      ExplicitWidth = 558
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
-        Width = 558
+        Width = 640
         Height = 282
         Align = alClient
         BevelKind = bkTile
         BevelOuter = bvNone
         TabOrder = 0
+        ExplicitWidth = 558
       end
     end
   end
