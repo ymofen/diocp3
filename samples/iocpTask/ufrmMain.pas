@@ -68,7 +68,11 @@ end;
 
 destructor TfrmMain.Destroy;
 begin
-  iocpTaskManager.Enable := false;
+  FLogTask.Enable := false;
+  iocpTaskManager.Enable := False;
+//
+//  FLogTask.PostATask(onLogMsg, 'abcd', True, rtPostMessage);
+//  Sleep(100);
   FLogTask.Active := false;
   FLogTask.Free;
   inherited Destroy;
@@ -81,7 +85,7 @@ end;
 
 procedure TfrmMain.logMessage(pvMsg: string);
 begin
-  FLogTask.PostATask(onLogMsg, pvMsg, True); 
+  FLogTask.PostATask(onLogMsg, pvMsg, True, rtPostMessage);
 end;
 
 procedure TfrmMain.onLogMsg(pvStrData: string);

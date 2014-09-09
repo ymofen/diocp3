@@ -2,6 +2,9 @@
  *	 Unit owner: D10.Mofen
  *	       blog: http://www.cnblogs.com/dksoft
  *
+ *   v0.0.2(2014-09-06 22:06:18)
+ *     + warning, hint
+ *
  *	 v0.0.1(2014-08-31 12:40:18)
  *     + first release
  *)
@@ -54,6 +57,8 @@ type
     FAddThreadINfo: Boolean;
     FBasePath: string;
     FLogFile: TextFile;
+    FInitialized: Boolean;
+    procedure checkInitialized;
     function openLogFile(pvPre: String = ''): Boolean;
   protected
     procedure AppendLog(pvData:TLogDataObject); override;
@@ -186,7 +191,11 @@ begin
     if FLogWorker = nil then
     begin
       FLogWorker := TLogWorker.Create(Self);
+    {$IFDEF UNICODE}
+      FLogWorker.Start;
+    {$ELSE}
       FLogWorker.Resume;
+    {$ENDIF}
     end;
   end;
   if FLogWorker <> nil then
@@ -377,7 +386,6 @@ end;
 
 function TSafeLogger.workersIsAlive(const pvWorker: TLogWorker): Boolean;
 var
-  i: Integer;
   lvCode:Cardinal;
 begin
   Result := false;
@@ -496,8 +504,8 @@ end;
 procedure TLogFileAppender.AppendLog(pvData: TLogDataObject);
 var
   lvMsg:String;
-  lvFile:String;
 begin
+  checkInitialized;
   if OpenLogFile(pvData.FMsgType) then
   begin
     try
@@ -531,11 +539,17 @@ begin
   end;
 end;
 
+procedure TLogFileAppender.checkInitialized;
+begin
+  if FInitialized then exit;
+  if not DirectoryExists(FBasePath) then ForceDirectories(FBasePath);
+  FInitialized := true;
+end;
+
 constructor TLogFileAppender.Create(pvAddThreadINfo: Boolean);
 begin
   inherited Create;
   FBasePath :=ExtractFilePath(ParamStr(0)) + 'log';
-  if not DirectoryExists(FBasePath) then CreateDir(FBasePath);
   FAddThreadINfo := pvAddThreadINfo;
 end;
 
@@ -543,6 +557,7 @@ function TLogFileAppender.openLogFile(pvPre: String = ''): Boolean;
 var
   lvFileName:String;
 begin
+
 
   lvFileName :=FBasePath + '\' + pvPre + FormatDateTime('yyyymmddhh', Now()) + '.log';
   try

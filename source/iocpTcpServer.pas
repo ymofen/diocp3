@@ -168,9 +168,6 @@ type
 
     property RemotePort: Integer read FRemotePort;
 
-
-
-
   end;
 
   /// <summary>
@@ -329,13 +326,15 @@ type
   private
     FOwner: TIocpTcpServer;
     FList:TList;
+    FListenSocket: TRawSocket;
     FLocker: TIocpLocker;
     FMaxRequest:Integer;
     FMinRequest:Integer;
 
   protected
   public
-    constructor Create(AOwner: TIocpTcpServer);
+    constructor Create(AOwner: TIocpTcpServer; AListenSocket: TRawSocket);
+
     destructor Destroy; override;
 
     procedure releaseRequestObject(pvRequest:TIocpAcceptExRequest);
@@ -343,6 +342,10 @@ type
     procedure removeRequestObject(pvRequest:TIocpAcceptExRequest);
 
     procedure checkPostRequest;
+
+    property ListenSocket: TRawSocket read FListenSocket;
+
+
   end;
 
   /// <summary>
@@ -425,6 +428,14 @@ type
 
     property Count: Integer read FCount;
 
+  end;
+
+  // unfinished
+  TListenItem = class(TObject)
+  private
+    FRawSocket:TRawSocket;
+    FAcceptExMgr:TIocpAcceptorMgr;
+    FPort:Integer;
   end;
 
 
@@ -537,8 +548,6 @@ type
     ///   create DataMonitor object
     /// </summary>
     procedure createDataMonitor;
-
-
 
 
     /// <summary>
@@ -951,9 +960,12 @@ begin
   FSendRequestPool := TBaseQueue.Create;
     
   FIocpEngine := TIocpEngine.Create();
+
   FOnlineContextList := TContextDoublyLinked.Create();
+
   FListenSocket := TRawSocket.Create;
-  FIocpAcceptorMgr := TIocpAcceptorMgr.Create(Self);
+
+  FIocpAcceptorMgr := TIocpAcceptorMgr.Create(Self, FListenSocket);
 
   // post wsaRecv block size
   FWSARecvBufferSize := 1024 * 4;
@@ -1301,7 +1313,8 @@ begin
   end;
 end;
 
-constructor TIocpAcceptorMgr.Create(AOwner: TIocpTcpServer);
+constructor TIocpAcceptorMgr.Create(AOwner: TIocpTcpServer; AListenSocket:
+    TRawSocket);
 begin
   inherited Create;
   FLocker := TIocpLocker.Create();
@@ -1310,6 +1323,7 @@ begin
   FMinRequest := 10;  
   FList := TList.Create;
   FOwner := AOwner;
+  FListenSocket := AListenSocket;
 end;
 
 destructor TIocpAcceptorMgr.Destroy;

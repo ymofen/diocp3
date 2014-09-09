@@ -111,7 +111,7 @@ type
         pvRunInMainThread: Boolean = False; pvRunType: TRunInMainThreadType =
         rtSync); overload;
 
-       
+
     property Active: Boolean read FActive write SetActive;
 
     property Enable: Boolean read FEnable write FEnable;
@@ -474,7 +474,10 @@ begin
     if FRunInMainThread then
     begin
       case FRunInMainThreadType of
-        rtSync: iocpWorker.Synchronize(iocpWorker, InnerDoTask);
+        rtSync:
+          begin
+            iocpWorker.Synchronize(iocpWorker, InnerDoTask);
+          end;
         rtPostMessage:
           begin
             FMessageEvent.ResetEvent;
