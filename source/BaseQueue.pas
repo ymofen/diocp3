@@ -32,7 +32,8 @@ type
     /// </summary>
     procedure clear;
     function innerPop: PQueueData;
-    procedure innerPush(AData: PQueueData);
+    procedure innerAddToTail(AData: PQueueData);
+    procedure innerAddToHead(AData: PQueueData);
   public
     constructor Create;
     destructor Destroy; override;
@@ -42,7 +43,16 @@ type
 
     function Pop: Pointer;overload;
     function Pop(var outPointer:Pointer):Boolean;overload;
+
+    /// <summary>
+    ///   add to tail
+    /// </summary>
     procedure Push(AData: Pointer);
+
+    /// <summary>
+    ///   add to head
+    /// </summary>
+    procedure AddToHead(AData: Pointer);
 
     /// <summary>
     ///  invoke Only Data Pointer is TObject
@@ -140,6 +150,15 @@ end;
 
 { TBaseQueue }
 
+procedure TBaseQueue.AddToHead(AData: Pointer);
+var
+  lvTemp:PQueueData;
+begin
+  lvTemp := queueDataPool.Pop;
+  lvTemp.Data := AData;
+  innerAddToHead(lvTemp);
+end;
+
 procedure TBaseQueue.clear;
 var
   ANext: PQueueData;
@@ -223,12 +242,30 @@ var
 begin
   lvTemp := queueDataPool.Pop;
   lvTemp.Data := AData;
-  innerPush(lvTemp);
+  innerAddToTail(lvTemp);
 end;
 
 function TBaseQueue.size: Integer;
 begin
   Result := FCount;
+end;
+
+procedure TBaseQueue.innerAddToHead(AData: PQueueData);
+begin
+  FLocker.Enter;
+  try
+    AData.Next := FHead;
+    FHead := AData;
+    if FTail = nil then FTail := FHead;
+
+    Inc(FCount);
+
+    {$IFDEF __debug}
+      Inc(FPushCounter);
+    {$ENDIF}
+  finally
+    FLocker.Leave;
+  end;
 end;
 
 function TBaseQueue.innerPop: PQueueData;
@@ -253,7 +290,7 @@ begin
   end;
 end;
 
-procedure TBaseQueue.innerPush(AData: PQueueData);
+procedure TBaseQueue.innerAddToTail(AData: PQueueData);
 begin
   AData.Next := nil;
   FLocker.Enter;
