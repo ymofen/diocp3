@@ -14,7 +14,10 @@ type
     edtHost: TEdit;
     edtPort: TEdit;
     btnSendBuf: TButton;
+    edtData: TEdit;
+    btnOnlySend: TButton;
     procedure btnConnectClick(Sender: TObject);
+    procedure btnOnlySendClick(Sender: TObject);
     procedure btnSendBufClick(Sender: TObject);
   private
     { Private declarations }
@@ -57,6 +60,23 @@ begin
   mmoRecvMessage.Clear;
   mmoRecvMessage.Lines.Add('connected');
   mmoRecvMessage.Lines.Add('start to recv...');
+end;
+
+procedure TfrmMain.btnOnlySendClick(Sender: TObject);
+var
+  rcvs, s:AnsiString;
+begin
+  try
+    s := edtData.Text;
+    FTcpClient.sendBuffer(@s[1],Length(s));
+  except
+    FTcpClient.Disconnect;
+    mmoRecvMessage.Lines.Add('disconnected');
+    raise;
+  end;
+
+
+
 end;
 
 procedure TfrmMain.btnSendBufClick(Sender: TObject);
