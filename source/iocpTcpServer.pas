@@ -544,6 +544,8 @@ type
 
     procedure registerContextClass(pvContextClass: TIocpClientContextClass);
 
+    procedure registerSendRequestClass(pvClass: TIocpSendRequestClass);
+
     /// <summary>
     ///   create DataMonitor object
     /// </summary>
@@ -883,9 +885,7 @@ begin
       begin
         lvDo := true;
         FSending := true;
-
       end;
-
     finally
       FSendingLocker.Leave;
     end;
@@ -1140,6 +1140,12 @@ end;
 procedure TIocpTcpServer.registerContextClass(pvContextClass: TIocpClientContextClass);
 begin
   FClientContextClass := pvContextClass;
+end;
+
+procedure TIocpTcpServer.registerSendRequestClass(
+  pvClass: TIocpSendRequestClass);
+begin
+  FIocpSendRequestClass := pvClass;
 end;
 
 function TIocpTcpServer.releaseClientContext(pvObject:TIocpClientContext):

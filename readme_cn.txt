@@ -4,6 +4,16 @@ DIOCP3_HOME=E:\workspace\diocp3
 工程搜索路径
 $(DIOCP3_HOME)\Source
 
+关于DIOCP3的说明书<陆续补充>:
+http://www.cnblogs.com/DKSoft/category/610350.html
+
+DIOCP的点点滴滴：
+http://www.cnblogs.com/DKSoft/category/471197.html
+
+
+
+=======================================================
+
 
 重写了DIOCP，版本从3开始。
 

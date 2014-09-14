@@ -12,6 +12,7 @@ type
     FPort: Integer;
     FRawSocket: TRawSocket;
     FActive:Boolean;
+    FReadTimeOut: Integer;
     procedure SetActive(const Value: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
@@ -26,6 +27,14 @@ type
   published
     property Host: String read FHost write FHost;
     property Port: Integer read FPort write FPort;
+
+
+    /// <summary>
+    ///   unit ms
+    /// </summary>
+    property ReadTimeOut: Integer read FReadTimeOut write FReadTimeOut;
+
+
   end;
 
 implementation
@@ -47,6 +56,7 @@ constructor TRawTcpClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FRawSocket := TRawSocket.Create();
+  FReadTimeOut := 30000;
 end;
 
 destructor TRawTcpClient.Destroy;
@@ -67,7 +77,7 @@ begin
   
     
   FRawSocket.createTcpSocket;
-  FRawSocket.setReadTimeOut(10000);
+  FRawSocket.setReadTimeOut(FReadTimeOut);
   FActive := FRawSocket.connect(FHost, FPort);
   if not FActive then
   begin
