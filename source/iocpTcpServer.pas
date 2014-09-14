@@ -77,7 +77,7 @@ type
 
     FOwner: TIocpTcpServer;
 
-    FRecvRequest:TIocpRecvRequest;
+
 
     FcurrSendRequest:TIocpSendRequest;
     FData: Pointer;
@@ -100,10 +100,7 @@ type
     /// </summary>
     procedure DoSendRequestCompleted(pvRequest: TIocpSendRequest);
 
-    /// <summary>
-    ///   request recv data
-    /// </summary>
-    procedure PostWSARecvRequest();
+
 
 
     /// <summary>
@@ -118,6 +115,16 @@ type
     procedure SetOwner(const Value: TIocpTcpServer);
 
   protected
+    /// <summary>
+    ///   recvRequest
+    /// </summary>
+    FRecvRequest:TIocpRecvRequest;
+
+    /// <summary>
+    ///   request recv data
+    /// </summary>
+    procedure PostWSARecvRequest();virtual;
+
     /// <summary>
     ///   post reqeust to sending queue,
     ///    fail, push back to pool
@@ -185,7 +192,7 @@ type
     ///   iocp reply request, run in iocp thread
     /// </summary>
     procedure HandleResponse; override;
-
+  public
     /// <summary>
     ///   post recv request to iocp queue
     /// </summary>
@@ -276,6 +283,8 @@ type
     ///   set buf inneed to send
     /// </summary>
     procedure setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
+
+    property ClientContext: TIocpClientContext read FClientContext;
 
     property Owner: TIocpTcpServer read FOwner;
     /// <summary>
