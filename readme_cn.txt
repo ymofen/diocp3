@@ -4,12 +4,25 @@ DIOCP3_HOME=E:\workspace\diocp3
 工程搜索路径
 $(DIOCP3_HOME)\Source
 
+=======================================================
+关于文档帮助
+
 关于DIOCP3的说明书<陆续补充>:
 http://www.cnblogs.com/DKSoft/category/610350.html
 
 DIOCP的点点滴滴：
 http://www.cnblogs.com/DKSoft/category/471197.html
 
+DIOCP QQ 群: 320641073  
+=======================================================
+
+关于捐助：
+
+	DIOCP3遵循BSD协议，你可以任意的用于商业项目和自由的项目中而不用通知我，
+	如果你觉得DIOCP3对你有帮助而你刚好又想对DIOCP3进行捐助,请联系作者，或者直接进行捐助：
+
+	捐助的支付宝：
+	账户名：mofen@foxmail.com
 
 
 =======================================================
