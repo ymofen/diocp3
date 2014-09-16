@@ -159,7 +159,8 @@ type
     ///  post send request to iocp queue, if post successful return true.
     ///    if request is completed, will call DoSendRequestCompleted procedure
     /// </summary>
-    function PostWSASendRequest(buf:Pointer; len:Cardinal):Boolean;
+    function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
+        true): Boolean;
 
     property Active: Boolean read FActive;
 
@@ -930,12 +931,13 @@ end;
 
 
 
-function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal): Boolean;
+function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
+    pvCopyBuf: Boolean = true): Boolean;
 var
   lvRequest:TIocpSendRequest;
 begin            
   lvRequest := getSendRequest;
-  lvRequest.setBuffer(buf, len);
+  lvRequest.setBuffer(buf, len, pvCopyBuf);
   Result := postSendRequest(lvRequest);
 end;
 
