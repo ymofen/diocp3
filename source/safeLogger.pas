@@ -43,6 +43,12 @@ type
     procedure AppendLog(pvData:TLogDataObject); virtual; abstract;
   end;
 
+  TConsoleAppender = class(TBaseAppender)
+  protected
+    procedure AppendLog(pvData:TLogDataObject); override;
+  public
+  end;
+
   TStringsAppender = class(TBaseAppender)
   private
     FStrings: TStrings;
@@ -571,6 +577,19 @@ begin
   except
     Result := false;
   end;
+end;
+
+{ TConsoleAppender }
+
+procedure TConsoleAppender.AppendLog(pvData: TLogDataObject);
+begin
+  Writeln(
+    Format('%s[%s]:%s',
+      [FormatDateTime('yyyy-MM-dd hh:nn:ss.zzz', pvData.FTime)
+        , TLogLevelCaption[pvData.FLogLevel]
+        , pvData.FMsg
+      ]
+      ));
 end;
 
 initialization
