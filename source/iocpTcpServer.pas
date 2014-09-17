@@ -440,20 +440,12 @@ type
 
   end;
 
-  // unfinished
-  TListenItem = class(TObject)
-  private
-    FRawSocket:TRawSocket;
-    FAcceptExMgr:TIocpAcceptorMgr;
-    FPort:Integer;
-  end;
-
 
   TIocpTcpServer = class(TComponent)
   private
     FIsDestroying :Boolean;
-    FWSARecvBufferSize: Integer;
-    procedure SetWSARecvBufferSize(const Value: Integer);
+    FWSARecvBufferSize: cardinal;
+    procedure SetWSARecvBufferSize(const Value: cardinal);
 
     function isDestroying:Boolean;
 
@@ -499,7 +491,7 @@ type
     FOnClientContextError: TOnClientContextError;
 
     FPort: Integer;
-    FWSASendBufferSize: Integer;
+    FWSASendBufferSize: cardinal;
 
     procedure DoClientContextError(pvClientContext: TIocpClientContext;
         pvErrorCode: Integer);
@@ -545,7 +537,7 @@ type
 
     function GetClientCount: Integer;
 
-    procedure SetWSASendBufferSize(const Value: Integer);
+    procedure SetWSASendBufferSize(const Value: cardinal);
 
   public
     constructor Create(AOwner: TComponent); override;
@@ -625,14 +617,14 @@ type
     /// <summary>
     ///   post wsaRecv request block size
     /// </summary>
-    property WSARecvBufferSize: Integer read FWSARecvBufferSize write
+    property WSARecvBufferSize: cardinal read FWSARecvBufferSize write
         SetWSARecvBufferSize;
 
 
     /// <summary>
     ///   max size for post WSASend
     /// </summary>
-    property WSASendBufferSize: Integer read FWSASendBufferSize write
+    property WSASendBufferSize: cardinal read FWSASendBufferSize write
         SetWSASendBufferSize;
 
 
@@ -736,7 +728,10 @@ begin
     end else
     begin
       {$IFDEF DEBUG_MSG_ON}
-         if not FOwner.isDestroying then
+         if FOwner = nil then
+         begin
+           logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false, owner is nil',  []);
+         end else if not FOwner.isDestroying then
            logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
       {$ENDIF}
 
@@ -895,6 +890,9 @@ begin
       begin
         lvDo := true;
         FSending := true;
+      end else
+      begin
+        lvDo := false;
       end;
     finally
       FSendingLocker.Leave;
@@ -912,11 +910,15 @@ begin
 //    end;
   end else
   begin
-    {$IFDEF DEBUG_MSG_ON}
-      if not FOwner.isDestroying then
-        logDebugMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-         [FSendRequestLink.Count]);
-    {$ENDIF}
+  {$IFDEF DEBUG_MSG_ON}
+    if FOwner = nil then
+    begin
+      logDebugMessage('Push sendRequest to Sending Queue fail, queue size owner is nil:%d',
+       [FSendRequestLink.Count]);
+    end else  if not FOwner.isDestroying then
+      logDebugMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+       [FSendRequestLink.Count]);
+  {$ENDIF}
 
     FOwner.releaseSendRequest(pvSendRequest);
     InnerDisconnect;
@@ -1271,6 +1273,11 @@ end;
 
 function TIocpTcpServer.getSendRequest: TIocpSendRequest;
 begin
+  if Self = nil then
+  begin
+    Result := nil;
+    Exit;
+  end;
   Result := TIocpSendRequest(FSendRequestPool.Pop);
   if Result = nil then
   begin
@@ -1287,7 +1294,7 @@ begin
   Result.FOwner := Self;
 end;
 
-procedure TIocpTcpServer.SetWSARecvBufferSize(const Value: Integer);
+procedure TIocpTcpServer.SetWSARecvBufferSize(const Value: cardinal);
 begin
   FWSARecvBufferSize := Value;
   if FWSARecvBufferSize = 0 then
@@ -1296,7 +1303,7 @@ begin
   end;
 end;
 
-procedure TIocpTcpServer.SetWSASendBufferSize(const Value: Integer);
+procedure TIocpTcpServer.SetWSASendBufferSize(const Value: cardinal);
 begin
   FWSASendBufferSize := Value;
   if FWSASendBufferSize <=0 then

@@ -881,6 +881,9 @@ begin
       begin
         lvDo := true;
         FSending := true;
+      end else
+      begin
+        lvDo := false;
       end;
 
     finally

@@ -425,7 +425,6 @@ end;
 
 procedure TIocpWorker.Execute;
 var
-  lvRET: Integer;
   lvBytesTransferred:ULONG_PTR;
   lvResultStatus:BOOL;
   lvErrCode:Integer;

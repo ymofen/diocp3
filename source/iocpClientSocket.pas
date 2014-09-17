@@ -111,13 +111,10 @@ begin
 end;
 
 procedure TIocpRemoteContext.Connect;
-var
-  lvRet:Integer;
 begin
   if SocketState <> ssDisconnected then raise Exception.Create(strCannotConnect);
 
   reCreateSocket;
-
 
   if not RawSocket.connect(FHost, FPort) then
     RaiseLastOSError;

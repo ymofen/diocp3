@@ -173,7 +173,6 @@ var
   ExceptFdsptr: PFDset;
   tv: timeval;
   Timeptr: PTimeval;
-  lvRet:Integer;
 begin
   if Assigned(vReadReady) then
   begin
