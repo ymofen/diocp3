@@ -961,7 +961,6 @@ begin
 {$IFDEF LOGGER_ON}
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
-  FSafeLogger.start;
 {$ENDIF}
   FOnlineContextList := TContextDoublyLinked.Create();
 

@@ -21,7 +21,7 @@ uses
 
   iocpRawSocket, SyncObjs, Windows, SysUtils,
   {$IFDEF LOGGER_ON}
-    iocpLogger,
+    safeLogger,
   {$ENDIF}
 
   BaseQueue, iocpLocker;
@@ -63,6 +63,10 @@ type
     procedure SetDebugINfo(const Value: string);
   private
     FAlive:Boolean;
+
+    FLockActive:Boolean;
+
+
 
     // link
     FPre:TIocpClientContext;
@@ -443,16 +447,24 @@ type
 
   TIocpTcpServer = class(TComponent)
   private
+  {$IFDEF LOGGER_ON}
+    FSafeLogger:TSafeLogger;
+  {$ENDIF}
+
     FIsDestroying :Boolean;
     FWSARecvBufferSize: cardinal;
     procedure SetWSARecvBufferSize(const Value: cardinal);
 
     function isDestroying:Boolean;
-
+  {$IFDEF LOGGER_ON}
+    function logCanWrite:Boolean;
+  {$ENDIF}
   protected
     FClientContextClass:TIocpClientContextClass;
 
     FIocpSendRequestClass:TIocpSendRequestClass;
+
+    procedure setName(const NewName: TComponentName); override;
   private
     // clientContext pool
     FContextPool: TBaseQueue;
@@ -491,6 +503,7 @@ type
     FOnClientContextError: TOnClientContextError;
 
     FPort: Integer;
+
     FWSASendBufferSize: cardinal;
 
     procedure DoClientContextError(pvClientContext: TIocpClientContext;
@@ -647,15 +660,14 @@ type
         FOnDataReceived;
   end;
 
-  
+
 
 implementation
 
 {$IFDEF DEBUG_MSG_ON}
 procedure logDebugMessage(pvMsg: string; const args: array of const);
 begin
-
-  uiLogger.logMessage(pvMsg, args);
+  sfLogger.logMessage(pvMsg, args);
 end;
 {$ENDIF}
 
@@ -677,9 +689,10 @@ end;
 
 procedure TIocpClientContext.InnerDisconnect;
 begin
-  if lock_cmp_exchange(True, False, FActive) then
+  if lock_cmp_exchange(True, False, FLockActive) then
   begin
     try
+      FActive := false;
       FRawSocket.close;
       checkReleaseRes;
       Assert(FOwner <> nil);
@@ -696,8 +709,6 @@ begin
     finally
       FOwner.releaseClientContext(Self);
     end;
-
-
   end;
 end;
 
@@ -731,8 +742,8 @@ begin
          if FOwner = nil then
          begin
            logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false, owner is nil',  []);
-         end else if not FOwner.isDestroying then
-           logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
+         end else if FOwner.logCanWrite then
+           FOwner.FSafeLogger.logMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
       {$ENDIF}
 
       /// kick out the clientContext
@@ -799,27 +810,26 @@ end;
 
 procedure TIocpClientContext.DoConnected;
 begin
-  if lock_cmp_exchange(False, True, FActive) = False then
+  if lock_cmp_exchange(False, True, FLockActive) = False then
   begin
-    if FOwner = nil then
-      Assert(FOwner <> nil);
-
-    FOwner.FOnlineContextList.add(Self);
-    if Assigned(FOwner.FOnClientContextConnected) then
-    begin
-      FOwner.FOnClientContextConnected(Self);
-    end;
-
     try
-      OnConnected();
-    except
+      if FOwner = nil then
+        Assert(FOwner <> nil);
+
+      FOwner.FOnlineContextList.add(Self);
+      if Assigned(FOwner.FOnClientContextConnected) then
+      begin
+        FOwner.FOnClientContextConnected(Self);
+      end;
+
+      try
+        OnConnected();
+      except
+      end;
+    finally
+      FActive := true;
     end;
-
     PostWSARecvRequest;
-
-  end else
-  begin
-    FActive := FActive;
   end;
 end;
 
@@ -915,8 +925,8 @@ begin
     begin
       logDebugMessage('Push sendRequest to Sending Queue fail, queue size owner is nil:%d',
        [FSendRequestLink.Count]);
-    end else  if not FOwner.isDestroying then
-      logDebugMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+    end else  if FOwner.logCanWrite then
+      FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
        [FSendRequestLink.Count]);
   {$ENDIF}
 
@@ -937,10 +947,16 @@ function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
     pvCopyBuf: Boolean = true): Boolean;
 var
   lvRequest:TIocpSendRequest;
-begin            
-  lvRequest := getSendRequest;
-  lvRequest.setBuffer(buf, len, pvCopyBuf);
-  Result := postSendRequest(lvRequest);
+begin
+  if self.Active then
+  begin
+    lvRequest := getSendRequest;
+    lvRequest.setBuffer(buf, len, pvCopyBuf);
+    Result := postSendRequest(lvRequest);
+  end else
+  begin
+    Result := false;
+  end;
 end;
 
 procedure TIocpClientContext.SetDebugINfo(const Value: string);
@@ -968,6 +984,11 @@ end;
 constructor TIocpTcpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+{$IFDEF LOGGER_ON}
+  FSafeLogger:=TSafeLogger.Create();
+  FSafeLogger.setAppender(TLogFileAppender.Create(True));
+{$ENDIF}
+
   FKeepAlive := true;
   FContextPool := TBaseQueue.Create;
   FSendRequestPool := TBaseQueue.Create;
@@ -988,6 +1009,10 @@ end;
 
 destructor TIocpTcpServer.Destroy;
 begin
+{$IFDEF LOGGER_ON}
+  FSafeLogger.Enable := false;
+{$ENDIF}
+
   FIsDestroying := true;
 
   safeStop;
@@ -1005,6 +1030,10 @@ begin
 
   FContextPool.Free;
   FSendRequestPool.Free;
+
+{$IFDEF LOGGER_ON}
+  FSafeLogger.Free;
+{$ENDIF}
   inherited Destroy;
 end;
 
@@ -1034,6 +1063,13 @@ begin
 //    FClientContextLocker.unLock;
 //  end;
 end;
+
+{$IFDEF LOGGER_ON}
+function TIocpTcpServer.logCanWrite: Boolean;
+begin
+  Result := (not isDestroying) and FSafeLogger.Enable;
+end;
+{$ENDIF}
 
 procedure TIocpTcpServer.DoAcceptExResponse(pvRequest: TIocpAcceptExRequest);
 var
@@ -1246,6 +1282,20 @@ begin
       safeStop;
     end; 
   end;
+end;
+
+procedure TIocpTcpServer.setName(const NewName: TComponentName);
+begin
+  inherited;
+{$IFDEF LOGGER_ON}
+  if FSafeLogger.Appender is TLogFileAppender then
+  begin
+    if NewName <> '' then
+    begin
+      TLogFileAppender(FSafeLogger.Appender).FilePreFix := NewName + '_';
+    end;
+  end;
+{$ENDIF}
 end;
 
 procedure TIocpTcpServer.SetWorkerCount(const Value: Integer);
@@ -1493,8 +1543,8 @@ begin
   if FErrorCode <> 0 then
   begin
     {$IFDEF DEBUG_MSG_ON}
-     if not FOwner.isDestroying then
-      logDebugMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
+     if FOwner.logCanWrite then
+      FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
     {$ENDIF}
     if FOwner <> nil then
     begin
@@ -1507,8 +1557,8 @@ begin
   end else if (FBytesTransferred = 0) then
   begin      // no data recvd, socket is break
     {$IFDEF DEBUG_MSG_ON}
-      if not FOwner.isDestroying then
-        logDebugMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
+      if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
     {$ENDIF}
     FClientContext.InnerDisconnect;
   end else
@@ -1530,8 +1580,8 @@ begin
       end else
       begin
         {$IFDEF DEBUG_MSG_ON}
-         if not FOwner.isDestroying then
-          logDebugMessage('IocpRecvRequest response Owner is deactive',  []);
+         if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('IocpRecvRequest response Owner is deactive',  []);
         {$ENDIF}
         FClientContext.InnerDisconnect;
       end;
@@ -1566,8 +1616,8 @@ begin
     if not Result then
     begin
       {$IFDEF DEBUG_MSG_ON}
-       if not FOwner.isDestroying then
-        logDebugMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
+       if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
       {$ENDIF}
 
       // trigger error event
@@ -1666,8 +1716,8 @@ begin
   if FErrorCode <> 0 then
   begin
     {$IFDEF DEBUG_MSG_ON}
-     if not FOwner.isDestroying then
-      logDebugMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
+     if FOwner.logCanWrite then
+      FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
     {$ENDIF}
     FOwner.DoClientContextError(FClientContext, FErrorCode);
     FClientContext.InnerDisconnect;
@@ -1700,8 +1750,8 @@ begin
       if not checkSendNextBlock then
       begin
         {$IFDEF DEBUG_MSG_ON}
-         if not FOwner.isDestroying then
-           logDebugMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
+         if FOwner.logCanWrite then
+           FOwner.FSafeLogger.logMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
         {$ENDIF}
 
         /// kick out the clientContext
@@ -1740,8 +1790,8 @@ begin
     begin
        FIsBusying := False;
     {$IFDEF DEBUG_MSG_ON}
-      if not FOwner.isDestroying then
-       logDebugMessage('TIocpSendRequest.InnerPostRequest Error:%d',  [lvRet]);
+      if FOwner.logCanWrite then
+       FOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Error:%d',  [lvRet]);
     {$ENDIF}
 
        FOwner.DoClientContextError(FClientContext, lvRet);

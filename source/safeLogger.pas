@@ -60,6 +60,7 @@ type
 
   TLogFileAppender = class(TBaseAppender)
   private
+    FFilePreFix:String;
     FAddThreadINfo: Boolean;
     FBasePath: string;
     FLogFile: TextFile;
@@ -71,6 +72,8 @@ type
   public
     constructor Create(pvAddThreadINfo: Boolean);
     property AddThreadINfo: Boolean read FAddThreadINfo write FAddThreadINfo;
+
+    property FilePreFix: String read FFilePreFix write FFilePreFix;
   end;
 
 
@@ -147,11 +150,15 @@ type
 
     procedure logMessage(pvMsg: string; pvMsgType: string = ''; pvLevel: TLogLevel
         = lgvMessage); overload;
+
     procedure logMessage(pvMsg: string; const args: array of const; pvMsgType:
         string = ''; pvLevel: TLogLevel = lgvMessage); overload;
 
+    property Appender: TBaseAppender read FAppender;
+
     property SyncMainThreadType: TSyncMainThreadType read FSyncMainThreadType write
         FSyncMainThreadType;
+
     property AppendInMainThread: Boolean read FAppendInMainThread write
         FAppendInMainThread;
 
@@ -512,7 +519,7 @@ var
   lvMsg:String;
 begin
   checkInitialized;
-  if OpenLogFile(pvData.FMsgType) then
+  if OpenLogFile(FFilePreFix + pvData.FMsgType) then
   begin
     try
       if FAddThreadINfo then
