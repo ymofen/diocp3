@@ -101,6 +101,7 @@ type
     FMaxSize:Integer;
   public
     constructor Create(pvMaxSize: Integer = 1024);
+    procedure setMaxSize(pvMaxSize:Integer);
     destructor Destroy; override;
     function Push(pvRequest:TIocpRequest): Boolean;
     function Pop:TIocpRequest;
@@ -833,6 +834,12 @@ begin
   finally
     FLocker.Leave;
   end;
+end;
+
+procedure TIocpRequestSingleLink.setMaxSize(pvMaxSize: Integer);
+begin
+  FMaxSize := pvMaxSize;
+  if FMaxSize <=0 then FMaxSize := 10;
 end;
 
 procedure TIocpRequestDoublyLinked.add(pvContext: TIocpRequest);

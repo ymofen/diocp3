@@ -57,6 +57,8 @@ type
   /// </summary>
   TIocpClientContext = class(TObject)
   private
+    FActionLocker:TIocpLocker;
+
     FSendingLocker:TIocpLocker;
 
     FDebugINfo: string;
@@ -141,12 +143,11 @@ type
     /// </summary>
     function getSendRequest():TIocpSendRequest;
 
+    procedure InnerDisconnect;
   protected
     procedure DoConnected;
 
     procedure DoCleanUp;virtual;
-
-    procedure InnerDisconnect;
 
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); virtual;
 
@@ -154,6 +155,8 @@ type
 
     procedure OnConnected;virtual;
   public
+    procedure lock();
+    procedure unLock();
     constructor Create; virtual;
     destructor Destroy; override;
 
@@ -451,6 +454,8 @@ type
     FSafeLogger:TSafeLogger;
   {$ENDIF}
 
+    FMaxSendingQueueSize:Integer;
+
     FIsDestroying :Boolean;
     FWSARecvBufferSize: cardinal;
     procedure SetWSARecvBufferSize(const Value: cardinal);
@@ -549,11 +554,12 @@ type
     procedure DoAcceptExResponse(pvRequest: TIocpAcceptExRequest);
 
     function GetClientCount: Integer;
-
     procedure SetWSASendBufferSize(const Value: cardinal);
 
   public
     constructor Create(AOwner: TComponent); override;
+
+    procedure setMaxSendingQueueSize(pvSize:Integer);
 
     destructor Destroy; override;
 
@@ -616,6 +622,7 @@ type
     ///   on connected
     /// </summary>
     property OnClientContextConnected: TClientContextNotifyEvent read FOnClientContextConnected write FOnClientContextConnected;
+
     /// <summary>
     ///   listen port
     /// </summary>
@@ -633,12 +640,14 @@ type
     property WSARecvBufferSize: cardinal read FWSARecvBufferSize write
         SetWSARecvBufferSize;
 
-
     /// <summary>
     ///   max size for post WSASend
     /// </summary>
     property WSASendBufferSize: cardinal read FWSASendBufferSize write
         SetWSASendBufferSize;
+
+
+
 
 
 
@@ -712,6 +721,11 @@ begin
   end;
 end;
 
+procedure TIocpClientContext.lock;
+begin
+  FActionLocker.lock();
+end;
+
 procedure TIocpClientContext.checkNextSendRequest;
 var
   lvRequest:TIocpSendRequest;
@@ -773,6 +787,7 @@ constructor TIocpClientContext.Create;
 begin
   inherited Create;
   FSendingLocker := TIocpLocker.Create('sendinglocker');
+  FActionLocker := TIocpLocker.Create('contextActionLocker');
   FAlive := False;
   FRawSocket := TRawSocket.Create();
   FActive := false;
@@ -794,6 +809,7 @@ begin
 
   FSendRequestLink.Free;
   FSendingLocker.Free;
+  FActionLocker.Free;
   inherited Destroy;
 end;
 
@@ -968,6 +984,11 @@ procedure TIocpClientContext.SetOwner(const Value: TIocpTcpServer);
 begin
   FOwner := Value;
   FRecvRequest.FOwner := FOwner;
+end;
+
+procedure TIocpClientContext.unLock;
+begin
+  FActionLocker.unLock;
 end;
 
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
@@ -1159,6 +1180,7 @@ begin
       Result := TIocpClientContext.Create;
       onCreateClientContext(Result);
     end;
+    Result.FSendRequestLink.setMaxSize(FMaxSendingQueueSize);
   end;
   Result.FAlive := True;
   Result.DoCleanUp;
@@ -1281,6 +1303,17 @@ begin
     begin
       safeStop;
     end; 
+  end;
+end;
+
+procedure TIocpTcpServer.setMaxSendingQueueSize(pvSize: Integer);
+begin
+  if pvSize <= 0 then
+  begin
+    FMaxSendingQueueSize := 10;
+  end else
+  begin
+    FMaxSendingQueueSize := pvSize;
   end;
 end;
 
@@ -1755,7 +1788,7 @@ begin
         {$ENDIF}
 
         /// kick out the clientContext
-        FClientContext.InnerDisconnect;
+        FClientContext.DoDisconnect;
       end;
     end;
   end;
