@@ -747,7 +747,7 @@ begin
       {$ENDIF}
 
       /// kick out the clientContext
-      InnerDisconnect;
+      DoDisconnect;
     end;
   end;
 end;
@@ -931,7 +931,7 @@ begin
   {$ENDIF}
 
     FOwner.releaseSendRequest(pvSendRequest);
-    InnerDisconnect;
+    self.DoDisconnect;
     Result := false;
   end;
 end;
@@ -1624,7 +1624,7 @@ begin
       FOwner.DoClientContextError(FClientContext, lvRet);
 
       // kick out clientContext
-      FClientContext.InnerDisconnect;
+      FClientContext.DoDisconnect;
     end else
     begin
       if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
@@ -1797,7 +1797,7 @@ begin
        FOwner.DoClientContextError(FClientContext, lvRet);
 
        /// kick out the clientContext
-       FClientContext.InnerDisconnect;
+       FClientContext.DoDisconnect;
 
        FOwner.releaseSendRequest(Self);
     end else
