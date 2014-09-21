@@ -17,6 +17,8 @@ interface
 {$DEFINE LOGGER_ON}
 {$DEFINE DEBUG_MSG_ON}
 
+{$DEFINE CHANGE_STATE_USE_LOCKER}
+
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
   winsock, iocpWinsock2,
@@ -58,6 +60,8 @@ type
   /// </summary>
   TIocpBaseContext = class(TObject)
   private
+    FActionLocker:TIocpLocker;
+
     FSendingLocker:TIocpLocker;
     FLastErrorCode:Integer;
     FDebugINfo: string;
@@ -120,8 +124,6 @@ type
 
     procedure SetOwner(const Value: TIocpBaseSocket);
   protected
-
-
     /// <summary>
     ///   request recv data
     /// </summary>
@@ -153,8 +155,19 @@ type
 
     procedure SetSocketState(pvState:TSocketState); virtual;
 
+    /// <summary>
+    ///   call in response event
+    /// </summary>
     procedure DoConnected;
+
+    /// <summary>
+    ///   call in response event
+    /// </summary>
     procedure DoDisconnect;
+
+    procedure lock();
+
+    procedure unLock();
 
   public
     procedure Close;
@@ -739,6 +752,7 @@ end;
 constructor TIocpBaseContext.Create;
 begin
   inherited Create;
+  FActionLocker := TIocpLocker.Create('context action locker');
   FSendingLocker := TIocpLocker.Create('sendinglocker');
   FAlive := False;
   FRawSocket := TRawSocket.Create();
@@ -758,6 +772,7 @@ begin
   Assert(FSendRequestLink.Count = 0);
   FSendRequestLink.Free;
   FSendingLocker.Free;
+  FActionLocker.Free;
   inherited Destroy;
 end;
 
@@ -774,6 +789,32 @@ end;
 
 procedure TIocpBaseContext.DoConnected;
 begin
+{$IFDEF CHANGE_STATE_USE_LOCKER}
+  FActionLocker.lock('DoConnected');
+  try
+    if not FActive then
+    begin
+      Assert(FOwner <> nil);
+      FActive := true;
+
+
+      FOwner.FOnlineContextList.add(Self);
+      try
+        if Assigned(FOwner.FOnContextConnected) then
+        begin
+          FOwner.FOnContextConnected(Self);
+        end;
+        OnConnected();
+      except
+      end;
+
+      SetSocketState(ssConnected);
+      PostWSARecvRequest;
+    end;
+  finally
+    FActionLocker.unLock;
+  end;
+{$ELSE}
   if lock_cmp_exchange(False, True, FActive) = False then
   begin
     Assert(FOwner <> nil);
@@ -791,10 +832,36 @@ begin
     SetSocketState(ssConnected);
     PostWSARecvRequest;
   end;
+{$ENDIF}
 end;
 
 procedure TIocpBaseContext.DoDisconnect;
 begin
+{$IFDEF CHANGE_STATE_USE_LOCKER}
+  FActionLocker.lock('discounnect');
+  try
+    if FActive then
+    begin
+      FActive := false;
+      Assert(FOwner <> nil);
+      FOwner.FOnlineContextList.remove(self);
+
+      FRawSocket.close;
+      checkReleaseRes;
+      try
+        if Assigned(FOwner.FOnContextDisconnected) then
+        begin
+          FOwner.FOnContextDisconnected(Self);
+        end;
+        OnDisconnected;
+        SetSocketState(ssDisconnected);
+      except
+      end;
+    end;
+  finally
+    FActionLocker.unLock;
+  end;
+{$ELSE}
   if lock_cmp_exchange(True, False, FActive) then
   begin
     Assert(FOwner <> nil);
@@ -812,6 +879,7 @@ begin
     except
     end;
   end;
+{$ENDIF}
 end;
 
 procedure TIocpBaseContext.DoError(pvErrorCode: Integer);
@@ -840,6 +908,11 @@ begin
   Result := FOwner.getSendRequest;
   Assert(Result <> nil);
   Result.FContext := self;
+end;
+
+procedure TIocpBaseContext.lock;
+begin
+  FActionLocker.lock();
 end;
 
 procedure TIocpBaseContext.OnConnected;
@@ -948,6 +1021,11 @@ begin
   begin
     FOnSocketStateChanged(Self);
   end;
+end;
+
+procedure TIocpBaseContext.unLock;
+begin
+  FActionLocker.unLock;
 end;
 
 function TIocpBaseSocket.checkClientContextValid(const pvClientContext: TIocpBaseContext): Boolean;

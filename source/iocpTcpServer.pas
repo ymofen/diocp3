@@ -860,7 +860,7 @@ end;
 procedure TIocpClientContext.DoConnected;
 begin
 {$IFDEF CHANGE_STATE_USE_LOCKER}
-  FActionLocker.lock('discounnect');
+  FActionLocker.lock('DoConnected');
   try
     if not FActive then
     begin
@@ -959,54 +959,59 @@ function TIocpClientContext.postSendRequest(
 var
   lvDo:Boolean;
 begin
-  if FSendRequestLink.Push(pvSendRequest) then
-  begin
-    if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+  lock;
+  try
+    if FSendRequestLink.Push(pvSendRequest) then
     begin
-      FOwner.FDataMoniter.incPushSendQueueCounter;
-    end;
-
-    Result := true;
-
-    FSendingLocker.lock();
-    try
-      if not FSending then
+      if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
       begin
-        lvDo := true;
-        FSending := true;
-      end else
-      begin
-        lvDo := false;
+        FOwner.FDataMoniter.incPushSendQueueCounter;
       end;
-    finally
-      FSendingLocker.Leave;
-    end;
 
-    if lvDo then
+      Result := true;
+
+      FSendingLocker.lock();
+      try
+        if not FSending then
+        begin
+          lvDo := true;
+          FSending := true;
+        end else
+        begin
+          lvDo := false;
+        end;
+      finally
+        FSendingLocker.Leave;
+      end;
+
+      if lvDo then
+      begin
+        checkNextSendRequest;
+      end;
+
+  //    if lock_cmp_exchange(False, True, FSending) = False then
+  //    begin
+  //      // start sending
+  //      checkNextSendRequest;
+  //    end;
+    end else
     begin
-      checkNextSendRequest;
+    {$IFDEF DEBUG_MSG_ON}
+      if FOwner = nil then
+      begin
+        logDebugMessage('Push sendRequest to Sending Queue fail, queue size owner is nil:%d',
+         [FSendRequestLink.Count]);
+      end else  if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+         [FSendRequestLink.Count]);
+    {$ENDIF}
+
+      FOwner.releaseSendRequest(pvSendRequest);
+      Self.DoDisconnect;
+      Result := false;
     end;
-
-//    if lock_cmp_exchange(False, True, FSending) = False then
-//    begin
-//      // start sending
-//      checkNextSendRequest;
-//    end;
-  end else
-  begin
-  {$IFDEF DEBUG_MSG_ON}
-    if FOwner = nil then
-    begin
-      logDebugMessage('Push sendRequest to Sending Queue fail, queue size owner is nil:%d',
-       [FSendRequestLink.Count]);
-    end else  if FOwner.logCanWrite then
-      FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-       [FSendRequestLink.Count]);
-  {$ENDIF}
-
-    FOwner.releaseSendRequest(pvSendRequest);
-    Self.DoDisconnect;
-    Result := false;
+  finally
+    unLock;
   end;
 end;
 
