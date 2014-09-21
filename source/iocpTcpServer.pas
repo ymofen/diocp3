@@ -15,6 +15,8 @@ interface
 {$DEFINE LOGGER_ON}
 {$DEFINE DEBUG_MSG_ON}
 
+{$DEFINE CHANGE_STATE_USE_LOCKER}
+
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
   winsock, iocpWinsock2,
@@ -65,8 +67,10 @@ type
     procedure SetDebugINfo(const Value: string);
   private
     FAlive:Boolean;
-
+  {$IFDEF CHANGE_STATE_USE_LOCKER}
+  {$ELSE}
     FLockActive:Boolean;
+  {$ENDIF}
 
 
 
@@ -698,6 +702,31 @@ end;
 
 procedure TIocpClientContext.InnerDisconnect;
 begin
+{$IFDEF CHANGE_STATE_USE_LOCKER}
+  FActionLocker.lock('discounnect');
+  try
+    try
+      FActive := false;
+      FRawSocket.close;
+      checkReleaseRes;
+      Assert(FOwner <> nil);
+      FOwner.FOnlineContextList.remove(self);
+
+      try
+        if Assigned(FOwner.FOnClientContextDisconnected) then
+        begin
+          FOwner.FOnClientContextDisconnected(Self);
+        end;
+        OnDisconnected;
+      except
+      end;
+    finally
+      FOwner.releaseClientContext(Self);
+    end;
+  finally
+    FActionLocker.unLock;
+  end;
+{$ELSE}
   if lock_cmp_exchange(True, False, FLockActive) then
   begin
     try
@@ -719,6 +748,7 @@ begin
       FOwner.releaseClientContext(Self);
     end;
   end;
+{$ENDIF}
 end;
 
 procedure TIocpClientContext.lock;
@@ -826,6 +856,31 @@ end;
 
 procedure TIocpClientContext.DoConnected;
 begin
+{$IFDEF CHANGE_STATE_USE_LOCKER}
+  FActionLocker.lock('discounnect');
+  try
+    try
+      if FOwner = nil then
+        Assert(FOwner <> nil);
+
+      FOwner.FOnlineContextList.add(Self);
+      if Assigned(FOwner.FOnClientContextConnected) then
+      begin
+        FOwner.FOnClientContextConnected(Self);
+      end;
+
+      try
+        OnConnected();
+      except
+      end;
+    finally
+      FActive := true;
+    end;
+    PostWSARecvRequest;
+  finally
+    FActionLocker.unLock;
+  end;
+{$ELSE}
   if lock_cmp_exchange(False, True, FLockActive) = False then
   begin
     try
@@ -847,6 +902,7 @@ begin
     end;
     PostWSARecvRequest;
   end;
+{$ENDIF}
 end;
 
 procedure TIocpClientContext.DoDisconnect;
