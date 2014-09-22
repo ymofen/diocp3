@@ -94,7 +94,6 @@ type
   /// </summary>
   TIocpRequestSingleLink = class(TObject)
   private
-    FLocker: TCriticalSection;
     FCount: Integer;
     FHead:TIocpRequest;
     FTail:TIocpRequest;
@@ -781,13 +780,11 @@ end;
 constructor TIocpRequestSingleLink.Create(pvMaxSize: Integer = 1024);
 begin
   inherited Create;
-  FLocker := TCriticalSection.Create();
   FMaxSize := pvMaxSize;
 end;
 
 destructor TIocpRequestSingleLink.Destroy;
 begin
-  FLocker.Free;
   inherited Destroy;
 end;
 
@@ -795,45 +792,38 @@ end;
 function TIocpRequestSingleLink.Pop: TIocpRequest;
 begin
   Result := nil;
-  FLocker.Enter;
-  try
-    if FHead <> nil then
-    begin
-      Result := FHead;
-      FHead := FHead.FNext;
-      if FHead = nil then FTail := nil;
 
-      Dec(FCount);
-    end;
-  finally
-    FLocker.Leave;
+  if FHead <> nil then
+  begin
+    Result := FHead;
+    FHead := FHead.FNext;
+    if FHead = nil then FTail := nil;
+
+    Dec(FCount);
   end;
+
 end;
 
 function TIocpRequestSingleLink.Push(pvRequest:TIocpRequest): Boolean;
 begin
-  FLocker.Enter;
-  try
-    if FCount < FMaxSize then
-    begin
-      pvRequest.FNext := nil;
+  if FCount < FMaxSize then
+  begin
+    pvRequest.FNext := nil;
 
-      if FHead = nil then
-        FHead := pvRequest
-      else
-        FTail.FNext := pvRequest;
+    if FHead = nil then
+      FHead := pvRequest
+    else
+      FTail.FNext := pvRequest;
 
-      FTail := pvRequest;
+    FTail := pvRequest;
 
-      Inc(FCount);
-      Result := true;
-    end else
-    begin
-      Result := false;
-    end;
-  finally
-    FLocker.Leave;
+    Inc(FCount);
+    Result := true;
+  end else
+  begin
+    Result := false;
   end;
+
 end;
 
 procedure TIocpRequestSingleLink.setMaxSize(pvMaxSize: Integer);
