@@ -135,8 +135,7 @@ begin
 
   if TStream(pvDataObject).Size > MAX_OBJECT_SIZE then
   begin
-    if lvDataLen > MAX_OBJECT_SIZE then
-      raise Exception.CreateFmt('数据包太大,请在业务层分拆发送,最大数据包[%d]!', [MAX_OBJECT_SIZE]);
+    raise Exception.CreateFmt('数据包太大,请在业务层分拆发送,最大数据包[%d]!', [MAX_OBJECT_SIZE]);
   end;
 
 
