@@ -59,10 +59,18 @@ type
   /// </summary>
   TIocpClientContext = class(TObject)
   private
+    /// <summary>
+    ///   relase counter
+    /// </summary>
+    FRequestCounter:Integer;
+
     FContextLocker: TIocpLocker;
 
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
+
+    procedure incRequestCounter();
+    function  decRequestCounter():Integer;
   private
     FAlive:Boolean;
   {$IFDEF CHANGE_STATE_USE_LOCKER}
@@ -827,10 +835,15 @@ begin
   FRecvRequest.FClientContext := self;
 end;
 
+function TIocpClientContext.decRequestCounter: Integer;
+begin
+  Result := InterlockedDecrement(FRequestCounter);
+end;
+
 destructor TIocpClientContext.Destroy;
 begin
-
-
+  Assert(FRequestCounter = 0);
+  
   FRawSocket.close;
   FRawSocket.Free;
 
@@ -846,6 +859,7 @@ end;
 procedure TIocpClientContext.DoCleanUp;
 begin
   FOwner := nil;
+  FRequestCounter := 0;
   if FActive then
   begin
     FRawSocket.close;
@@ -934,6 +948,11 @@ end;
 
 
 
+
+procedure TIocpClientContext.incRequestCounter;
+begin
+  InterlockedIncrement(FRequestCounter);
+end;
 
 procedure TIocpClientContext.OnConnected;
 begin
@@ -1603,29 +1622,28 @@ end;
 
 procedure TIocpRecvRequest.HandleResponse;
 begin
-  if FOwner = nil then
-  begin
-    exit;
-  end else if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+  Assert(FOwner <> nil);
+  
+  if (FOwner.FDataMoniter <> nil) then
   begin
     FOwner.FDataMoniter.incResponseWSARecvCounter;
     FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
   end;
 
-  if FErrorCode <> 0 then
+  if not FOwner.Active then
+  begin
+    {$IFDEF DEBUG_MSG_ON}
+     if FOwner.logCanWrite then
+      FOwner.FSafeLogger.logMessage('IocpRecvRequest response server enginee is off');
+    {$ENDIF}
+  end else if FErrorCode <> 0 then
   begin
     {$IFDEF DEBUG_MSG_ON}
      if FOwner.logCanWrite then
       FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
     {$ENDIF}
-    if FOwner <> nil then
-    begin
-      FOwner.DoClientContextError(FClientContext, FErrorCode);
-      FClientContext.InnerDisconnect;
-    end else
-    begin
-      Self.Free;
-    end;
+    FOwner.DoClientContextError(FClientContext, FErrorCode);
+    FClientContext.InnerDisconnect;
   end else if (FBytesTransferred = 0) then
   begin      // no data recvd, socket is break
     {$IFDEF DEBUG_MSG_ON}
@@ -1639,12 +1657,9 @@ begin
       FClientContext.DoReceiveData;
     finally
       // post recv request
-      if FOwner = nil then
+      if FOwner.Active then
       begin
-        FClientContext.Free;
-      end else if FOwner.Active then
-      begin
-        if FClientContext.FActive then
+        if FClientContext.Active then
         begin
           // post recv request again
           FClientContext.PostWSARecvRequest;
@@ -1673,6 +1688,8 @@ begin
   FRecvBuffer.buf := pvBuffer;
   FRecvBuffer.len := len;
 
+  FClientContext.incRequestCounter;
+  
   lvRet := iocpWinsock2.WSARecv(FClientContext.FRawSocket.SocketHandle,
      @FRecvBuffer,
      1,
