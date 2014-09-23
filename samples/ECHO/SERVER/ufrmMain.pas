@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls,
-  iocpLogger, ComCtrls;
+  ComCtrls, System.Actions;
 
 type
   TfrmMain = class(TForm)
@@ -54,8 +54,6 @@ begin
   FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.createDataMonitor;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
-
-  uiLogger.setLogLines(mmoLog.Lines);
 end;
 
 destructor TfrmMain.Destroy;

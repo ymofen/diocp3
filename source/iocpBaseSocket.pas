@@ -60,9 +60,7 @@ type
   /// </summary>
   TIocpBaseContext = class(TObject)
   private
-    FActionLocker:TIocpLocker;
-
-    FSendingLocker:TIocpLocker;
+    FContextLocker: TIocpLocker;
     FLastErrorCode:Integer;
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
@@ -175,6 +173,7 @@ type
     constructor Create; virtual;
 
     destructor Destroy; override;
+    procedure postNextSendRequest;
     /// <summary>
     ///  post send request to iocp queue, if post successful return true.
     ///    if request is completed, will call DoSendRequestCompleted procedure
@@ -692,15 +691,10 @@ procedure TIocpBaseContext.checkNextSendRequest;
 var
   lvRequest:TIocpSendRequest;
 begin
-  FSendingLocker.lock();
-  try
-    lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
-    if lvRequest = nil then
-    begin
-      FSending := false;
-    end;
-  finally
-    FSendingLocker.unLock;
+  lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
+  if lvRequest = nil then
+  begin
+    FSending := false;
   end;
 
   if lvRequest <> nil then
@@ -722,7 +716,7 @@ begin
       {$ENDIF}
 
       /// close the Context
-      FRawSocket.close;
+      self.Close;
     end;
   end;
 end;
@@ -752,8 +746,7 @@ end;
 constructor TIocpBaseContext.Create;
 begin
   inherited Create;
-  FActionLocker := TIocpLocker.Create('context action locker');
-  FSendingLocker := TIocpLocker.Create('sendinglocker');
+  FContextLocker := TIocpLocker.Create('contextlocker');
   FAlive := False;
   FRawSocket := TRawSocket.Create();
   FActive := false;
@@ -771,8 +764,7 @@ begin
 
   Assert(FSendRequestLink.Count = 0);
   FSendRequestLink.Free;
-  FSendingLocker.Free;
-  FActionLocker.Free;
+  FContextLocker.Free;
   inherited Destroy;
 end;
 
@@ -790,7 +782,7 @@ end;
 procedure TIocpBaseContext.DoConnected;
 begin
 {$IFDEF CHANGE_STATE_USE_LOCKER}
-  FActionLocker.lock('DoConnected');
+  FContextLocker.lock('DoConnected');
   try
     if not FActive then
     begin
@@ -812,7 +804,7 @@ begin
       PostWSARecvRequest;
     end;
   finally
-    FActionLocker.unLock;
+    FContextLocker.unLock;
   end;
 {$ELSE}
   if lock_cmp_exchange(False, True, FActive) = False then
@@ -838,7 +830,7 @@ end;
 procedure TIocpBaseContext.DoDisconnect;
 begin
 {$IFDEF CHANGE_STATE_USE_LOCKER}
-  FActionLocker.lock('discounnect');
+  FContextLocker.lock('discounnect');
   try
     if FActive then
     begin
@@ -859,7 +851,7 @@ begin
       end;
     end;
   finally
-    FActionLocker.unLock;
+    FContextLocker.unLock;
   end;
 {$ELSE}
   if lock_cmp_exchange(True, False, FActive) then
@@ -912,7 +904,7 @@ end;
 
 procedure TIocpBaseContext.lock;
 begin
-  FActionLocker.lock();
+  FContextLocker.lock();
 end;
 
 procedure TIocpBaseContext.OnConnected;
@@ -935,55 +927,51 @@ begin
   
 end;
 
+procedure TIocpBaseContext.postNextSendRequest;
+begin
+  self.lock;
+  try
+    checkNextSendRequest;
+  finally
+    self.unLock;
+  end;
+end;
+
 function TIocpBaseContext.postSendRequest(
   pvSendRequest: TIocpSendRequest): Boolean;
 var
   lvDo:Boolean;
 begin
-  if FSendRequestLink.Push(pvSendRequest) then
-  begin
-    if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+  lock;
+  try
+    if FSendRequestLink.Push(pvSendRequest) then
     begin
-      FOwner.FDataMoniter.incPushSendQueueCounter;
-    end;
-
-    Result := true;
-    FSendingLocker.lock();
-    try
-      if not FSending then
+      if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
       begin
-        lvDo := true;
-        FSending := true;
-      end else
-      begin
-        lvDo := false;
+        FOwner.FDataMoniter.incPushSendQueueCounter;
       end;
 
-    finally
-      FSendingLocker.Leave;
-    end;
+      Result := true;
+      if not FSending then
+      begin
+        FSending := true;
+        checkNextSendRequest;
+      end;
 
-    if lvDo then
+    end else
     begin
-      checkNextSendRequest;
+    {$IFDEF DEBUG_MSG_ON}
+      if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+         [FSendRequestLink.Count], 'DEBUG_', lgvDebug);
+    {$ENDIF}
+
+      FOwner.releaseSendRequest(pvSendRequest);
+      self.Close;
+      Result := false;
     end;
-
-//    if lock_cmp_exchange(False, True, FSending) = False then
-//    begin
-//      // start sending
-//      checkNextSendRequest;
-//    end;
-  end else
-  begin
-  {$IFDEF DEBUG_MSG_ON}
-    if FOwner.logCanWrite then
-      FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-       [FSendRequestLink.Count], 'DEBUG_', lgvDebug);
-  {$ENDIF}
-
-    FOwner.releaseSendRequest(pvSendRequest);
-    self.Close;
-    Result := false;
+  finally
+    self.unLock;
   end;
 end;
 
@@ -1025,7 +1013,7 @@ end;
 
 procedure TIocpBaseContext.unLock;
 begin
-  FActionLocker.unLock;
+  FContextLocker.unLock;
 end;
 
 function TIocpBaseSocket.checkClientContextValid(const pvClientContext: TIocpBaseContext): Boolean;
@@ -1625,7 +1613,6 @@ begin
         FOwner.FDataMoniter.incResponseSendObjectCounter;
       end;
 
-      FContext.checkNextSendRequest;
 
       if Assigned(FOnDataRequestCompleted) then
       begin
@@ -1633,6 +1620,8 @@ begin
       end;
 
       FContext.DoSendRequestCompleted(Self);
+
+      FContext.postNextSendRequest;
 
       // release request
       FOwner.releaseSendRequest(Self);
