@@ -9,6 +9,7 @@ type
   TFileLogger = class(TObject)
   private
     FSafeLogger:TSafeLogger;
+    FFilePreFix:String;
     FAddThreadINfo:Boolean;
   public
     constructor Create;
@@ -67,24 +68,43 @@ end;
 
 procedure TFileLogger.logDebugMessage(pvMsg:String);
 begin
-  FSafeLogger.logMessage(pvMsg, 'DEBUG_', lgvDebug);
+  FSafeLogger.logMessage(pvMsg, FFilePreFix + 'DEBUG_', lgvDebug);
 end;
 
 procedure TFileLogger.logErrMessage(pvMsg:String);
 begin
-  FSafeLogger.logMessage(pvMsg, 'ERR_', lgvError); 
+  FSafeLogger.logMessage(pvMsg, FFilePreFix + 'ERR_', lgvError);
 end;
 
 procedure TFileLogger.logMessage(pvMsg: string; pvLogFilePre: string = '');
+var
+  lvPreFix:String;
 begin
-  FSafeLogger.logMessage(pvMsg, pvLogFilePre, lgvMessage); 
+  if pvLogFilePre = '' then
+  begin
+    lvPreFix := FFilePreFix;
+  end else
+  begin
+    lvPreFix := pvLogFilePre;
+  end;
+  FSafeLogger.logMessage(pvMsg, lvPreFix, lgvMessage);
+
 end;
 
 
 procedure TFileLogger.logMessageWithoutLocker(pvMsg: string; pvLogFilePre:
     string = '');
+var
+  lvPreFix:String;
 begin
-  FSafeLogger.logMessage(pvMsg, pvLogFilePre, lgvMessage);
+  if pvLogFilePre = '' then
+  begin
+    lvPreFix := FFilePreFix;
+  end else
+  begin
+    lvPreFix := pvLogFilePre;
+  end;
+  FSafeLogger.logMessage(pvMsg, lvPreFix, lgvMessage);
 end;
 
 procedure TFileLogger.setAddThreadINfo(pvBoolean:Boolean);
@@ -94,7 +114,7 @@ end;
 
 procedure TFileLogger.setFilePre(pvPre:String);
 begin
-  
+  FFilePreFix := pvPre;
 end;
 
 initialization
