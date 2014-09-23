@@ -59,18 +59,37 @@ type
   /// </summary>
   TIocpClientContext = class(TObject)
   private
+    FSocketState: TSocketState;
+
     /// <summary>
     ///   relase counter
     /// </summary>
     FRequestCounter:Integer;
+
+    /// <summary>
+    ///    request discnnect flag, requestCounter is zero then do disconnect
+    /// </summary>
+    FRequestDisconnect:Boolean;
 
     FContextLocker: TIocpLocker;
 
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
 
-    procedure incRequestCounter();
+    function incRequestCounter: Boolean;
+
+    /// <summary>
+    ///    dec RequestCounter then check counter and Request flag for Disonnect
+    /// </summary>
     function  decRequestCounter():Integer;
+
+    /// <summary>
+    ///   dec RequestCounter and requestDisconnect then check counter flag for Disonnect
+    /// </summary>
+    procedure decRequestCounterAndRequestDisconnect;
+
+    procedure lock();
+    procedure unLock();
   private
     FAlive:Boolean;
   {$IFDEF CHANGE_STATE_USE_LOCKER}
@@ -116,9 +135,6 @@ type
     /// </summary>
     procedure DoSendRequestCompleted(pvRequest: TIocpSendRequest);
 
-
-
-
     /// <summary>
     ///   post next sendRequest
     /// </summary>
@@ -155,8 +171,16 @@ type
     /// </summary>
     function getSendRequest():TIocpSendRequest;
 
-    procedure InnerDisconnect;
+    procedure InnerCloseContext;
   protected
+    /// <summary>
+    ///   lock context avoid disconnect,
+    ///     lock succ return false else return false( context request disconnect)
+    /// </summary>
+    function LockContext: Boolean;
+
+    procedure unLockContext;
+
     procedure DoConnected;
 
     procedure DoCleanUp;virtual;
@@ -166,15 +190,18 @@ type
     procedure OnDisconnected; virtual;
 
     procedure OnConnected;virtual;
+
+    procedure SetSocketState(pvState:TSocketState); virtual;
   public
     procedure postNextSendRequest;
 
-    procedure lock();
-    procedure unLock();
+
     constructor Create; virtual;
     destructor Destroy; override;
 
     procedure DoDisconnect;
+
+    procedure RequestDisconnect;
 
     /// <summary>
     ///  post send request to iocp queue, if post successful return true.
@@ -196,6 +223,7 @@ type
     property RemoteAddr: String read FRemoteAddr;
 
     property RemotePort: Integer read FRemotePort;
+    property SocketState: TSocketState read FSocketState;
 
   end;
 
@@ -711,34 +739,30 @@ asm
 end;
 
 
-procedure TIocpClientContext.InnerDisconnect;
+procedure TIocpClientContext.InnerCloseContext;
 begin
+  Assert(FOwner <> nil);
+  Assert(FRequestCounter = 0);
 {$IFDEF CHANGE_STATE_USE_LOCKER}
-  FContextLocker.lock('discounnect');
-  try
-    if FActive then
-    begin
-      try
-        FActive := false;
-        FRawSocket.close;
-        checkReleaseRes;
-        Assert(FOwner <> nil);
-        FOwner.FOnlineContextList.remove(self);
+  if FActive then
+  begin
+    try
+      FActive := false;
+      FRawSocket.close;
+      checkReleaseRes;
+      FOwner.FOnlineContextList.remove(self);
 
-        try
-          if Assigned(FOwner.FOnClientContextDisconnected) then
-          begin
-            FOwner.FOnClientContextDisconnected(Self);
-          end;
-          OnDisconnected;
-        except
+      try
+        if Assigned(FOwner.FOnClientContextDisconnected) then
+        begin
+          FOwner.FOnClientContextDisconnected(Self);
         end;
-      finally
-        FOwner.releaseClientContext(Self);
+        OnDisconnected;
+      except
       end;
+    finally
+      FOwner.releaseClientContext(Self);
     end;
-  finally
-    FContextLocker.unLock;
   end;
 {$ELSE}
   if lock_cmp_exchange(True, False, FLockActive) then
@@ -747,7 +771,6 @@ begin
       FActive := false;
       FRawSocket.close;
       checkReleaseRes;
-      Assert(FOwner <> nil);
       FOwner.FOnlineContextList.remove(self);
 
       try
@@ -770,10 +793,22 @@ begin
   FContextLocker.lock();
 end;
 
+function TIocpClientContext.LockContext: Boolean;
+begin
+  Result := incRequestCounter;
+end;
+
+procedure TIocpClientContext.unLockContext;
+begin
+  decRequestCounter;
+end;
+
+
 procedure TIocpClientContext.checkNextSendRequest;
 var
   lvRequest:TIocpSendRequest;
 begin
+  Assert(FOwner <> nil);
   lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
   if lvRequest = nil then
   begin
@@ -785,22 +820,19 @@ begin
     FcurrSendRequest := lvRequest;
     if lvRequest.checkStart then
     begin
-      if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
+      if (FOwner.FDataMoniter <> nil) then
       begin
         FOwner.FDataMoniter.incPostSendObjectCounter;
       end;
     end else
     begin
-      {$IFDEF DEBUG_MSG_ON}
-         if FOwner = nil then
-         begin
-           logDebugMessage('TIocpClientContext.checkNextSendRequest.checkStart return false, owner is nil',  []);
-         end else if FOwner.logCanWrite then
-           FOwner.FSafeLogger.logMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
-      {$ENDIF}
+    {$IFDEF DEBUG_MSG_ON}
+      if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
+    {$ENDIF}
 
       /// kick out the clientContext
-      DoDisconnect;
+      RequestDisconnect;
     end;
   end;
 end;
@@ -809,7 +841,6 @@ procedure TIocpClientContext.checkReleaseRes;
 var
   lvRequest:TIocpSendRequest;
 begin
-
   while true do
   begin
     lvRequest :=TIocpSendRequest(FSendRequestLink.Pop);
@@ -826,6 +857,7 @@ end;
 constructor TIocpClientContext.Create;
 begin
   inherited Create;
+  FRequestCounter := 0;
   FContextLocker := TIocpLocker.Create('contextLocker');
   FAlive := False;
   FRawSocket := TRawSocket.Create();
@@ -835,15 +867,85 @@ begin
   FRecvRequest.FClientContext := self;
 end;
 
-function TIocpClientContext.decRequestCounter: Integer;
+function TIocpClientContext.incRequestCounter: Boolean;
 begin
-  Result := InterlockedDecrement(FRequestCounter);
+  FContextLocker.lock('incRequestCounter');
+  if (not Active) or FRequestDisconnect then
+    Result := false
+  else
+  begin
+    Inc(FRequestCounter);
+    Result := true;
+  end;
+  FContextLocker.unLock;
+end;
+
+
+function TIocpClientContext.decRequestCounter: Integer;
+var
+  lvCloseContext:Boolean;
+begin
+  lvCloseContext := false;
+  FContextLocker.lock('decRequestCounter');
+  
+  Dec(FRequestCounter);
+  if FRequestCounter < 0 then
+    Assert(FRequestCounter >=0 );
+  if FRequestCounter = 0 then
+    if FRequestDisconnect then lvCloseContext := true;
+    
+  FContextLocker.unLock; 
+  
+  if lvCloseContext then InnerCloseContext; 
+end;
+
+procedure TIocpClientContext.decRequestCounterAndRequestDisconnect;
+var
+  lvCloseContext:Boolean;
+begin
+  lvCloseContext := false;
+
+  FContextLocker.lock('decRequestCounter');
+  
+  FRequestDisconnect := true;    
+  Dec(FRequestCounter);
+  if FRequestCounter < 0 then
+    Assert(FRequestCounter >=0 );
+  if FRequestCounter = 0 then
+    lvCloseContext := true;
+    
+  FContextLocker.unLock; 
+  
+  if lvCloseContext then InnerCloseContext; 
+end;
+
+procedure TIocpClientContext.RequestDisconnect;
+var
+  lvCloseContext:Boolean;
+begin
+  lvCloseContext := false;
+  FContextLocker.lock('RequestDisconnect');
+  
+  FRequestDisconnect := True;
+
+  //
+  if FRequestCounter = 0 then
+  begin
+    lvCloseContext := true;
+  end;
+  
+  FContextLocker.unLock; 
+  
+  if lvCloseContext then InnerCloseContext else FRawSocket.close; 
 end;
 
 destructor TIocpClientContext.Destroy;
 begin
-  Assert(FRequestCounter = 0);
-  
+  if FRequestCounter <> 0 then
+  begin
+    Assert(FRequestCounter = 0);
+  end;
+
   FRawSocket.close;
   FRawSocket.Free;
 
@@ -859,13 +961,15 @@ end;
 procedure TIocpClientContext.DoCleanUp;
 begin
   FOwner := nil;
-  FRequestCounter := 0;
-  if FActive then
-  begin
-    FRawSocket.close;
-    FActive := false;
-    checkReleaseRes;
-  end;
+  Assert(FRequestCounter = 0);
+  FRequestDisconnect := false;
+  Assert(not FActive);
+//  if FActive then
+//  begin
+//    FRawSocket.close;
+//    FActive := false;
+//    checkReleaseRes;
+//  end;
 end;
 
 procedure TIocpClientContext.DoConnected;
@@ -920,7 +1024,7 @@ end;
 
 procedure TIocpClientContext.DoDisconnect;
 begin
-  FRawSocket.close;
+  RequestDisconnect;
 end;
 
 procedure TIocpClientContext.DoReceiveData;
@@ -949,10 +1053,6 @@ end;
 
 
 
-procedure TIocpClientContext.incRequestCounter;
-begin
-  InterlockedIncrement(FRequestCounter);
-end;
 
 procedure TIocpClientContext.OnConnected;
 begin
@@ -982,40 +1082,45 @@ end;
 
 function TIocpClientContext.postSendRequest(
   pvSendRequest: TIocpSendRequest): Boolean;
-begin
-  lock;
+begin  
+  Result := False;
+    
+  if incRequestCounter then
   try
-    if FSendRequestLink.Push(pvSendRequest) then
-    begin
-      if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
-      begin
-        FOwner.FDataMoniter.incPushSendQueueCounter;
-      end;
-      Result := true;
+    FContextLocker.lock();   
+    try    
+      Result := FSendRequestLink.Push(pvSendRequest);
+      if Result then
+      begin      
+        if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+        begin
+          FOwner.FDataMoniter.incPushSendQueueCounter;
+        end;
+        Result := true;
 
-      if not FSending then
-      begin
-        FSending := true;
-        checkNextSendRequest;
+        if not FSending then
+        begin
+          FSending := true;
+          checkNextSendRequest;
+        end;
       end;
-    end else
+    finally
+      FContextLocker.unLock;
+    end;
+    
+    if not Result then
     begin
     {$IFDEF DEBUG_MSG_ON}
-      if FOwner = nil then
-      begin
-        logDebugMessage('Push sendRequest to Sending Queue fail, queue size owner is nil:%d',
-         [FSendRequestLink.Count]);
-      end else  if FOwner.logCanWrite then
+      if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
          [FSendRequestLink.Count]);
     {$ENDIF}
 
       FOwner.releaseSendRequest(pvSendRequest);
-      Self.DoDisconnect;
-      Result := false;
+      self.RequestDisconnect;
     end;
   finally
-    unLock;
+    decRequestCounter;
   end;
 end;
 
@@ -1042,6 +1147,8 @@ begin
   end;
 end;
 
+
+
 procedure TIocpClientContext.SetDebugINfo(const Value: string);
 begin
   FDebugINfo := Value;
@@ -1053,10 +1160,20 @@ begin
   FRecvRequest.FOwner := FOwner;
 end;
 
+procedure TIocpClientContext.SetSocketState(pvState:TSocketState);
+begin
+  FSocketState := pvState;
+//  if Assigned(FOnSocketStateChanged) then
+//  begin
+//    FOnSocketStateChanged(Self);
+//  end;
+end;
+
 procedure TIocpClientContext.unLock;
 begin
   FContextLocker.unLock;
 end;
+
 
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
 begin
@@ -1128,18 +1245,21 @@ end;
 
 procedure TIocpTcpServer.DisconnectAll;
 var
-  lvClientContext:TIocpClientContext;
+  lvClientContext, lvNextContext:TIocpClientContext;
 begin
-  while True do
-  begin
-    lvClientContext := FOnlineContextList.Pop;
-    if lvClientContext <> nil then
-    begin
-      lvClientContext.InnerDisconnect;
-    end else
-    begin
-      Break;
+  FOnlineContextList.FLocker.lock('DisconnectAll');
+  try
+    lvNextContext := FOnlineContextList.FHead;
+
+    // request all context discounnt
+    while lvNextContext <> nil do
+    begin    
+      lvClientContext := lvNextContext;
+      lvNextContext := lvNextContext.FNext; 
+      lvClientContext.RequestDisconnect;    
     end;
+  finally
+    FOnlineContextList.FLocker.unLock;
   end;
 end;
 
@@ -1163,7 +1283,7 @@ begin
       if not pvRequest.FClientContext.FRawSocket.setKeepAliveOption() then
       begin       // set option fail
         lvErrCode := GetLastError;
-        DoClientContextError(nil, lvErrCode);
+        DoClientContextError(pvRequest.FClientContext, lvErrCode);
 
         pvRequest.FClientContext.FRawSocket.close;
 
@@ -1183,7 +1303,7 @@ begin
       if lvRet = 0 then
       begin     // binding error
         lvErrCode := GetLastError;
-        DoClientContextError(nil, lvErrCode);
+        DoClientContextError(pvRequest.FClientContext, lvErrCode);
 
         pvRequest.FClientContext.FRawSocket.close;
 
@@ -1202,7 +1322,7 @@ begin
     pvRequest.FClientContext := nil;
   end;
 
-  // request will free or return to pool
+  // remove from list
   FIocpAcceptorMgr.removeRequestObject(pvRequest);
 
   if FActive then FIocpAcceptorMgr.checkPostRequest;
@@ -1211,6 +1331,11 @@ end;
 procedure TIocpTcpServer.DoClientContextError(pvClientContext:
     TIocpClientContext; pvErrorCode: Integer);
 begin
+{$IFDEF DEBUG_MSG_ON}
+  if logCanWrite then
+    FSafeLogger.logMessage('TIocpTcpServer.DoClientContextError Error:%d',  [pvErrorCode], 'ContextError', lgvError);
+{$ENDIF}
+
   if Assigned(FOnClientContextError) then
     FOnClientContextError(pvClientContext, pvErrorCode);
 end;
@@ -1455,6 +1580,7 @@ procedure TIocpAcceptorMgr.checkPostRequest;
 var
   lvRequest:TIocpAcceptExRequest;
 begin
+  Assert(FOwner <> nil);
   FLocker.lock;
   try
     if FList.Count > FMinRequest then Exit;
@@ -1465,12 +1591,18 @@ begin
       lvRequest := TIocpAcceptExRequest.Create(FOwner);
       lvRequest.FClientContext := FOwner.getClientContext;
       lvRequest.FAcceptorMgr := self;
-      FList.Add(lvRequest);
-      lvRequest.PostRequest;
-
-      if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+      if lvRequest.PostRequest then
       begin
-        InterlockedIncrement(FOwner.FDataMoniter.FPostWSAAcceptExCounter);
+        FList.Add(lvRequest);
+        if (FOwner.FDataMoniter <> nil) then
+        begin
+          InterlockedIncrement(FOwner.FDataMoniter.FPostWSAAcceptExCounter);
+        end;
+      end else
+      begin     // post fail
+        lvRequest.FClientContext.SetSocketState(ssDisconnected);
+        FOwner.releaseClientContext(lvRequest.FClientContext);
+        releaseRequestObject(lvRequest);
       end;
     end;
   finally
@@ -1544,34 +1676,29 @@ end;
 
 procedure TIocpAcceptExRequest.HandleResponse;
 begin
-  if FOwner = nil then
-  begin        // owner is shutdown
-    if FClientContext <> nil then FClientContext.Free;
-    Self.Free;
-  end else
+  Assert(FOwner <> nil);
+  ///
+  if (FOwner.FDataMoniter <> nil) then
   begin
-    ///
-    if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
-    begin
-      InterlockedIncrement(FOwner.FDataMoniter.FResponseWSAAcceptExCounter);
-    end;
-
-    try
-      if FErrorCode = 0 then
-      begin
-        // msdn
-        // The socket sAcceptSocket does not inherit the properties of the socket
-        //  associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT
-        //  is set on the socket.
-        FOwner.FListenSocket.UpdateAcceptContext(FClientContext.FRawSocket.SocketHandle);
-
-        getPeerINfo();
-      end;
-      FOwner.DoAcceptExResponse(Self);
-    finally
-      FAcceptorMgr.releaseRequestObject(Self);
-    end;
+    InterlockedIncrement(FOwner.FDataMoniter.FResponseWSAAcceptExCounter);
   end;
+
+  try
+    if FErrorCode = 0 then
+    begin
+      // msdn
+      // The socket sAcceptSocket does not inherit the properties of the socket
+      //  associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT
+      //  is set on the socket.
+      FOwner.FListenSocket.UpdateAcceptContext(FClientContext.FRawSocket.SocketHandle);
+
+      getPeerINfo();
+    end;
+    FOwner.DoAcceptExResponse(Self);
+  finally
+    FAcceptorMgr.releaseRequestObject(Self);
+  end;
+
 end;
 
 function TIocpAcceptExRequest.PostRequest: Boolean;
@@ -1584,6 +1711,9 @@ begin
   FClientContext.FRawSocket.createTcpOverlappedSocket;
   dwBytes := 0;
   lp := @FOverlapped;
+
+  FClientContext.SetSocketState(ssAccepting);
+
   lvRet := IocpAcceptEx(FOwner.FListenSocket.SocketHandle
                 , FClientContext.FRawSocket.SocketHandle
                 , @FAcceptBuffer[0]
@@ -1623,56 +1753,59 @@ end;
 procedure TIocpRecvRequest.HandleResponse;
 begin
   Assert(FOwner <> nil);
-  
-  if (FOwner.FDataMoniter <> nil) then
-  begin
-    FOwner.FDataMoniter.incResponseWSARecvCounter;
-    FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
-  end;
+  try   
+    if (FOwner.FDataMoniter <> nil) then
+    begin
+      FOwner.FDataMoniter.incResponseWSARecvCounter;
+      FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
+    end;
 
-  if not FOwner.Active then
-  begin
-    {$IFDEF DEBUG_MSG_ON}
-     if FOwner.logCanWrite then
-      FOwner.FSafeLogger.logMessage('IocpRecvRequest response server enginee is off');
-    {$ENDIF}
-  end else if FErrorCode <> 0 then
-  begin
-    {$IFDEF DEBUG_MSG_ON}
-     if FOwner.logCanWrite then
-      FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
-    {$ENDIF}
-    FOwner.DoClientContextError(FClientContext, FErrorCode);
-    FClientContext.InnerDisconnect;
-  end else if (FBytesTransferred = 0) then
-  begin      // no data recvd, socket is break
-    {$IFDEF DEBUG_MSG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
-    {$ENDIF}
-    FClientContext.InnerDisconnect;
-  end else
-  begin
-    try
-      FClientContext.DoReceiveData;
-    finally
-      // post recv request
-      if FOwner.Active then
-      begin
-        if FClientContext.Active then
+    if not FOwner.Active then
+    begin
+      {$IFDEF DEBUG_MSG_ON}
+       if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('IocpRecvRequest response server enginee is off');
+      {$ENDIF}
+    end else if FErrorCode <> 0 then
+    begin
+      {$IFDEF DEBUG_MSG_ON}
+       if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
+      {$ENDIF}
+      FOwner.DoClientContextError(FClientContext, FErrorCode);
+      FClientContext.RequestDisconnect;
+    end else if (FBytesTransferred = 0) then
+    begin      // no data recvd, socket is break
+      {$IFDEF DEBUG_MSG_ON}
+        if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
+      {$ENDIF}
+      FClientContext.RequestDisconnect;
+    end else
+    begin
+      try
+        FClientContext.DoReceiveData;
+      finally
+        // post recv request
+        if FOwner.Active then
         begin
-          // post recv request again
-          FClientContext.PostWSARecvRequest;
+          if FClientContext.Active then
+          begin
+            // post recv request again
+            FClientContext.PostWSARecvRequest;
+          end;
+        end else
+        begin
+          {$IFDEF DEBUG_MSG_ON}
+           if FOwner.logCanWrite then
+            FOwner.FSafeLogger.logMessage('IocpRecvRequest response Owner is deactive',  []);
+          {$ENDIF}
+          FClientContext.RequestDisconnect;
         end;
-      end else
-      begin
-        {$IFDEF DEBUG_MSG_ON}
-         if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('IocpRecvRequest response Owner is deactive',  []);
-        {$ENDIF}
-        FClientContext.InnerDisconnect;
       end;
     end;
+  finally
+    FClientContext.decRequestCounter;
   end;
 end;
 
@@ -1682,54 +1815,57 @@ var
   lvRet:Integer;
   lpNumberOfBytesRecvd: Cardinal;
 begin
+  Result := False;
   lpNumberOfBytesRecvd := 0;
   FRecvdFlag := 0;
 
   FRecvBuffer.buf := pvBuffer;
   FRecvBuffer.len := len;
 
-  FClientContext.incRequestCounter;
-  
-  lvRet := iocpWinsock2.WSARecv(FClientContext.FRawSocket.SocketHandle,
-     @FRecvBuffer,
-     1,
-     lpNumberOfBytesRecvd,
-     FRecvdFlag,
-     LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
-     nil
-     );
-  if lvRet = SOCKET_ERROR then
-  begin
-    lvRet := WSAGetLastError;
-    Result := lvRet = WSA_IO_PENDING;
-    if not Result then
+  if FClientContext.incRequestCounter then
+  begin  
+    lvRet := iocpWinsock2.WSARecv(FClientContext.FRawSocket.SocketHandle,
+       @FRecvBuffer,
+       1,
+       lpNumberOfBytesRecvd,
+       FRecvdFlag,
+       LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
+       nil
+       );
+    if lvRet = SOCKET_ERROR then
     begin
-      {$IFDEF DEBUG_MSG_ON}
-       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
-      {$ENDIF}
+      lvRet := WSAGetLastError;
+      Result := lvRet = WSA_IO_PENDING;
+      if not Result then
+      begin
+        {$IFDEF DEBUG_MSG_ON}
+         if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
+        {$ENDIF}
 
-      // trigger error event
-      FOwner.DoClientContextError(FClientContext, lvRet);
+        // trigger error event
+        FOwner.DoClientContextError(FClientContext, lvRet);
 
-      // kick out clientContext
-      FClientContext.DoDisconnect;
+        // decRequestCounter
+        FClientContext.decRequestCounterAndRequestDisconnect;
+
+      end else
+      begin
+        if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
+        begin
+          FOwner.FDataMoniter.incPostWSARecvCounter;
+        end;
+      end;
     end else
     begin
+      Result := True;
+    
       if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
       begin
         FOwner.FDataMoniter.incPostWSARecvCounter;
       end;
-    end;
-  end else
-  begin
-    Result := True;
-    
-    if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
-    begin
-      FOwner.FDataMoniter.incPostWSARecvCounter;
-    end;
-  end;   
+    end;   
+  end;
 end;
 
 function TIocpRecvRequest.PostRequest: Boolean;
@@ -1788,67 +1924,64 @@ end;
 procedure TIocpSendRequest.HandleResponse;
 begin
   FIsBusying := false;
-  if FOwner = nil then
-  begin
-    exit;
-  end else if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
-  begin                                                       
-//    if (FErrorCode = 0) and (FBytesTransferred <> FWSABuf.len) then  /// error
-//    begin
-//       FBytesTransferred := FBytesTransferred;
-//    end;
-    FOwner.FDataMoniter.incSentSize(FBytesTransferred);
-    FOwner.FDataMoniter.incResponseWSASendCounter;
 
-  end;
+  Assert(FOwner<> nil);
+  try
+    if (FOwner.FDataMoniter <> nil) then
+    begin                                                       
+      FOwner.FDataMoniter.incSentSize(FBytesTransferred);
+      FOwner.FDataMoniter.incResponseWSASendCounter;
 
-  if FErrorCode <> 0 then
-  begin
-    {$IFDEF DEBUG_MSG_ON}
-     if FOwner.logCanWrite then
-      FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
-    {$ENDIF}
-    FOwner.DoClientContextError(FClientContext, FErrorCode);
-    FClientContext.InnerDisconnect;
+    end;
 
-    // release request
-    FOwner.releaseSendRequest(Self);
-  end else
-  begin
-    onSendRequestSucc;
-    if isCompleted then    // is all buf send completed?
+    if FErrorCode <> 0 then
     begin
-      if FOwner.FDataMoniter <> nil then
-      begin
-        FOwner.FDataMoniter.incResponseSendObjectCounter;
-      end;
-
-      if Assigned(FOnDataRequestCompleted) then
-      begin
-        FOnDataRequestCompleted(FClientContext, Self);
-      end;
-
-      FClientContext.DoSendRequestCompleted(Self);
-
-      FClientContext.postNextSendRequest;
-
+      {$IFDEF DEBUG_MSG_ON}
+       if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
+      {$ENDIF}
+      FOwner.DoClientContextError(FClientContext, FErrorCode);
+      FClientContext.RequestDisconnect; 
       // release request
       FOwner.releaseSendRequest(Self);
-
-
     end else
     begin
-      if not checkSendNextBlock then
+      onSendRequestSucc;
+      if isCompleted then    // is all buf send completed?
       begin
-        {$IFDEF DEBUG_MSG_ON}
-         if FOwner.logCanWrite then
-           FOwner.FSafeLogger.logMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
-        {$ENDIF}
+        if FOwner.FDataMoniter <> nil then
+        begin
+          FOwner.FDataMoniter.incResponseSendObjectCounter;
+        end;
 
-        /// kick out the clientContext
-        FClientContext.DoDisconnect;
+        if Assigned(FOnDataRequestCompleted) then
+        begin
+          FOnDataRequestCompleted(FClientContext, Self);
+        end;
+
+        FClientContext.DoSendRequestCompleted(Self);
+
+        FClientContext.postNextSendRequest;
+
+        // release request
+        FOwner.releaseSendRequest(Self); 
+
+      end else
+      begin
+        if not checkSendNextBlock then
+        begin
+          {$IFDEF DEBUG_MSG_ON}
+           if FOwner.logCanWrite then
+             FOwner.FSafeLogger.logMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
+          {$ENDIF}
+
+          /// kick out the clientContext
+          FClientContext.RequestDisconnect;
+        end;
       end;
     end;
+  finally
+    FClientContext.decRequestCounter;
   end;
 end;
 
@@ -1865,47 +1998,60 @@ begin
   FWSABuf.len := len;
   dwFlag := 0;
   lpNumberOfBytesSent := 0;
-  lvRet := WSASend(FClientContext.FRawSocket.SocketHandle,
-                    @FWSABuf,
-                    1,
-                    lpNumberOfBytesSent,
-                    dwFlag,
-                    LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
-                    nil
-  );
-  if lvRet = SOCKET_ERROR then
+
+  if FClientContext.incRequestCounter then
   begin
-    lvRet := WSAGetLastError;
-    Result := lvRet = WSA_IO_PENDING;
-    if not Result then
+    lvRet := WSASend(FClientContext.FRawSocket.SocketHandle,
+                      @FWSABuf,
+                      1,
+                      lpNumberOfBytesSent,
+                      dwFlag,
+                      LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
+                      nil
+    );
+    if lvRet = SOCKET_ERROR then
     begin
-       FIsBusying := False;
-    {$IFDEF DEBUG_MSG_ON}
-      if FOwner.logCanWrite then
-       FOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Error:%d',  [lvRet]);
-    {$ENDIF}
+      lvRet := WSAGetLastError;
+      Result := lvRet = WSA_IO_PENDING;
+      if not Result then
+      begin
+        try
+           FIsBusying := False;
+        {$IFDEF DEBUG_MSG_ON}
+           if FOwner.logCanWrite then
+             FOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Error:%d',  [lvRet]);
+        {$ENDIF}
 
-       FOwner.DoClientContextError(FClientContext, lvRet);
+           FOwner.DoClientContextError(FClientContext, lvRet);
+        except  
+          on e:Exception do
+          begin    
+            {$IFDEF DEBUG_MSG_ON}
+               if FOwner.logCanWrite then
+                 FOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Exception:' + E.Message, '', lgvError);
+            {$ENDIF}
+          end;
+        end;
+        /// request kick out
+        FClientContext.decRequestCounterAndRequestDisconnect;
 
-       /// kick out the clientContext
-       FClientContext.DoDisconnect;
-
-       FOwner.releaseSendRequest(Self);
+        FOwner.releaseSendRequest(Self);
+      end else
+      begin
+        if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
+        begin
+          FOwner.FDataMoniter.incPostWSASendSize(len);
+          FOwner.FDataMoniter.incPostWSASendCounter;
+        end;
+      end;
     end else
     begin
+      Result := True;
       if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
       begin
         FOwner.FDataMoniter.incPostWSASendSize(len);
         FOwner.FDataMoniter.incPostWSASendCounter;
       end;
-    end;
-  end else
-  begin
-    Result := True;
-    if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
-    begin
-      FOwner.FDataMoniter.incPostWSASendSize(len);
-      FOwner.FDataMoniter.incPostWSASendCounter;
     end;
   end;
 end;
