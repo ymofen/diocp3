@@ -78,17 +78,18 @@ type
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
 
-    function incReferenceCounter(pvDebugInfo: string): Boolean;
+    function incReferenceCounter(pvDebugInfo: string; pvObj: TObject): Boolean;
 
     /// <summary>
     ///    dec RequestCounter then check counter and Request flag for Disonnect
     /// </summary>
-    function decReferenceCounter(pvDebugInfo: string): Integer;
+    function decReferenceCounter(pvDebugInfo: string; pvObj: TObject): Integer;
 
     /// <summary>
     ///   dec RequestCounter and requestDisconnect then check counter flag for Disonnect
     /// </summary>
-    procedure decReferenceCounterAndRequestDisconnect(pvDebugInfo: string);
+    procedure decReferenceCounterAndRequestDisconnect(pvDebugInfo: string; pvObj:
+        TObject);
 
     procedure lock();
     procedure unLock();
@@ -179,9 +180,9 @@ type
     ///   lock context avoid disconnect,
     ///     lock succ return false else return false( context request disconnect)
     /// </summary>
-    function LockContext(pvDebugInfo: string): Boolean;
+    function LockContext(pvDebugInfo: string; pvObj: TObject): Boolean;
 
-    procedure unLockContext(pvDebugInfo: string);
+    procedure unLockContext(pvDebugInfo: string; pvObj: TObject);
 
     procedure DoConnected;
 
@@ -234,6 +235,7 @@ type
   /// </summary>
   TIocpRecvRequest = class(TIocpRequest)
   private
+    FDebugInfo:String;
     FInnerBuffer: iocpWinsock2.TWsaBuf;
     FRecvBuffer: iocpWinsock2.TWsaBuf;
     FRecvdFlag: Cardinal;
@@ -795,14 +797,15 @@ begin
   FContextLocker.lock();
 end;
 
-function TIocpClientContext.LockContext(pvDebugInfo: string): Boolean;
+function TIocpClientContext.LockContext(pvDebugInfo: string; pvObj: TObject):
+    Boolean;
 begin
-  Result := incReferenceCounter(pvDebugInfo);
+  Result := incReferenceCounter(pvDebugInfo, pvObj);
 end;
 
-procedure TIocpClientContext.unLockContext(pvDebugInfo: string);
+procedure TIocpClientContext.unLockContext(pvDebugInfo: string; pvObj: TObject);
 begin
-  decReferenceCounter(pvDebugInfo);
+  decReferenceCounter(pvDebugInfo, pvObj);
 end;
 
 
@@ -870,7 +873,8 @@ begin
   FRecvRequest.FClientContext := self;
 end;
 
-function TIocpClientContext.incReferenceCounter(pvDebugInfo: string): Boolean;
+function TIocpClientContext.incReferenceCounter(pvDebugInfo: string; pvObj:
+    TObject): Boolean;
 begin
   FContextLocker.lock('incReferenceCounter');
   if (not Active) or FRequestDisconnect then
@@ -879,7 +883,7 @@ begin
   end else
   begin
     Inc(FReferenceCounter);
-    FDebugStrings.Add(Format('+(%d):%s', [FReferenceCounter, pvDebugInfo]));
+    FDebugStrings.Add(Format('+(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
 
     if FDebugStrings.Count > 20 then
       FDebugStrings.Delete(0);
@@ -890,14 +894,15 @@ begin
 end;
 
 
-function TIocpClientContext.decReferenceCounter(pvDebugInfo: string): Integer;
+function TIocpClientContext.decReferenceCounter(pvDebugInfo: string; pvObj:
+    TObject): Integer;
 var
   lvCloseContext:Boolean;
 begin
   lvCloseContext := false;
   FContextLocker.lock('decReferenceCounter');
   Dec(FReferenceCounter);
-  FDebugStrings.Add(Format('-(%d):%s', [FReferenceCounter, pvDebugInfo]));
+  FDebugStrings.Add(Format('-(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
 
   if FDebugStrings.Count > 20 then
     FDebugStrings.Delete(0);
@@ -914,7 +919,7 @@ begin
 end;
 
 procedure TIocpClientContext.decReferenceCounterAndRequestDisconnect(
-    pvDebugInfo: string);
+    pvDebugInfo: string; pvObj: TObject);
 var
   lvCloseContext:Boolean;
 begin
@@ -923,7 +928,7 @@ begin
   FContextLocker.lock('decReferenceCounter');
   FRequestDisconnect := true;
   Dec(FReferenceCounter);
-  FDebugStrings.Add(Format('-(%d):%s', [FReferenceCounter, pvDebugInfo]));
+  FDebugStrings.Add(Format('-(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
 
   if FDebugStrings.Count > 20 then
     FDebugStrings.Delete(0);
@@ -983,7 +988,7 @@ begin
   Assert(FReferenceCounter = 0);
   FRequestDisconnect := false;
 
-  FDebugStrings.Add('----------doCleanUp');
+  FDebugStrings.Add(Format('-(%d):%d,%s', [FReferenceCounter, IntPtr(Self), '-----DoCleanUp-----']));
 
   Assert(not FActive);
 //  if FActive then
@@ -1107,7 +1112,7 @@ function TIocpClientContext.postSendRequest(
 begin  
   Result := False;
     
-  if incReferenceCounter('TIocpClientContext.postSendRequest') then
+  if incReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest) then
   try
     FContextLocker.lock();   
     try    
@@ -1142,7 +1147,7 @@ begin
       self.RequestDisconnect;
     end;
   finally
-    decReferenceCounter('TIocpClientContext.postSendRequest');
+    decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
   end;
 end;
 
@@ -1827,7 +1832,7 @@ begin
       end;
     end;
   finally
-    FClientContext.decReferenceCounter('TIocpRecvRequest.WSARecvRequest.HandleResponse');
+    FClientContext.decReferenceCounter(FDebugInfo + '>TIocpRecvRequest.WSARecvRequest.HandleResponse', Self);
   end;
 end;
 
@@ -1844,8 +1849,9 @@ begin
   FRecvBuffer.buf := pvBuffer;
   FRecvBuffer.len := len;
 
-  if FClientContext.incReferenceCounter('TIocpRecvRequest.WSARecvRequest') then
-  begin  
+  if FClientContext.incReferenceCounter('TIocpRecvRequest.WSARecvRequest.Post', Self) then
+  begin
+    FDebugInfo := IntToStr(intPtr(FClientContext));
     lvRet := iocpWinsock2.WSARecv(FClientContext.FRawSocket.SocketHandle,
        @FRecvBuffer,
        1,
@@ -1869,7 +1875,8 @@ begin
         FOwner.DoClientContextError(FClientContext, lvRet);
 
         // decReferenceCounter
-        FClientContext.decReferenceCounterAndRequestDisconnect('TIocpRecvRequest.WSARecvRequest.Error');
+        FClientContext.decReferenceCounterAndRequestDisconnect(
+        'TIocpRecvRequest.WSARecvRequest.Error', Self);
 
       end else
       begin
@@ -2000,7 +2007,7 @@ begin
       end;
     end;
   finally
-    FClientContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response');
+    FClientContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
     
     // release request
     FOwner.releaseSendRequest(Self); 
@@ -2021,7 +2028,7 @@ begin
   dwFlag := 0;
   lpNumberOfBytesSent := 0;
 
-  if FClientContext.incReferenceCounter('TIocpSendRequest.WSASendRequest') then
+  if FClientContext.incReferenceCounter('TIocpSendRequest.WSASendRequest', Self) then
   begin
     lvRet := WSASend(FClientContext.FRawSocket.SocketHandle,
                       @FWSABuf,
@@ -2055,7 +2062,7 @@ begin
           end;
         end;
         /// request kick out
-        FClientContext.decReferenceCounterAndRequestDisconnect('TIocpSendRequest.InnerPostRequest.fail');
+        FClientContext.decReferenceCounterAndRequestDisconnect('TIocpSendRequest.InnerPostRequest.fail', Self);
 
         FOwner.releaseSendRequest(Self);
       end else
