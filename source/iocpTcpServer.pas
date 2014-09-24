@@ -747,27 +747,27 @@ procedure TIocpClientContext.InnerCloseContext;
 begin
   Assert(FOwner <> nil);
   Assert(FReferenceCounter = 0);
+  Assert(FActive);
 {$IFDEF CHANGE_STATE_USE_LOCKER}
-  if FActive then
-  begin
-    try
-      FActive := false;
-      FRawSocket.close;
-      checkReleaseRes;
-      FOwner.FOnlineContextList.remove(self);
 
-      try
-        if Assigned(FOwner.FOnClientContextDisconnected) then
-        begin
-          FOwner.FOnClientContextDisconnected(Self);
-        end;
-        OnDisconnected;
-      except
+  try
+    FActive := false;
+    FRawSocket.close;
+    checkReleaseRes;
+    FOwner.FOnlineContextList.remove(self);
+
+    try
+      if Assigned(FOwner.FOnClientContextDisconnected) then
+      begin
+        FOwner.FOnClientContextDisconnected(Self);
       end;
-    finally
-      FOwner.releaseClientContext(Self);
+      OnDisconnected;
+    except
     end;
+  finally
+    FOwner.releaseClientContext(Self);
   end;
+
 {$ELSE}
   if lock_cmp_exchange(True, False, FLockActive) then
   begin
@@ -879,7 +879,7 @@ begin
   FContextLocker.lock('incReferenceCounter');
   if (not Active) or FRequestDisconnect then
   begin
-    Result := false
+    Result := false;
   end else
   begin
     Inc(FReferenceCounter);
@@ -1779,8 +1779,12 @@ end;
 
 procedure TIocpRecvRequest.HandleResponse;
 begin
+  InterlockedDecrement(FOverlapped.refCount);
+  if FOverlapped.refCount <> 0 then
+    Assert(FOverlapped.refCount <>0);
+
   Assert(FOwner <> nil);
-  try   
+  try
     if (FOwner.FDataMoniter <> nil) then
     begin
       FOwner.FDataMoniter.incResponseWSARecvCounter;
@@ -1810,29 +1814,17 @@ begin
       FClientContext.RequestDisconnect;
     end else
     begin
-      try
-        FClientContext.DoReceiveData;
-      finally
-        // post recv request
-        if FOwner.Active then
-        begin
-          if FClientContext.Active then
-          begin
-            // post recv request again
-            FClientContext.PostWSARecvRequest;
-          end;
-        end else
-        begin
-          {$IFDEF DEBUG_MSG_ON}
-           if FOwner.logCanWrite then
-            FOwner.FSafeLogger.logMessage('IocpRecvRequest response Owner is deactive',  []);
-          {$ENDIF}
-          FClientContext.RequestDisconnect;
-        end;
-      end;
+      FClientContext.DoReceiveData;
     end;
   finally
-    FClientContext.decReferenceCounter(FDebugInfo + '>TIocpRecvRequest.WSARecvRequest.HandleResponse', Self);
+    FClientContext.decReferenceCounter(
+      Format('debugInfo:%s, refcount:%d, TIocpRecvRequest.WSARecvRequest.HandleResponse',
+        [FDebugInfo,FOverlapped.refCount]), Self);
+
+    if not FClientContext.FRequestDisconnect then
+    begin
+      FClientContext.PostWSARecvRequest;
+    end;
   end;
 end;
 
@@ -1851,6 +1843,7 @@ begin
 
   if FClientContext.incReferenceCounter('TIocpRecvRequest.WSARecvRequest.Post', Self) then
   begin
+    InterlockedIncrement(FOverlapped.refCount);
     FDebugInfo := IntToStr(intPtr(FClientContext));
     lvRet := iocpWinsock2.WSARecv(FClientContext.FRawSocket.SocketHandle,
        @FRecvBuffer,
@@ -1870,6 +1863,8 @@ begin
          if FOwner.logCanWrite then
           FOwner.FSafeLogger.logMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
         {$ENDIF}
+
+        InterlockedDecrement(FOverlapped.refCount);
 
         // trigger error event
         FOwner.DoClientContextError(FClientContext, lvRet);

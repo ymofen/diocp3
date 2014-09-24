@@ -41,6 +41,7 @@ type
   OVERLAPPEDEx = packed record
     Overlapped: OVERLAPPED;
     iocpRequest: TIocpRequest;
+    refCount: Integer;
   end;
 
   /// <summary>
@@ -775,6 +776,7 @@ constructor TIocpRequest.Create;
 begin
   inherited Create;
   FOverlapped.iocpRequest := self;
+  FOverlapped.refCount := 0;
 end;
 
 constructor TIocpRequestSingleLink.Create(pvMaxSize: Integer = 1024);

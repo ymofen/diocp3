@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls,
-  ComCtrls;
+  ComCtrls, System.Actions;
 
 type
   TfrmMain = class(TForm)
@@ -26,7 +26,7 @@ type
     procedure btnDisconectAllClick(Sender: TObject);
     procedure btnGetWorkerStateClick(Sender: TObject);
   private
-    { Private declarations }
+    iCounter:Integer;
     FTcpServer: TIocpTcpServer;
     procedure refreshState;
     procedure OnRecvBuffer(pvClientContext:TIocpClientContext; buf:Pointer;
@@ -98,13 +98,32 @@ end;
 
 procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;
     buf:Pointer; len:cardinal; errCode:Integer);
+var
+  j, i:Integer;
 begin
   if errCode = 0 then
   begin
+    j := InterlockedIncrement(iCounter);
+//    if j mod 2000 = 0 then
+//    begin
+//      pvClientContext.RequestDisconnect;
+//      exit;
+//    end;
+
+    if j mod 2000 = 0 then
+    begin
+      for i := 0 to 200 do
+      begin
+        pvClientContext.PostWSASendRequest(buf, len);
+      end;
+      exit;
+    end;
+
     pvClientContext.PostWSASendRequest(buf, len);
+
   end else
   begin
-    pvClientContext.DoDisconnect;
+    pvClientContext.RequestDisconnect;
   end;
 end;
 
