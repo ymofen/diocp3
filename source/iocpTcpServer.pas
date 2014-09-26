@@ -494,7 +494,11 @@ type
 
   end;
 
-
+  {$IF RTLVersion>22}
+  // thanks: Âó×ÓÖÙ·Ê19183455
+  //  vcl for win64
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+  {$IFEND}
   TIocpTcpServer = class(TComponent)
   private
   {$IFDEF LOGGER_ON}

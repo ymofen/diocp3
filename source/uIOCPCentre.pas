@@ -99,7 +99,11 @@ type
 
   TOnDataObjectReceived = procedure(pvClientContext:TIOCPCoderClientContext;pvObject:TObject) of object;
 
-
+  {$IF RTLVersion>22}
+  // thanks: Âó×ÓÖÙ·Ê19183455
+  //  vcl for win64
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+  {$IFEND}
   TIOCPConsole = class(TIocpTcpServer)
   private
     FInnerEncoder: TIOCPEncoder;
