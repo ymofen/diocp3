@@ -1954,11 +1954,13 @@ begin
 end;
 
 procedure TIocpSendRequest.HandleResponse;
+var
+  lvCompleted:Boolean;  // all buffer is sent, for release self
 begin
   FIsBusying := false;
-
-  Assert(FOwner<> nil);
+  lvCompleted := true;   // default true
   try
+    Assert(FOwner<> nil);
     if (FOwner.FDataMoniter <> nil) then
     begin                                                       
       FOwner.FDataMoniter.incSentSize(FBytesTransferred);
@@ -1974,8 +1976,6 @@ begin
       {$ENDIF}
       FOwner.DoClientContextError(FClientContext, FErrorCode);
       FClientContext.RequestDisconnect; 
-      // release request
-      FOwner.releaseSendRequest(Self);
     end else
     begin
       onSendRequestSucc;
@@ -1997,8 +1997,11 @@ begin
 
       end else
       begin
+        lvCompleted := False;
         if not checkSendNextBlock then
         begin
+          lvCompleted := True;  // exception send break;
+          
           {$IFDEF DEBUG_MSG_ON}
            if FOwner.logCanWrite then
              FOwner.FSafeLogger.logMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
@@ -2011,9 +2014,11 @@ begin
     end;
   finally
     FClientContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
-    
-    // release request
-    FOwner.releaseSendRequest(Self); 
+    if lvCompleted then    // 
+    begin
+      // release request
+      FOwner.releaseSendRequest(Self);
+    end;
   end;
 end;
 
@@ -2025,15 +2030,16 @@ var
   lpNumberOfBytesSent:Cardinal;
 begin
   Result := false;
-  FIsBusying := True;
-  FBytesSize := len;
-  FWSABuf.buf := buf;
-  FWSABuf.len := len;
-  dwFlag := 0;
-  lpNumberOfBytesSent := 0;
 
   if FClientContext.incReferenceCounter('TIocpSendRequest.WSASendRequest', Self) then
   begin
+    FIsBusying := True;
+    FBytesSize := len;
+    FWSABuf.buf := buf;
+    FWSABuf.len := len;
+    dwFlag := 0;
+    lpNumberOfBytesSent := 0;
+    
     lvRet := WSASend(FClientContext.FRawSocket.SocketHandle,
                       @FWSABuf,
                       1,
