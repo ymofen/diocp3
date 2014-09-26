@@ -516,7 +516,7 @@ type
 
     FIocpSendRequestClass:TIocpSendRequestClass;
 
-    procedure setName(const NewName: TComponentName); override;
+    procedure SetName(const NewName: TComponentName); override;
   private
     // clientContext pool
     FContextPool: TBaseQueue;
@@ -805,6 +805,10 @@ end;
 
 procedure TIocpClientContext.unLockContext(pvDebugInfo: string; pvObj: TObject);
 begin
+  if Self = nil then
+  begin
+    Assert(Self<> nil);
+  end;
   decReferenceCounter(pvDebugInfo, pvObj);
 end;
 
@@ -885,8 +889,7 @@ begin
     Inc(FReferenceCounter);
     FDebugStrings.Add(Format('+(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
 
-    if FDebugStrings.Count > 20 then
-      FDebugStrings.Delete(0);
+    if FDebugStrings.Count > 20 then FDebugStrings.Delete(0);
 
     Result := true;
   end;
@@ -902,6 +905,7 @@ begin
   lvCloseContext := false;
   FContextLocker.lock('decReferenceCounter');
   Dec(FReferenceCounter);
+  Result := FReferenceCounter;
   FDebugStrings.Add(Format('-(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
 
   if FDebugStrings.Count > 20 then
@@ -1527,7 +1531,7 @@ begin
   end;
 end;
 
-procedure TIocpTcpServer.setName(const NewName: TComponentName);
+procedure TIocpTcpServer.SetName(const NewName: TComponentName);
 begin
   inherited;
 {$IFDEF LOGGER_ON}
@@ -2016,6 +2020,7 @@ var
   dwFlag: Cardinal;
   lpNumberOfBytesSent:Cardinal;
 begin
+  Result := false;
   FIsBusying := True;
   FBytesSize := len;
   FWSABuf.buf := buf;
