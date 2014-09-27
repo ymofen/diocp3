@@ -1,5 +1,5 @@
-ï»¿(*	
- *	 Unit owner: d10.å¤©åœ°å¼¦
+(*	
+ *	 Unit owner: d10.ÌìµØÏÒ
  *	       blog: http://www.cnblogs.com/dksoft
  *
  *	 v0.1(2014-7-16 21:36:30)
