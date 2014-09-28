@@ -28,6 +28,9 @@ uses
 
   BaseQueue, iocpLocker;
 
+const
+  SOCKET_HASH_SIZE = $FFFF;
+
 
 type
   TIocpTcpServer = class;
@@ -100,6 +103,10 @@ type
     FLockActive:Boolean;
   {$ENDIF}
 
+
+    // socket/context map
+    FPreForHash:TIocpClientContext;
+    FNextForHash:TIocpClientContext;
 
 
     // link
@@ -537,6 +544,9 @@ type
     FActive: Boolean;
 
 
+    // onlinie hash list
+    FClientsHash: array [0..SOCKET_HASH_SIZE] of TIocpClientContext;
+    
     // online clientcontext list
     FOnlineContextList: TContextDoublyLinked;
 
@@ -589,6 +599,12 @@ type
 
 
 
+    procedure AddToOnlineList(pvObject:TIocpClientContext);
+
+    procedure RemoveFromOnOnlineList(pvObject:TIocpClientContext);
+
+
+
     procedure doReceiveData(pvIocpClientContext:TIocpClientContext; pvRequest:TIocpRecvRequest);
   protected
     /// <summary>
@@ -613,6 +629,11 @@ type
     procedure setMaxSendingQueueSize(pvSize:Integer);
 
     destructor Destroy; override;
+
+    /// <summary>
+    ///   according socket handle
+    /// </summary>
+    function findContext(pvSocketHandle:TSocket):TIocpClientContext;
 
     procedure registerContextClass(pvContextClass: TIocpClientContextClass);
 
@@ -649,6 +670,8 @@ type
     procedure open();
 
     procedure close;
+
+
 
     /// <summary>
     ///   client connections counter
@@ -758,7 +781,9 @@ begin
     FActive := false;
     FRawSocket.close;
     checkReleaseRes;
-    FOwner.FOnlineContextList.remove(self);
+
+    FOwner.RemoveFromOnOnlineList(Self);
+
 
     try
       if Assigned(FOwner.FOnClientContextDisconnected) then
@@ -1016,7 +1041,8 @@ begin
     begin
       FActive := true;
       Assert(FOwner <> nil);
-      FOwner.FOnlineContextList.add(Self);
+      FOwner.AddToOnlineList(Self);
+
       if Assigned(FOwner.FOnClientContextConnected) then
       begin
         FOwner.FOnClientContextConnected(Self);
@@ -1215,6 +1241,20 @@ begin
 end;
 
 
+procedure TIocpTcpServer.AddToOnlineList(pvObject: TIocpClientContext);
+var
+  lvHash:Integer;
+begin
+  lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
+  
+  pvObject.FNextForHash := FClientsHash[lvHash];
+  if FClientsHash[lvHash] <> nil then
+    FClientsHash[lvHash].FPreForHash := pvObject;
+  FClientsHash[lvHash] := pvObject;
+
+  FOnlineContextList.add(pvObject);  
+end;
+
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
 begin
   Result := (pvClientContext.FOwner = Self);
@@ -1389,6 +1429,26 @@ begin
       pvRequest.FErrorCode);
 end;
 
+function TIocpTcpServer.findContext(
+  pvSocketHandle: TSocket): TIocpClientContext;
+var
+  lvHash:Integer;
+  lvObj:TIocpClientContext;
+begin
+  Result := nil;
+  lvHash := pvSocketHandle and SOCKET_HASH_SIZE;
+  lvObj := FClientsHash[lvHash];
+  while lvObj <> nil do
+  begin
+    if lvObj.FRawSocket.SocketHandle = pvSocketHandle then
+    begin
+      Result := lvObj;
+      break;
+    end;
+    lvObj := lvObj.FNextForHash;
+  end;                           
+end;
+
 function TIocpTcpServer.getClientContext: TIocpClientContext;
 begin
   Result := TIocpClientContext(FContextPool.Pop);
@@ -1465,6 +1525,27 @@ begin
   end else
   begin
     Result := false;
+  end;
+end;
+
+procedure TIocpTcpServer.RemoveFromOnOnlineList(pvObject: TIocpClientContext);
+var
+  lvObject:TIocpClientContext;
+  lvHash:Integer;
+begin
+  FOnlineContextList.remove(pvObject);
+  
+  // hash
+  if pvObject.FPreForHash <> nil then
+  begin
+    pvObject.FPreForHash.FNextForHash := pvObject.FNextForHash;
+    if pvObject.FNextForHash <> nil then
+      pvObject.FNextForHash.FNextForHash := pvObject.FPreForHash;
+  end else
+  begin     // first ele
+    lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
+    FClientsHash[lvHash] := pvObject.FNextForHash;
+    pvObject.FNextForHash := nil;
   end;
 end;
 
