@@ -5,7 +5,8 @@ uses
   ufrmMain in 'ufrmMain.pas' {frmMain},
   uICoderSocket in '..\..\diocpCoders\uICoderSocket.pas',
   uStreamCoderSocket in '..\..\diocpCoders\uStreamCoderSocket.pas',
-  uRawTcpClientCoderImpl in '..\..\diocpCoders\uRawTcpClientCoderImpl.pas';
+  uRawTcpClientCoderImpl in '..\..\diocpCoders\uRawTcpClientCoderImpl.pas',
+  uZipTools in '..\..\diocpCoders\uZipTools.pas';
 
 {$R *.res}
 
