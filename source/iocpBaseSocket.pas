@@ -216,7 +216,8 @@ type
     ///  post send request to iocp queue, if post successful return true.
     ///    if request is completed, will call DoSendRequestCompleted procedure
     /// </summary>
-    function PostWSASendRequest(buf:Pointer; len:Cardinal):Boolean;
+    function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
+        true): Boolean;
 
 
     property Active: Boolean read FActive;
@@ -1105,43 +1106,48 @@ function TIocpBaseContext.postSendRequest(
 begin
   Result := false;
   if incReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest) then
-  try
-    FContextLocker.lock();   
-    try    
-      Result := FSendRequestLink.Push(pvSendRequest);
-      if Result then
-      begin      
-        if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
-        begin
-          FOwner.FDataMoniter.incPushSendQueueCounter;
-        end;
-        Result := true;
+  begin
+    try
+      FContextLocker.lock();   
+      try    
+        Result := FSendRequestLink.Push(pvSendRequest);
+        if Result then
+        begin      
+          if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+          begin
+            FOwner.FDataMoniter.incPushSendQueueCounter;
+          end;
+          Result := true;
 
-        if not FSending then
-        begin
-          FSending := true;  // first: set true
-          if not checkNextSendRequest then
-            FSending := false;
+          if not FSending then
+          begin
+            FSending := true;  // first: set true
+            if not checkNextSendRequest then
+              FSending := false;
+          end;
         end;
+      finally
+        FContextLocker.unLock;
+      end;
+
+      if not Result then
+      begin
+      {$IFDEF DEBUG_MSG_ON}
+        if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+           [FSendRequestLink.Count]);
+      {$ENDIF}
+
+        FOwner.releaseSendRequest(pvSendRequest);
+
+        Self.RequestDisconnect;
       end;
     finally
-      FContextLocker.unLock;
+      decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
     end;
-    
-    if not Result then
-    begin
-    {$IFDEF DEBUG_MSG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-         [FSendRequestLink.Count]);
-    {$ENDIF}
-
-      FOwner.releaseSendRequest(pvSendRequest);
-      
-      Self.RequestDisconnect;
-    end;
-  finally
-    decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
+  end else
+  begin
+    FOwner.releaseSendRequest(pvSendRequest);
   end;
 end;
 
@@ -1152,13 +1158,20 @@ end;
 
 
 
-function TIocpBaseContext.PostWSASendRequest(buf: Pointer; len: Cardinal): Boolean;
+function TIocpBaseContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
+    pvCopyBuf: Boolean = true): Boolean;
 var
   lvRequest:TIocpSendRequest;
-begin            
-  lvRequest := getSendRequest;
-  lvRequest.setBuffer(buf, len);
-  Result := postSendRequest(lvRequest);
+begin
+  if self.Active then
+  begin
+    lvRequest := getSendRequest;
+    lvRequest.setBuffer(buf, len, pvCopyBuf);
+    Result := postSendRequest(lvRequest);
+  end else
+  begin
+    Result := false;
+  end;
 end;
 
 procedure TIocpBaseContext.RequestDisconnect;
@@ -1797,7 +1810,6 @@ begin
   FIsBusying := false;
   lvCompleted := true;   // default true
   try
-    InterlockedIncrement(FOwner.FDebug_SendRequestReleaseCounter);
     Assert(FOwner<> nil);
     if (FOwner.FDataMoniter <> nil) then
     begin                                                       
@@ -1859,9 +1871,9 @@ begin
     begin
       // release request
       {$IFDEF DEBUG_MSG_ON}
-        FOwner.releaseSendRequest(Self);
-//        if FOwner.releaseSendRequest(Self) then
-//           InterlockedIncrement(FOwner.FDebug_SendRequestReleaseCounter)
+        //FOwner.releaseSendRequest(Self);
+        if FOwner.releaseSendRequest(Self) then
+           InterlockedIncrement(FOwner.FDebug_SendRequestReleaseCounter)
       {$ELSE}
          FOwner.releaseSendRequest(Self);
       {$ENDIF}

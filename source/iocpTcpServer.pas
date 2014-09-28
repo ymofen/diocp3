@@ -1117,45 +1117,50 @@ end;
 
 function TIocpClientContext.postSendRequest(
   pvSendRequest: TIocpSendRequest): Boolean;
-begin  
+begin
   Result := False;
-    
-  if incReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest) then
-  try
-    FContextLocker.lock();   
-    try    
-      Result := FSendRequestLink.Push(pvSendRequest);
-      if Result then
-      begin      
-        if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
-        begin
-          FOwner.FDataMoniter.incPushSendQueueCounter;
-        end;
-        Result := true;
 
-        if not FSending then
+  if incReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest) then
+  begin
+    try
+      FContextLocker.lock();
+      try
+        Result := FSendRequestLink.Push(pvSendRequest);
+        if Result then
         begin
-          FSending := true;
-          checkNextSendRequest;
+          if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+          begin
+            FOwner.FDataMoniter.incPushSendQueueCounter;
+          end;
+          Result := true;
+
+          if not FSending then
+          begin
+            FSending := true;
+            checkNextSendRequest;
+          end;
         end;
+      finally
+        FContextLocker.unLock;
+      end;
+
+      if not Result then
+      begin
+      {$IFDEF DEBUG_MSG_ON}
+        if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+           [FSendRequestLink.Count]);
+      {$ENDIF}
+
+        FOwner.releaseSendRequest(pvSendRequest);
+        self.RequestDisconnect;
       end;
     finally
-      FContextLocker.unLock;
+      decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
     end;
-    
-    if not Result then
-    begin
-    {$IFDEF DEBUG_MSG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-         [FSendRequestLink.Count]);
-    {$ENDIF}
-
-      FOwner.releaseSendRequest(pvSendRequest);
-      self.RequestDisconnect;
-    end;
-  finally
-    decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
+  end else
+  begin
+     FOwner.releaseSendRequest(pvSendRequest);
   end;
 end;
 
