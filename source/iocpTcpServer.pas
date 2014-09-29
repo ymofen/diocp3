@@ -14,6 +14,7 @@ interface
 
 {$DEFINE LOGGER_ON}
 {$DEFINE DEBUG_MSG_ON}
+{.$DEFINE USE_DISCONNECTEX}
 
 {$DEFINE CHANGE_STATE_USE_LOCKER}
 
@@ -38,6 +39,7 @@ type
   TIocpClientContext = class;
   TIocpRecvRequest = class;
   TIocpSendRequest = class;
+  TIocpDisconnectExRequest = class;
 
   TIocpClientContextClass = class of TIocpClientContext;
 
@@ -63,6 +65,9 @@ type
   TIocpClientContext = class(TObject)
   private
     FDebugStrings:TStrings;
+    {$IFDEF USE_DISCONNECTEX}
+    FDisconnectExRequest:TIocpDisconnectExRequest;
+    {$ENDIF}
     
     FSocketState: TSocketState;
 
@@ -96,6 +101,13 @@ type
 
     procedure lock();
     procedure unLock();
+
+  {$IFDEF USE_DISCONNECTEX}
+    /// <summary>
+    ///
+    /// </summary>
+    procedure OnDisconnectExResponse(pvObject:TObject);
+  {$ENDIF}
   private
     FAlive:Boolean;
   {$IFDEF CHANGE_STATE_USE_LOCKER}
@@ -157,6 +169,8 @@ type
 
 
     procedure SetOwner(const Value: TIocpTcpServer);
+
+
 
   protected
     /// <summary>
@@ -236,6 +250,8 @@ type
     property SocketState: TSocketState read FSocketState;
 
   end;
+
+
 
   /// <summary>
   ///   WSARecv io request
@@ -356,6 +372,13 @@ type
         FOnDataRequestCompleted write FOnDataRequestCompleted;
   end;
 
+  TIocpDisconnectExRequest = class(TIocpRequest)
+  private
+    FOwner:TIocpTcpServer;
+
+  protected
+    function PostRequest(pvRawSocket:TRawSocket): Boolean;
+  end;
 
   /// <summary>
   ///   acceptEx request
@@ -779,7 +802,13 @@ begin
 
   try
     FActive := false;
+
+  {$IFDEF USE_DISCONNECTEX}
+
+  {$ELSE}
     FRawSocket.close;
+  {$ENDIF}
+
     checkReleaseRes;
 
     FOwner.RemoveFromOnOnlineList(Self);
@@ -904,6 +933,11 @@ begin
   FSendRequestLink := TIocpRequestSingleLink.Create(10);
   FRecvRequest := TIocpRecvRequest.Create;
   FRecvRequest.FClientContext := self;
+
+  {$IFDEF USE_DISCONNECTEX}
+  FDisconnectExRequest:=TIocpDisconnectExRequest.Create;
+  FDisconnectExRequest.OnResponse := OnDisconnectExResponse;
+  {$ENDIF}
 end;
 
 function TIocpClientContext.incReferenceCounter(pvDebugInfo: string; pvObj:
@@ -990,9 +1024,14 @@ begin
     lvCloseContext := true;
   end;
   
-  FContextLocker.unLock; 
-  
-  if lvCloseContext then InnerCloseContext else FRawSocket.close; 
+  FContextLocker.unLock;
+
+  {$IFDEF USE_DISCONNECTEX}
+  if lvCloseContext then InnerCloseContext else FDisconnectExRequest.PostRequest(FRawSocket);
+  {$ELSE}
+  if lvCloseContext then InnerCloseContext else FRawSocket.close;
+  {$ENDIF}
+
 end;
 
 destructor TIocpClientContext.Destroy;
@@ -1008,6 +1047,10 @@ begin
   FRecvRequest.Free;
 
   Assert(FSendRequestLink.Count = 0);
+
+  {$IFDEF USE_DISCONNECTEX}
+  FDisconnectExRequest.Free;
+  {$ENDIF}
 
   FSendRequestLink.Free;
   FContextLocker.Free;
@@ -1125,6 +1168,15 @@ begin
 
 end;
 
+
+{$IFDEF USE_DISCONNECTEX}
+procedure TIocpClientContext.OnDisconnectExResponse(pvObject:TObject);
+begin
+
+end;
+{$ENDIF}
+
+
 procedure TIocpClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode:
     WORD);
 begin
@@ -1224,6 +1276,9 @@ procedure TIocpClientContext.SetOwner(const Value: TIocpTcpServer);
 begin
   FOwner := Value;
   FRecvRequest.FOwner := FOwner;
+  {$IFDEF USE_DISCONNECTEX}
+  FDisconnectExRequest.FOwner := FOwner;
+  {$ENDIF}
 end;
 
 procedure TIocpClientContext.SetSocketState(pvState:TSocketState);
@@ -2451,6 +2506,21 @@ begin
     end;
   finally
     FLocker.unLock;
+  end;
+end;
+
+{ TIocpDisconnectExRequest }
+
+
+function TIocpDisconnectExRequest.PostRequest(pvRawSocket:TRawSocket): Boolean;
+begin
+  Result := IocpDisconnectEx(pvRawSocket.SocketHandle, @FOverlapped, TF_REUSE_SOCKET, 0);
+  if not Result then
+  begin
+    {$IFDEF DEBUG_MSG_ON}
+       if FOwner.logCanWrite then
+         FOwner.FSafeLogger.logMessage('TIocpDisconnectExRequest.PostRequest Error:%d',  [WSAGetLastError]);
+    {$ENDIF}
   end;
 end;
 
