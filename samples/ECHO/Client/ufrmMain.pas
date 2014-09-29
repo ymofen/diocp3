@@ -22,10 +22,13 @@ type
     btnClose: TButton;
     btnCreate: TButton;
     edtCount: TEdit;
+    chkSendData: TCheckBox;
     procedure btnCloseClick(Sender: TObject);
     procedure btnConnectClick(Sender: TObject);
     procedure btnCreateClick(Sender: TObject);
+    procedure chkSendDataClick(Sender: TObject);
   private
+    FSendDataOnConnected:Boolean;
     { Private declarations }
     FIocpClientSocket: TIocpClientSocket;
 
@@ -115,7 +118,6 @@ begin
 
   for i := 1 to StrToInt(edtCount.Text) do
   begin
-
     lvClient := FIocpClientSocket.Add;
     lvClient.Host := edtHost.Text;
     lvClient.Port := StrToInt(edtPort.Text);
@@ -125,13 +127,21 @@ begin
 
 end;
 
+procedure TfrmMain.chkSendDataClick(Sender: TObject);
+begin
+  FSendDataOnConnected := chkSendData.Checked;
+end;
+
 procedure TfrmMain.OnContextConnected(pvContext: TIocpBaseContext);
 var
   s:AnsiString;
 begin
-  s := Trim(mmoData.Lines.Text);
+  if FSendDataOnConnected then
+  begin
+    s := Trim(mmoData.Lines.Text);
 
-  pvContext.PostWSASendRequest(PAnsiChar(s), Length(s));
+    pvContext.PostWSASendRequest(PAnsiChar(s), Length(s));
+  end;
 
 end;
 
