@@ -27,6 +27,8 @@ type
     lblSentSize: TLabel;
     lblSendQueue: TLabel;
     Label8: TLabel;
+    lblSocketHandle: TLabel;
+    lblSocketHandleCaption: TLabel;
     procedure lblRecvDblClick(Sender: TObject);
     procedure lblWorkerCountClick(Sender: TObject);
     procedure tmrReaderTimer(Sender: TObject);
@@ -135,6 +137,13 @@ begin
      [
        FIocpTcpServer.DataMoniter.PostWSAAcceptExCounter,
        FIocpTcpServer.DataMoniter.ResponseWSAAcceptExCounter
+     ]
+    );
+
+  lblSocketHandle.Caption := Format('create:%d, destroy:%d',
+     [
+       FIocpTcpServer.DataMoniter.HandleCreateCounter,
+       FIocpTcpServer.DataMoniter.HandleDestroyCounter
      ]
     );
 
