@@ -14,7 +14,7 @@ interface
 
 {$DEFINE LOGGER_ON}
 {$DEFINE DEBUG_MSG_ON}
-{$DEFINE SOCKET_REUSE}
+{.$DEFINE SOCKET_REUSE}
 
 {$DEFINE CHANGE_STATE_USE_LOCKER}
 
@@ -578,7 +578,8 @@ type
 
     // onlinie hash list
     FClientsHash: array [0..SOCKET_HASH_SIZE] of TIocpClientContext;
-    
+    FDataPtr: Pointer;
+
     // online clientcontext list
     FOnlineContextList: TContextDoublyLinked;
 
@@ -716,6 +717,11 @@ type
     ///   set socket Keep alive option when acceptex
     /// </summary>
     property KeepAlive: Boolean read FKeepAlive write FKeepAlive;
+
+    /// <summary>
+    ///   extend data
+    /// </summary>
+    property DataPtr: Pointer read FDataPtr write FDataPtr;
   published
 
     /// <summary>

@@ -145,6 +145,7 @@ begin
 
     if (FAutoReConnect) and (Owner.Active) then
     begin
+      Sleep(100);
       PostConnectRequest;
     end else
     begin

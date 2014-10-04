@@ -196,6 +196,8 @@ type
 
     procedure unLock();
 
+    procedure setMaxSendingQueueSize(pvSize:Integer);
+
 
   public
     /// <summary>
@@ -1408,7 +1410,7 @@ begin
     while lvNextContext <> nil do
     begin    
       lvClientContext := lvNextContext;
-      lvNextContext := lvNextContext.FNext; 
+      lvNextContext := lvNextContext.FNext;
       lvClientContext.RequestDisconnect;    
     end;
   finally
@@ -2248,6 +2250,10 @@ var
   lvErrCode:Integer;
   lp:Pointer;
 begin
+  {$IFDEF DEBUG_MSG_ON}
+  self.Remark := Format('正在连接%s(%d)', [pvHost, pvPort]);
+  {$ENDIF}
+  
   FContext.setSocketState(ssConnecting);
   lvSockAddrIn := iocpSocketUtils.getSocketAddr(pvHost, pvPort);
 
@@ -2276,6 +2282,11 @@ begin
     Result := True;
   end;
 
+end;
+
+procedure TIocpBaseContext.setMaxSendingQueueSize(pvSize: Integer);
+begin
+  FSendRequestLink.setMaxSize(pvSize);
 end;
 
 end.
