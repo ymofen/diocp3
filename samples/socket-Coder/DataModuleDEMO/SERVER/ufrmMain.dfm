@@ -2,7 +2,7 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   BorderIcons = [biSystemMenu]
-  Caption = 'diocp3 pusher'
+  Caption = 'diocp3 db server'
   ClientHeight = 356
   ClientWidth = 584
   Color = clBtnFace
