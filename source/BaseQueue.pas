@@ -5,7 +5,9 @@ interface
 uses
   SyncObjs;
 
-{$DEFINE __debug}
+{$IFDEF DEBUG}
+  {$DEFINE DEBUG_ON}
+{$ENDIF}
 
 type
   PQueueData = ^TQueueData;
@@ -24,7 +26,7 @@ type
     FHead: PQueueData;
     FTail: PQueueData;
 
-    {$IFDEF __debug}
+    {$IFDEF DEBUG_ON}
     FPopCounter:Integer;
     FPushCounter:Integer;
     {$ENDIF}
@@ -71,6 +73,9 @@ type
   end;
 
 type
+  /// <summary>
+  ///   without lock
+  /// </summary>
   TSimpleQueue = class(TObject)
   private
     FName: String;
@@ -78,7 +83,7 @@ type
     FHead: PQueueData;
     FTail: PQueueData;
 
-    {$IFDEF __debug}
+    {$IFDEF DEBUG_ON}
     FPopCounter:Integer;
     FPushCounter:Integer;
     {$ENDIF}
@@ -140,7 +145,7 @@ type
     FSize: Integer;
     FLocker: TCriticalSection;
 
-    {$IFDEF __debug}
+    {$IFDEF DEBUG_ON}
     FPopCounter:Integer;
     FPushCounter:Integer;
     {$ENDIF}
@@ -169,7 +174,7 @@ end;
 
 destructor TBaseQueue.Destroy;
 begin
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Assert(FPopCounter = FPushCounter, ('[' + FName + ']PopCounter <> PushCounter'));
   {$ENDIF}
 
@@ -313,7 +318,7 @@ begin
 
     Inc(FCount);
 
-    {$IFDEF __debug}
+    {$IFDEF DEBUG_ON}
       Inc(FPushCounter);
     {$ENDIF}
   finally
@@ -334,7 +339,7 @@ begin
 
       Dec(FCount);
 
-    {$IFDEF __debug}
+    {$IFDEF DEBUG_ON}
       Inc(FPopCounter);
     {$ENDIF}
     end;
@@ -358,7 +363,7 @@ begin
     FTail := AData;
     Inc(FCount);
 
-    {$IFDEF __debug}
+    {$IFDEF DEBUG_ON}
       Inc(FPushCounter);
     {$ENDIF}
 
@@ -380,7 +385,7 @@ destructor TQueueDataPool.Destroy;
 var
   lvData: PQueueData;
 begin
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Assert(FPopCounter = FPushCounter, ('PopCounter <> PushCounter'));
   {$ENDIF}
 
@@ -404,7 +409,7 @@ begin
     FFirst := Result.Next;
     Dec(FCount);
   end;
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Inc(FPopCounter);
   {$ENDIF}
   FLocker.Leave;
@@ -429,7 +434,7 @@ begin
     FFirst := pvQueueData;
     Inc(FCount);
   end;
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Inc(FPushCounter);
   {$ENDIF}
   FLocker.Leave;
@@ -451,7 +456,7 @@ end;
 
 destructor TSimpleQueue.Destroy;
 begin
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Assert(FPopCounter = FPushCounter, ('[' + FName + ']PopCounter <> PushCounter'));
   {$ENDIF}
 
@@ -587,7 +592,7 @@ begin
   if FTail = nil then FTail := FHead;
   Inc(FCount);
 
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Inc(FPushCounter);
   {$ENDIF}
 
@@ -604,7 +609,7 @@ begin
 
     Dec(FCount);
 
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Inc(FPopCounter);
   {$ENDIF}
   end;
@@ -623,7 +628,7 @@ begin
   FTail := AData;
   Inc(FCount);
 
-  {$IFDEF __debug}
+  {$IFDEF DEBUG_ON}
     Inc(FPushCounter);
   {$ENDIF}
 

@@ -18,6 +18,20 @@ type
      class function varToHexString(const v; len: Cardinal; Split: string = ' '):
          String;
 
+     /// <summary>
+     ///  16进制转 二进制
+     /// </summary>
+     class function HexToBin(pvHexStr:String; buf:Pointer):Integer;
+
+     /// <summary>
+     ///  16进制字符到二进制
+     /// </summary>
+     class function HexValue(c: Char): Integer;
+
+     /// <summary>
+     ///   是否16进制字符
+     /// </summary>
+     class function IsHexChar(c: Char): Boolean;
 
      /// <summary>
      ///   高低位进行交换
@@ -36,6 +50,51 @@ type
   end;
 
 implementation
+
+
+
+class function TByteTools.HexToBin(pvHexStr: String;
+  buf: Pointer): Integer;
+var
+  l: Integer;
+  p, ps: PChar;
+  pd: PByte;
+begin
+  p := PChar(pvHexStr);
+  ps := p;
+  pd := PByte(buf);
+  Result := 0;
+  while p - ps < l do
+  begin
+    if IsHexChar(p[0]) and IsHexChar(p[1]) then
+    begin
+      pd^ := (HexValue(p[0]) shl 4) + HexValue(p[1]);
+      inc(Result);
+      Inc(pd);
+      Inc(p, 2);
+      end
+    else
+    begin
+      Exit;
+    end;
+  end;
+end;
+
+class function TByteTools.HexValue(c: Char): Integer;
+begin
+  if (c >= '0') and (c <= '9') then
+    Result := Ord(c) - Ord('0')
+  else if (c >= 'a') and (c <= 'f') then
+    Result := 10 + Ord(c) - Ord('a')
+  else
+    Result := 10 + Ord(c) - Ord('A');
+end;
+
+class function TByteTools.IsHexChar(c: Char): Boolean;
+begin
+  Result := ((c >= '0') and (c <= '9')) or ((c >= 'a') and (c <= 'f')) or ((c >= 'A') and (c <= 'F'));
+end;
+
 
 class function TByteTools.swap16(const v): Word;
 begin
