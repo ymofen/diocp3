@@ -44,6 +44,8 @@ type
     refCount: Integer;
   end;
 
+  TThreadStackFunc = function(AThread:TThread):string;
+
   /// <summary>
   ///   iocp request root class
   /// </summary>
@@ -232,7 +234,7 @@ type
   /// </summary>
   TIocpEngine = class(TObject)
   private
-    FWokerLocker:TIocpLocker;
+    FWorkerLocker: TIocpLocker;
 
     FMaxWorkerCount: Word;
 
@@ -270,6 +272,12 @@ type
     ///   get worker handle response
     /// </summary>
     function getWorkerStateInfo(pvTimeOut:Integer = 3000): string;
+
+    /// <summary>
+    ///   get thread call stack
+    /// </summary>
+    function getWorkerStackInfos(pvThreadStackFunc:TThreadStackFunc;
+        pvTimeOut:Integer = 3000): string;
 
     /// <summary>
     ///   kill worker
@@ -589,7 +597,7 @@ var
   AWorker:TIocpWorker;
 begin
   Result := false;
-  FWokerLocker.lock;
+  FWorkerLocker.lock;
   try
     if FWorkerList.Count >= FMaxWorkerCount then exit;
     for i := 0 to FWorkerList.Count -1 do
@@ -614,7 +622,7 @@ begin
     AWorker.Resume;
 
   finally
-    FWokerLocker.unLock;
+    FWorkerLocker.unLock;
   end;
 end;
 
@@ -626,7 +634,7 @@ end;
 constructor TIocpEngine.Create;
 begin
   inherited Create;
-  FWokerLocker := TIocpLocker.Create;
+  FWorkerLocker := TIocpLocker.Create;
 
   FWorkerCount := getCPUCount shl 2 - 1;
   FWorkerList := TList.Create();
@@ -636,7 +644,7 @@ end;
 
 procedure TIocpEngine.decAliveWorker(const pvWorker: TIocpWorker);
 begin
-  FWokerLocker.lock;
+  FWorkerLocker.lock;
   try
     FWorkerList.Remove(pvWorker);
     InterlockedDecrement(FActiveWorkerCount);
@@ -646,7 +654,7 @@ begin
       FSafeStopSign.SetEvent;
     end;
   finally
-    FWokerLocker.unLock;
+    FWorkerLocker.unLock;
   end;
 end;
 
@@ -655,7 +663,7 @@ begin
   safeStop;
   FIocpCore.Free;
   FreeAndNil(FWorkerList);
-  FWokerLocker.Free;
+  FWorkerLocker.Free;
   inherited Destroy;
 end;
 
@@ -672,6 +680,50 @@ begin
   end;
 end;
 
+function TIocpEngine.getWorkerStackInfos(pvThreadStackFunc:TThreadStackFunc;
+    pvTimeOut:Integer = 3000): string;
+var
+  lvStrings :TStrings;
+  i, j:Integer;
+  lvWorker:TIocpWorker;
+begin
+  Assert(Assigned(pvThreadStackFunc));
+
+  lvStrings := TStringList.Create;
+  try
+    j := 0;
+    lvStrings.Add(Format(strDebugINfo, [BoolToStr(self.FActive, True), self.WorkerCount]));
+    self.FWorkerLocker.lock;
+    try
+      for i := 0 to FWorkerList.Count - 1 do
+      begin
+        lvWorker := TIocpWorker(FWorkerList[i]);
+
+        if lvWorker.checkFlag(WORKER_ISBUSY) then
+        begin
+          if GetTickCount - lvWorker.FLastRequest.FRespondStartTickCount > pvTimeOut then
+          begin
+            lvStrings.Add(Format(strDebug_WorkerTitle, [i + 1]));
+            lvStrings.Add(pvThreadStackFunc(lvWorker));
+            inc(j);
+          end;
+        end;
+      end;
+    finally
+      self.FWorkerLocker.Leave;
+    end;
+    if j > 0 then
+    begin
+      Result := lvStrings.Text;
+    end else
+    begin
+      Result := '';
+    end;
+  finally
+    lvStrings.Free;
+  end;
+end;
+
 function TIocpEngine.getWorkerStateInfo(pvTimeOut:Integer = 3000): string;
 var
   lvStrings :TStrings;
@@ -682,7 +734,7 @@ begin
   try
     j := 0;
     lvStrings.Add(Format(strDebugINfo, [BoolToStr(self.FActive, True), self.WorkerCount]));
-    self.FWokerLocker.lock;
+    self.FWorkerLocker.lock;
     try
       for i := 0 to FWorkerList.Count - 1 do
       begin
@@ -699,7 +751,7 @@ begin
         end;
       end;
     finally
-      self.FWokerLocker.Leave;
+      self.FWorkerLocker.Leave;
     end;
     if j > 0 then
     begin
@@ -724,7 +776,7 @@ var
   lvWorker:TIocpWorker;
 begin
   Result := 0;
-  self.FWokerLocker.lock;
+  self.FWorkerLocker.lock;
   try
     for i := 0 to FWorkerList.Count - 1 do
     begin
@@ -741,8 +793,8 @@ begin
       end;
     end;
   finally
-    self.FWokerLocker.Leave;
-  end;     
+    self.FWorkerLocker.Leave;
+  end;
 end;
 
 procedure TIocpEngine.safeStop;
@@ -855,7 +907,7 @@ var
 begin
   pvStrings.Add(Format(strDebugINfo, [BoolToStr(self.FActive, True), self.WorkerCount]));
 
-  self.FWokerLocker.lock;
+  self.FWorkerLocker.lock;
   try
     for i := 0 to FWorkerList.Count - 1 do
     begin
@@ -863,7 +915,7 @@ begin
       TIocpWorker(FWorkerList[i]).writeStateINfo(pvStrings);
     end;
   finally
-    self.FWokerLocker.Leave;
+    self.FWorkerLocker.Leave;
   end;
 end;
 

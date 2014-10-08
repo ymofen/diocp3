@@ -791,12 +791,6 @@ type
 
 implementation
 
-{$IFDEF DEBUG_ON}
-procedure logDebugMessage(pvMsg: string; const args: array of const);
-begin
-  sfLogger.logMessage(pvMsg, args);
-end;
-{$ENDIF}
 
 
 
