@@ -529,6 +529,7 @@ type
     destructor Destroy; override;
 
     procedure add(pvContext:TIocpClientContext);
+    function indexOf(pvContext: TIocpClientContext): Integer;
     function remove(pvContext:TIocpClientContext): Boolean;
 
     function Pop:TIocpClientContext;
@@ -549,6 +550,8 @@ type
   {$IFDEF LOGGER_ON}
     FSafeLogger:TSafeLogger;
   {$ENDIF}
+
+    FLocker:TIocpLocker;
 
     FMaxSendingQueueSize:Integer;
 
@@ -1347,13 +1350,20 @@ var
   lvHash:Integer;
 begin
   lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
-  
-  pvObject.FNextForHash := FClientsHash[lvHash];
-  if FClientsHash[lvHash] <> nil then
-    FClientsHash[lvHash].FPreForHash := pvObject;
-  FClientsHash[lvHash] := pvObject;
 
-  FOnlineContextList.add(pvObject);  
+  pvObject.FPreForHash := nil;
+  
+  FLocker.lock('AddToOnlineList');
+  try
+    pvObject.FNextForHash := FClientsHash[lvHash];
+    if FClientsHash[lvHash] <> nil then
+      FClientsHash[lvHash].FPreForHash := pvObject;
+    FClientsHash[lvHash] := pvObject;
+  finally
+    FLocker.unLock;
+  end;
+
+  FOnlineContextList.add(pvObject);
 end;
 
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
@@ -1370,6 +1380,7 @@ end;
 constructor TIocpTcpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FLocker := TIocpLocker.Create('iocpTcpServer');
 {$IFDEF LOGGER_ON}
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
@@ -1423,6 +1434,7 @@ begin
 {$IFDEF LOGGER_ON}
   FSafeLogger.Free;
 {$ENDIF}
+  FLocker.Free;
   inherited Destroy;
 end;
 
@@ -1644,18 +1656,27 @@ var
 begin
   FOnlineContextList.remove(pvObject);
   
-  // hash
-  if pvObject.FPreForHash <> nil then
-  begin
-    pvObject.FPreForHash.FNextForHash := pvObject.FNextForHash;
-    if pvObject.FNextForHash <> nil then
-      pvObject.FNextForHash.FNextForHash := pvObject.FPreForHash;
-  end else
-  begin     // first ele
-    lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
-    FClientsHash[lvHash] := pvObject.FNextForHash;
-    pvObject.FNextForHash := nil;
+  FLocker.lock('RemoveFromOnOnlineList');
+  try
+    // hash
+    if pvObject.FPreForHash <> nil then
+    begin
+      pvObject.FPreForHash.FNextForHash := pvObject.FNextForHash;
+      if pvObject.FNextForHash <> nil then
+        pvObject.FNextForHash.FPreForHash := pvObject.FPreForHash;
+    end else
+    begin     // first ele
+      lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
+      FClientsHash[lvHash] := pvObject.FNextForHash;
+      if FClientsHash[lvHash] <> nil then
+        FClientsHash[lvHash].FPreForHash := nil;
+    end;
+  finally
+    FLocker.unLock;
   end;
+
+  pvObject.FNextForHash := nil;
+  pvObject.FPreForHash := nil;
 end;
 
 procedure TIocpTcpServer.safeStop;
@@ -2482,29 +2503,50 @@ begin
 end;
 
 procedure TContextDoublyLinked.add(pvContext: TIocpClientContext);
+var
+  lvTail:TIocpClientContext;
 begin
   FLocker.lock;
   try
-    if FHead = nil then
-    begin
-      FHead := pvContext;
-    end else
-    begin
-      if FTail = nil then
-      begin
-        FCount := FCount;
-      end;
-      FTail.FNext := pvContext;
-      pvContext.FPre := FTail;
-    end;
-
+    lvTail := FTail;
+    pvContext.FPre := lvTail;
+    pvContext.FNext := nil;
     FTail := pvContext;
-    FTail.FNext := nil;
+    if (lvTail = nil) then FHead := pvContext else lvTail.FNext := pvContext;
 
-    if FTail = nil then
-    begin
-      FCount := FCount;
-    end;
+//        final Node<E> l = last;
+//        final Node<E> newNode = new Node<>(l, e, null);
+//        last = newNode;
+//        if (l == null)
+//            first = newNode;
+//        else
+//            l.next = newNode;
+//        size++;
+//        modCount++;
+
+
+//    Inc(FCount);
+//
+//    if FHead = nil then
+//    begin
+//      FHead := pvContext;
+//    end else
+//    begin
+//      if FTail = nil then
+//      begin
+//        FCount := FCount;
+//      end;
+//      FTail.FNext := pvContext;
+//      pvContext.FPre := FTail;
+//    end;
+//
+//    FTail := pvContext;
+//    FTail.FNext := nil;
+//
+//    if FTail = nil then
+//    begin
+//      FCount := FCount;
+//    end;
 
     inc(FCount);
   finally
@@ -2528,6 +2570,31 @@ begin
   inherited Destroy;
 end;
 
+function TContextDoublyLinked.indexOf(pvContext: TIocpClientContext): Integer;
+var
+  lvObj:TIocpClientContext;
+  i:Integer;
+begin
+  FLocker.lock();
+  try
+    Result := -1;
+    lvObj := FHead;
+    i := 0;
+    while lvObj <> nil do
+    begin
+      if lvObj = pvContext then
+      begin
+        Result := i;
+        Break;
+      end;
+      Inc(i);
+      lvObj := lvObj.FNext;
+    end;
+  finally
+    FLocker.unLock;
+  end;
+end;
+
 function TContextDoublyLinked.Pop: TIocpClientContext;
 begin
   FLocker.lock;
@@ -2547,54 +2614,34 @@ begin
 end;
 
 function TContextDoublyLinked.remove(pvContext:TIocpClientContext): Boolean;
+var
+  p,n:TIocpClientContext;
 begin
   Result := false;
+  {$IFDEF DEBUG_ON}
+  Assert(pvContext <> nil);
+  Assert(indexOf(pvContext) <> -1);
+  {$ENDIF}
+  p := pvContext.FPre;
+  n := pvContext.FNext;
   FLocker.lock;
   try
-    if pvContext.FPre <> nil then
+    if p = nil then FHead := n
+    else
     begin
-      pvContext.FPre.FNext := pvContext.FNext;
-      if pvContext.FNext <> nil then
-        pvContext.FNext.FPre := pvContext.FPre;
-    end else if pvContext.FNext <> nil then
-    begin    // pre is nil, pvContext is FHead
-      pvContext.FNext.FPre := nil;
-      FHead := pvContext.FNext;
-    end else
-    begin   // pre and next is nil
-      if pvContext = FHead then
-      begin
-        FHead := nil;
-      end else
-      begin
-        exit;
-      end;
+      p.FNext := n;
+      pvContext.FPre := nil;
     end;
+
+    if n = nil then FTail := p
+    else
+    begin
+      n.FPre := p;
+      pvContext.FNext := nil;
+    end;
+
     Dec(FCount);
 
-    if FCount < 0 then
-    begin
-      Assert(FCount > 0);
-    end;
-
-    //  set pvConext.FPre is FTail
-    if FTail = pvContext then
-      FTail := pvContext.FPre;
-
-    if FTail = nil then
-    begin
-      FCount := FCount;
-      FTail := nil;
-    end;
-
-    if FHead = nil then
-    begin
-      FCount := FCount;
-      FHead := nil;
-    end;
-
-    pvContext.FPre := nil;
-    pvContext.FNext := nil;
     Result := true;
   finally
     FLocker.unLock;
@@ -2604,15 +2651,19 @@ end;
 procedure TContextDoublyLinked.write2List(pvList: TList);
 var
   lvItem:TIocpClientContext;
+  j:Integer;
 begin
   FLocker.lock;
   try
     lvItem := FHead;
+    j := 0;
     while lvItem <> nil do
     begin
       pvList.Add(lvItem);
       lvItem := lvItem.FNext;
+      Inc(j);
     end;
+    Assert(j = SElf.Count);
   finally
     FLocker.unLock;
   end;
