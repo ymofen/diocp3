@@ -23,6 +23,7 @@ type
     btnCreate: TButton;
     edtCount: TEdit;
     chkSendData: TCheckBox;
+    procedure FormCreate(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure btnConnectClick(Sender: TObject);
     procedure btnCreateClick(Sender: TObject);
@@ -67,6 +68,11 @@ begin
   uiLogger.setLogLines(mmoRecvMessage.Lines);
 
 
+end;
+
+procedure TfrmMain.FormCreate(Sender: TObject);
+begin
+  FSendDataOnConnected := true;
 end;
 
 destructor TfrmMain.Destroy;

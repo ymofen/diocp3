@@ -11,6 +11,7 @@ object frmMain: TfrmMain
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
   object btnConnect: TButton
@@ -55,7 +56,6 @@ object frmMain: TfrmMain
     TabOrder = 4
     object TabSheet1: TTabSheet
       Caption = 'TabSheet1'
-      ExplicitHeight = 280
       object mmoRecvMessage: TMemo
         Left = 0
         Top = 0
@@ -65,7 +65,6 @@ object frmMain: TfrmMain
         Lines.Strings = (
           'iocp tcp client demo')
         TabOrder = 0
-        ExplicitHeight = 280
       end
     end
     object tsMonitor: TTabSheet
@@ -118,6 +117,8 @@ object frmMain: TfrmMain
     Width = 152
     Height = 17
     Caption = 'SendData OnConnected'
+    Checked = True
+    State = cbChecked
     TabOrder = 8
     OnClick = chkSendDataClick
   end
