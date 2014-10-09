@@ -100,8 +100,7 @@ begin
   FAutoReConnect := False;
   FConnectExRequest := TIocpConnectExRequest.Create(Self);
   FConnectExRequest.OnResponse := OnConnecteExResponse;
-  FIsConnecting := false;
-
+  FIsConnecting := false;  
 end;
 
 destructor TIocpRemoteContext.Destroy;

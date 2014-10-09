@@ -534,8 +534,8 @@ type
   {$ENDIF}
 
     FIsDestroying :Boolean;
-    FWSARecvBufferSize: Integer;
-    procedure SetWSARecvBufferSize(const Value: Integer);
+    FWSARecvBufferSize: Cardinal;
+    procedure SetWSARecvBufferSize(const Value: Cardinal);
 
     function isDestroying:Boolean;
   {$IFDEF LOGGER_ON}
@@ -569,7 +569,7 @@ type
     // online clientcontext list
     FOnlineContextList: TContextDoublyLinked;
 
-    FWSASendBufferSize: Integer;
+    FWSASendBufferSize: Cardinal;
 
     procedure DoClientContextError(pvClientContext: TIocpBaseContext;
         pvErrorCode: Integer);
@@ -604,7 +604,7 @@ type
   private
 
     function GetOnlineContextCount: Integer;
-    procedure SetWSASendBufferSize(const Value: Integer);
+    procedure SetWSASendBufferSize(const Value: Cardinal);
 
   public
     constructor Create(AOwner: TComponent); override;
@@ -675,14 +675,14 @@ type
     /// <summary>
     ///   post wsaRecv request block size
     /// </summary>
-    property WSARecvBufferSize: Integer read FWSARecvBufferSize write
+    property WSARecvBufferSize: Cardinal read FWSARecvBufferSize write
         SetWSARecvBufferSize;
 
 
     /// <summary>
     ///   max size for post WSASend
     /// </summary>
-    property WSASendBufferSize: Integer read FWSASendBufferSize write
+    property WSASendBufferSize: Cardinal read FWSASendBufferSize write
         SetWSASendBufferSize;
 
 
@@ -1454,7 +1454,7 @@ begin
 
 end;
 
-procedure TIocpBaseSocket.SetWSARecvBufferSize(const Value: Integer);
+procedure TIocpBaseSocket.SetWSARecvBufferSize(const Value: Cardinal);
 begin
   FWSARecvBufferSize := Value;
   if FWSARecvBufferSize = 0 then
@@ -1463,7 +1463,7 @@ begin
   end;
 end;
 
-procedure TIocpBaseSocket.SetWSASendBufferSize(const Value: Integer);
+procedure TIocpBaseSocket.SetWSASendBufferSize(const Value: Cardinal);
 begin
   FWSASendBufferSize := Value;
   if FWSASendBufferSize <=0 then

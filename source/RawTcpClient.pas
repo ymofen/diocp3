@@ -5,7 +5,14 @@ interface
 uses
   Classes, iocpRawSocket, SysUtils, iocpWinsock2;
 
+{$if CompilerVersion < 23}
 type
+     NativeUInt = Cardinal;
+     IntPtr = Cardinal;
+{$ifend}
+
+type
+
   TRawTcpClient = class(TComponent)
   private
     FHost: String;
@@ -23,6 +30,12 @@ type
 
     function RecvBuffer(buf: Pointer; len: cardinal): Integer;
     function sendBuffer(buf: Pointer; len: cardinal): Integer;
+
+    /// <summary>
+    ///  recv buffer
+    /// </summary>
+    procedure recv(buf: Pointer; len: cardinal);
+
     property Active: Boolean read FActive write SetActive;
   published
     property Host: String read FHost write FHost;
@@ -92,6 +105,28 @@ begin
   FRawSocket.close;
 
   FActive := false;
+end;
+
+procedure TRawTcpClient.recv(buf: Pointer; len: cardinal);
+var
+  lvTempL :Integer;
+  lvReadL :Cardinal;
+  lvPBuf:Pointer;
+begin
+  lvReadL := 0;
+  lvPBuf := buf;
+  while lvReadL < len do
+  begin
+    lvTempL := FRawSocket.Recv(lvPBuf^, len - lvReadL);
+    if lvTempL = -1 then
+    begin
+      RaiseLastOSError;
+    end else
+    begin
+      lvPBuf := Pointer(IntPtr(lvPBuf) + Cardinal(lvTempL));
+      lvReadL := lvReadL + Cardinal(lvTempL);
+    end;
+  end;
 end;
 
 function TRawTcpClient.RecvBuffer(buf: Pointer; len: cardinal): Integer;

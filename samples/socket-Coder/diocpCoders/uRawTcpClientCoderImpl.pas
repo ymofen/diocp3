@@ -40,7 +40,8 @@ end;
 
 function TRawTcpClientCoderImpl.recvBuf(buf: Pointer; len: Cardinal): Cardinal;
 begin
-  Result := FTcpClient.RecvBuffer(buf, len);
+  FTcpClient.recv(buf, len);
+  Result := len;
 end;
 
 function TRawTcpClientCoderImpl.sendBuf(buf: Pointer; len: Cardinal): Cardinal;
