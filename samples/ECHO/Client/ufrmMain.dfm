@@ -11,6 +11,7 @@ object frmMain: TfrmMain
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
   object btnConnect: TButton
@@ -39,7 +40,7 @@ object frmMain: TfrmMain
     Text = '9983'
   end
   object btnSendObject: TButton
-    Left = 376
+    Left = 360
     Top = 8
     Width = 105
     Height = 25
@@ -48,9 +49,9 @@ object frmMain: TfrmMain
   end
   object PageControl1: TPageControl
     Left = 8
-    Top = 40
+    Top = 56
     Width = 795
-    Height = 308
+    Height = 292
     ActivePage = TabSheet1
     TabOrder = 4
     object TabSheet1: TTabSheet
@@ -59,7 +60,7 @@ object frmMain: TfrmMain
         Left = 0
         Top = 0
         Width = 787
-        Height = 280
+        Height = 264
         Align = alClient
         Lines.Strings = (
           'iocp tcp client demo')
@@ -85,8 +86,8 @@ object frmMain: TfrmMain
     end
   end
   object btnClose: TButton
-    Left = 512
-    Top = 9
+    Left = 471
+    Top = 8
     Width = 75
     Height = 25
     Caption = 'btnClose'
@@ -94,7 +95,7 @@ object frmMain: TfrmMain
     OnClick = btnCloseClick
   end
   object btnCreate: TButton
-    Left = 608
+    Left = 552
     Top = 8
     Width = 75
     Height = 25
@@ -103,11 +104,22 @@ object frmMain: TfrmMain
     OnClick = btnCreateClick
   end
   object edtCount: TEdit
-    Left = 689
-    Top = 13
+    Left = 633
+    Top = 8
     Width = 114
     Height = 21
     TabOrder = 7
     Text = '1000'
+  end
+  object chkSendData: TCheckBox
+    Left = 633
+    Top = 33
+    Width = 152
+    Height = 17
+    Caption = 'SendData OnConnected'
+    Checked = True
+    State = cbChecked
+    TabOrder = 8
+    OnClick = chkSendDataClick
   end
 end

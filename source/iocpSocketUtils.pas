@@ -25,9 +25,14 @@ type
       var LocalSockaddr: PSockAddr; var LocalSockaddrLength: Integer;
       var RemoteSockaddr: PSockAddr; var RemoteSockaddrLength: Integer); stdcall;
 
+  TIocpDisconnectEx = function(const hSocket : TSocket; lpOverlapped: LPWSAOVERLAPPED;
+     const dwFlags : DWORD; const dwReserved : DWORD) : BOOL; stdcall;
+
+  
 var
   IocpAcceptEx:TIocpAcceptEx;
   IocpConnectEx:TIocpConnectEx;
+  IocpDisconnectEx:TIocpDisconnectEx;
   IocpGetAcceptExSockaddrs: TIocpGetAcceptExSockAddrs;
 
 function getSocketAddr(pvAddr: string; pvPort: Integer): TSockAddrIn;
@@ -42,6 +47,8 @@ const
   WSAID_GETACCEPTEXSOCKADDRS: TGuid = (D1:$b5367df2;D2:$cbac;D3:$11cf;D4:($95,$ca,$00,$80,$5f,$48,$a1,$92));
   WSAID_ACCEPTEX: TGuid = (D1:$b5367df1;D2:$cbac;D3:$11cf;D4:($95,$ca,$00,$80,$5f,$48,$a1,$92));
   WSAID_CONNECTEX: TGuid = (D1:$25a207b9;D2:$ddf3;D3:$4660;D4:($8e,$e9,$76,$e5,$8c,$74,$06,$3e));
+  {$EXTERNALSYM WSAID_DISCONNECTEX}
+  WSAID_DISCONNECTEX: TGuid = (D1:$7fda2e11;D2:$8630;D3:$436f;D4:($a0,$31,$f5,$36,$a6,$ee,$c1,$57));
 
 function creatTcpSocketHandle:THandle;
 begin
@@ -62,6 +69,27 @@ begin
         @WSAID_ACCEPTEX,
         SizeOf(WSAID_ACCEPTEX),
         @@IocpAcceptEx,
+        SizeOf(Pointer),
+        bytesReturned,
+        nil,
+        nil);
+
+  if rtnCode <> 0 then
+  begin
+    RaiseLastOSError;
+  end;
+end;
+
+procedure LoadDisconnectEx(const s: TSocket);
+var
+  rtnCode: Integer;
+  bytesReturned: Cardinal;
+begin
+  rtnCode := WSAIoctl(s,
+        SIO_GET_EXTENSION_FUNCTION_POINTER,
+        @WSAID_DISCONNECTEX,
+        SizeOf(WSAID_DISCONNECTEX),
+        @@IocpDisconnectEx,
         SizeOf(Pointer),
         bytesReturned,
         nil,
@@ -133,6 +161,7 @@ begin
   LoadAcceptEx(skt);
   LoadConnecteEx(skt);
   LoadAcceptExSockaddrs(skt);
+  LoadDisconnectEx(skt);
   closesocket(skt);
 end;
 

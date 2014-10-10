@@ -58,6 +58,8 @@ type
 
     function setReadTimeOut(const pvTimeOut: Cardinal): Integer;
 
+    procedure CancelIO();
+
     /// <summary>
     ///   default 5000 check alive
     /// </summary>
@@ -96,6 +98,11 @@ begin
     sin_port :=  htons(pvPort);
   end;
   Result := iocpWinsock2.bind(FSocketHandle, TSockAddr(sockaddr), SizeOf(sockaddr)) = 0;
+end;
+
+procedure TRawSocket.CancelIO;
+begin
+  Windows.CancelIo(FSocketHandle);
 end;
 
 procedure TRawSocket.close;

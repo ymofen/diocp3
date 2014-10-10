@@ -25,4 +25,10 @@ object dmMain: TdmMain
     Left = 88
     Top = 16
   end
+  object cdsMain: TClientDataSet
+    Aggregates = <>
+    Params = <>
+    Left = 216
+    Top = 24
+  end
 end

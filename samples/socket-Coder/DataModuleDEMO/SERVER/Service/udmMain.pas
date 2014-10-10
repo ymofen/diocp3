@@ -8,13 +8,14 @@ unit udmMain;
 interface
 
 uses
-  SysUtils, Classes, DB, ADODB, Provider, IniFiles;
+  SysUtils, Classes, DB, ADODB, Provider, IniFiles, Datasnap.DBClient;
 
 type
   TdmMain = class(TDataModule)
     conMain: TADOConnection;
     dspMain: TDataSetProvider;
     qryMain: TADOQuery;
+    cdsMain: TClientDataSet;
     procedure DataModuleCreate(Sender: TObject);
   public
     /// <summary>
@@ -22,7 +23,8 @@ type
     //     执行入口函数
     //  对vData所做的修改将会返回到客户端
     /// </summary>
-    function Execute(pvCmdIndex: Integer; var vData: OleVariant): Boolean;
+    function Execute(pvCmdIndex: Integer; var vData: OleVariant; var vMsg: string):
+        Boolean;
   end;
 
 var
@@ -38,6 +40,7 @@ var
   lvStr:String;
   lvFile:String;
 begin
+  qryMain.DisableControls;
   lvFile := ChangeFileExt(ParamStr(0), '.db.ini');
   lvINI := TIniFile.Create(lvFile);
   try
@@ -47,14 +50,15 @@ begin
       conMain.ConnectionString := lvStr;
     end else
     begin
-      lvINI.WriteString('main', 'connectionString', dmMain.conMain.ConnectionString);
+      lvINI.WriteString('main', 'connectionString', conMain.ConnectionString);
     end;                                       
   finally
     lvINI.Free;
   end;
 end;
 
-function TdmMain.Execute(pvCmdIndex: Integer; var vData: OleVariant): Boolean;
+function TdmMain.Execute(pvCmdIndex: Integer; var vData: OleVariant; var vMsg:
+    string): Boolean;
 begin
   case pvCmdIndex of
     0:
@@ -73,9 +77,20 @@ begin
         qryMain.SQL.Add(vData);
         qryMain.Open;
 
+        dspMain.DataSet := qryMain;
         vData := dspMain.Data;
-        Result := true;
+
+        try
+          cdsMain.Data := vData;
+        except
+          on E:Exception do
+          begin
+            raise Exception.Create('服务端尝试赋值给cdsMain.Data时出现了异常:' + e.Message);
+          end;
+        end;
+
         qryMain.Close;
+        Result := true;
       end;
     2:
       begin

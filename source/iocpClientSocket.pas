@@ -144,6 +144,7 @@ begin
 
     if (FAutoReConnect) and (Owner.Active) then
     begin
+      Sleep(100);
       PostConnectRequest;
     end else
     begin
@@ -220,7 +221,13 @@ end;
 
 function TIocpClientSocket.Add: TIocpRemoteContext;
 begin
-  Result := TIocpRemoteContext.Create;
+  if FContextClass = nil then
+  begin
+    Result := TIocpRemoteContext.Create;
+  end else
+  begin
+    Result := TIocpRemoteContext(FContextClass.Create());
+  end;
   Result.Owner := Self;
   FList.Add(Result);
 end;
