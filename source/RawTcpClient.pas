@@ -79,6 +79,8 @@ begin
 end;
 
 procedure TRawTcpClient.connect;
+var
+  lvIpAddr:String;
 begin
   if FActive then exit;
 
@@ -87,11 +89,12 @@ begin
     WSAStart;
     __WSAStarted := true;
   end;
-  
+
     
   FRawSocket.createTcpSocket;
   FRawSocket.setReadTimeOut(FReadTimeOut);
-  FActive := FRawSocket.connect(FHost, FPort);
+  lvIpAddr := FRawSocket.GetIpAddrByName(FHost);
+  FActive := FRawSocket.connect(lvIpAddr, FPort);
   if not FActive then
   begin
     RaiseLastOSError;

@@ -173,46 +173,66 @@ end;
 class function TMsgPackCoder.SendObject(pvSocket: ICoderSocket; pvObject:
     TObject): Integer;
 var
-  lvPACK_FLAG: WORD;
-  lvDataLen, lvWriteIntValue: Integer;
-  lvBuf: TBytes;
-  lvStream:TMemoryStream;
-  lvVerifyValue:Cardinal;
+  lvMsgPack:TQMsgPack;
+  lvBytes :SysUtils.TBytes;
+  lvDataLen, lvWriteL: Integer;
+  lvHeadlen, lvNameSpaceID: Integer;
+  lvZiped:Byte;
+  lvPACK_FLAG:Word;
+  lvStream: TMemoryStream;
 begin
-  lvPACK_FLAG := PACK_FLAG;
-
-  lvStream := TMemoryStream.Create;
+  Result := 0;
+  if pvObject = nil then exit;
+  lvStream := TMemoryStream.create();
   try
-    TStream(pvObject).Position := 0;
+    lvMsgPack := TQMsgPack(pvObject);
+    lvBytes := lvMsgPack.Encode;
+    lvDataLen :=Length(lvBytes);
 
-    if TStream(pvObject).Size > MAX_OBJECT_SIZE then
+    if lvDataLen > 1024 * 100 then  // >100K 进行压缩
     begin
-       raise Exception.CreateFmt(strSendException_TooBig, [MAX_OBJECT_SIZE]);
+      lvBytes := SysUtils.TBytes(TZipTools.compressBuf(lvBytes[0], lvDataLen));
+      lvDataLen := Length(lvBytes);
+      lvZiped := 1;
+    end else
+    begin
+      lvZiped := 0;   //未进行压缩
     end;
 
+    if lvDataLen > MAX_OBJECT_SIZE then
+      raise Exception.CreateFmt('数据包太大,请在业务层分拆发送,最大数据包[%d]!', [MAX_OBJECT_SIZE]);
+
+
+    if lvMsgPack.ItemByPath('cmd.namespaceid') <> nil then
+    begin
+      lvNameSpaceID := lvMsgPack.ForcePath('cmd.namespaceid').AsInteger;
+    end else
+    begin
+      lvNameSpaceID := 0;
+    end;
+
+    lvPACK_FLAG := PACK_FLAG;
     //pack_flag
     lvStream.Write(lvPACK_FLAG, 2);
+    //Head_len: zip + namespaceid
+    lvHeadlen := SizeOf(lvZiped) + SizeOf(lvNameSpaceID);
+    lvWriteL := TByteTools.swap32(lvHeadlen);
+    //head_len
+    lvStream.Write(lvWriteL, SizeOf(lvWriteL));
 
-    //
-    lvDataLen := TStream(pvObject).Size;
+    //zip
+    lvStream.Write(lvZiped, SizeOf(lvZiped));
+    //namesapceid
+    lvStream.Write(lvNameSpaceID, SizeOf(lvNameSpaceID));
 
-    // stream data
-    SetLength(lvBuf, lvDataLen);
-    TStream(pvObject).Read(lvBuf[0], lvDataLen);
-    //veri value
-    lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
-    lvStream.Write(lvVerifyValue, SizeOf(lvVerifyValue));
+    //data_len
+    lvWriteL := TByteTools.swap32(lvDataLen);
+    lvStream.Write(lvWriteL, SizeOf(lvWriteL));
+    //data
+    lvStream.Write(lvBytes[0], lvDataLen);
 
-
-    lvWriteIntValue := TByteTools.swap32(lvDataLen);
-
-    // stream len
-    lvStream.Write(lvWriteIntValue, SizeOf(lvWriteIntValue));
-
-    // send pack
-    lvStream.write(lvBuf[0], lvDataLen);
-
-    Result := SendStream(pvSocket, lvStream);
+    lvStream.Position := 0;
+    Result := sendStream(pvSocket,lvStream);
   finally
     lvStream.Free;
   end;

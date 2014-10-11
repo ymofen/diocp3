@@ -47,6 +47,8 @@ type
     function bind(const pvAddr: string; pvPort: Integer): Boolean;
     function listen(const backlog: Integer = 0): Boolean;
 
+    function GetIpAddrByName(const host:string): String;
+
     function Recv(var data; const len: Integer): Integer;
     function Send(const data; const len: Integer): Integer;
 
@@ -148,6 +150,25 @@ begin
   begin
     RaiseLastOSError;
   end;
+end;
+
+function TRawSocket.GetIpAddrByName(const host:string): String;
+var
+  lvhostInfo:PHostEnt;
+  lvErr:Integer;
+begin
+  lvhostInfo := gethostbyname(PAnsiChar(AnsiString(host)));
+
+  if lvhostInfo = nil then
+    RaiseLastOSError;
+
+  lvErr := WSAGetLastError;
+  if lvErr <> 0 then
+  begin
+    RaiseLastOSError(lvErr);
+  end;
+
+  Result := inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^);
 end;
 
 function TRawSocket.listen(const backlog: Integer): Boolean;
