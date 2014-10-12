@@ -60,6 +60,7 @@ var
   p, ps: PChar;
   pd: PByte;
 begin
+  l := Length(pvHexStr);
   p := PChar(pvHexStr);
   ps := p;
   pd := PByte(buf);
