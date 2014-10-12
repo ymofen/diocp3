@@ -13,6 +13,10 @@ uses
 
 
 type
+{$IF RTLVersion<25}
+  IntPtr = Integer;
+{$ENDIF}
+
   EDHashTableException = Class(Exception);
   /// <summary>
   ///   hash value type
@@ -174,10 +178,7 @@ end;
 
 function TDHashTable.InnerCompare(pvData1, pvData2:Pointer): Integer;
 begin           
-  if pvData1 = pvData2 then
-    Result := 0
-  else
-    Result := -1;  
+  Result := IntPtr(pvData1) - IntPtr(pvData2);
 end;
 
 procedure TDHashTable.CreateHashData(var vData: PDHashData);
