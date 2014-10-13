@@ -15,7 +15,7 @@ uses
 type
 {$IF RTLVersion<25}
   IntPtr = Integer;
-{$ENDIF}
+{$IFEND}
 
   EDHashTableException = Class(Exception);
   /// <summary>
