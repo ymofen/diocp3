@@ -1,10 +1,10 @@
 object frmMain: TfrmMain
-  Left = 0
-  Top = 0
+  Left = 391
+  Top = 275
+  Width = 659
+  Height = 411
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 echo server'
-  ClientHeight = 373
-  ClientWidth = 626
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -32,7 +32,7 @@ object frmMain: TfrmMain
     TabOrder = 1
   end
   object btnDisconectAll: TButton
-    Left = 248
+    Left = 232
     Top = 4
     Width = 113
     Height = 25
@@ -43,7 +43,7 @@ object frmMain: TfrmMain
   object pgcMain: TPageControl
     Left = 8
     Top = 35
-    Width = 610
+    Width = 625
     Height = 330
     ActivePage = TabSheet1
     TabOrder = 3
@@ -52,10 +52,9 @@ object frmMain: TfrmMain
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
-        Width = 602
+        Width = 617
         Height = 302
         Align = alClient
-        BevelKind = bkTile
         BevelOuter = bvNone
         TabOrder = 0
       end
@@ -63,14 +62,10 @@ object frmMain: TfrmMain
     object TabSheet2: TTabSheet
       Caption = 'log'
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object mmoLog: TMemo
         Left = 0
         Top = 0
-        Width = 602
+        Width = 617
         Height = 302
         Align = alClient
         Lines.Strings = (
@@ -80,13 +75,22 @@ object frmMain: TfrmMain
     end
   end
   object btnGetWorkerState: TButton
-    Left = 400
+    Left = 360
     Top = 4
     Width = 121
     Height = 25
     Caption = 'btnGetWorkerState'
     TabOrder = 4
     OnClick = btnGetWorkerStateClick
+  end
+  object btnFindContext: TButton
+    Left = 492
+    Top = 4
+    Width = 94
+    Height = 25
+    Caption = 'btnFindContext'
+    TabOrder = 5
+    OnClick = btnFindContextClick
   end
   object actlstMain: TActionList
     Left = 248

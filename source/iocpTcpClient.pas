@@ -133,7 +133,6 @@ type
     /// </summary>
     property OnDataRequestCompleted: TOnDataRequestCompleted read
         FOnDataRequestCompleted write FOnDataRequestCompleted;
-  published
   end;
 
   TIocpSendRequestClass = class of TIocpSendRequest;
@@ -161,7 +160,11 @@ type
   end;
 
 
-
+  {$IF RTLVersion>22}
+  // thanks: 麦子仲肥19183455
+  //  vcl for win64
+  [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
+  {$IFEND}
   TIocpTcpClient = class(TComponent)
   private
     FSocketState:TSocketState;
@@ -749,7 +752,7 @@ end;
 
 function TIocpSendRequest.checkSendNextBlock: Boolean;
 var
-  l:Cardinal;
+  l:Integer;
 begin
   if FPosition < FLen then
   begin

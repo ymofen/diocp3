@@ -34,11 +34,12 @@ implementation
 
 procedure TMyClientContext.dataReceived(const pvDataObject: TObject);
 var
-  lvMsgPack:TQMsgPack;
+  lvMsgPack, lvMsgPack2:TQMsgPack;
   lvStream :TStream;
   lvStream2:TMemoryStream;
   vData:OleVariant;
   lvResult:Boolean;
+  vMsg:String;
 begin
   lvMsgPack := TQMsgPack.Create;
   try
@@ -60,12 +61,14 @@ begin
       vData := lvMsgPack.ForcePath('cmd.data').AsVariant;
 
       // invoke dataModule function
-      lvResult := FdmMain.Execute(lvMsgPack.ForcePath('cmd.index').AsInteger, vData);
+      lvResult := FdmMain.Execute(lvMsgPack.ForcePath('cmd.index').AsInteger,
+        vData, vMsg);
 
       // write result info
       lvMsgPack.Clear;
       lvMsgPack.ForcePath('__result.result').AsBoolean := lvResult;
       lvMsgPack.ForcePath('__result.data').AsVariant := vData;
+      lvMsgPack.ForcePath('__result.msg').AsString := vMsg;
     except
       on E:Exception do
       begin

@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls,
-  ComCtrls, System.Actions;
+  ComCtrls;
 
 type
   TfrmMain = class(TForm)
@@ -21,9 +21,11 @@ type
     mmoLog: TMemo;
     pnlMonitor: TPanel;
     btnGetWorkerState: TButton;
+    btnFindContext: TButton;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
     procedure btnDisconectAllClick(Sender: TObject);
+    procedure btnFindContextClick(Sender: TObject);
     procedure btnGetWorkerStateClick(Sender: TObject);
   private
     iCounter:Integer;
@@ -51,6 +53,7 @@ constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FTcpServer := TIocpTcpServer.Create(Self);
+  FTcpServer.Name := 'iocpSVR';
   FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.createDataMonitor;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
@@ -91,9 +94,27 @@ begin
   FTcpServer.DisConnectAll();
 end;
 
+procedure TfrmMain.btnFindContextClick(Sender: TObject);
+var
+  lvList:TList;
+  i:Integer;
+begin
+  lvList := TList.Create;
+  try
+    FTcpServer.getOnlineContextList(lvList);
+    for i:=0 to lvList.Count -1 do
+    begin
+      FTcpServer.findContext(TIocpClientContext(lvList[i]).SocketHandle);
+    end;
+  finally
+    lvList.Free;
+  end;
+
+end;
+
 procedure TfrmMain.btnGetWorkerStateClick(Sender: TObject);
 begin
-  ShowMessage(FTcpServer.IocpEngine.getStateINfo);
+  ShowMessage(FTcpServer.IocpEngine.getWorkerStateInfo(0));
 end;
 
 procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;

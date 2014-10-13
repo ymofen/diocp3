@@ -10,7 +10,6 @@ type
   private
     FSafeLogger:TSafeLogger;
     FFilePreFix:String;
-    FAddThreadINfo:Boolean;
   public
     constructor Create;
     destructor Destroy; override;

@@ -51,19 +51,23 @@ type
 
   TStringsAppender = class(TBaseAppender)
   private
+    FAddThreadINfo: Boolean;
     FStrings: TStrings;
   protected
     procedure AppendLog(pvData:TLogDataObject); override;
   public
     constructor Create(AStrings: TStrings);
+    property AddThreadINfo: Boolean read FAddThreadINfo write FAddThreadINfo;
   end;
 
   TLogFileAppender = class(TBaseAppender)
   private
     FFilePreFix:String;
     FAddThreadINfo: Boolean;
+    FAddThreadIDToFileID:Boolean;
     FBasePath: string;
     FLogFile: TextFile;
+
     FInitialized: Boolean;
     procedure checkInitialized;
     function openLogFile(pvPre: String = ''): Boolean;
@@ -71,6 +75,8 @@ type
     procedure AppendLog(pvData:TLogDataObject); override;
   public
     constructor Create(pvAddThreadINfo: Boolean);
+    property AddThreadIDToFileID: Boolean read FAddThreadIDToFileID write
+        FAddThreadIDToFileID;
     property AddThreadINfo: Boolean read FAddThreadINfo write FAddThreadINfo;
 
     property FilePreFix: String read FFilePreFix write FFilePreFix;
@@ -502,24 +508,48 @@ begin
 end;
 
 procedure TStringsAppender.AppendLog(pvData:TLogDataObject);
+var
+  lvMsg :String;
 begin
   inherited;
   Assert(FStrings <> nil);
-  FStrings.Add(
-    Format('%s[%s]:%s',
-      [FormatDateTime('yyyy-MM-dd hh:nn:ss.zzz', pvData.FTime)
-        , TLogLevelCaption[pvData.FLogLevel]
-        , pvData.FMsg
-      ]
-      ));
+
+      if FAddThreadINfo then
+      begin
+        lvMsg := Format('%s[%s][PID:%d,ThreadID:%d]:%s',
+            [FormatDateTime('hh:nn:ss:zzz', pvData.FTime)
+              , TLogLevelCaption[pvData.FLogLevel]
+              , GetCurrentProcessID()
+              , pvData.FThreadID
+              , pvData.FMsg
+            ]
+            );
+      end else
+      begin
+        lvMsg := Format('%s[%s]:%s',
+            [FormatDateTime('hh:nn:ss:zzz', pvData.FTime)
+              , TLogLevelCaption[pvData.FLogLevel]
+              , pvData.FMsg
+            ]
+            );
+      end;
+  FStrings.Add(lvMsg);
 end;
 
 procedure TLogFileAppender.AppendLog(pvData: TLogDataObject);
 var
   lvMsg:String;
+  lvPreFix :String;
 begin
   checkInitialized;
-  if OpenLogFile(FFilePreFix + pvData.FMsgType) then
+  if FAddThreadIDToFileID then
+  begin
+    lvPreFix := FFilePreFix + pvData.FMsgType+ '_' + IntToStr(pvData.FThreadID) + '_';
+  end else
+  begin
+    lvPreFix := FFilePreFix + pvData.FMsgType;
+  end;
+  if OpenLogFile(lvPreFix) then
   begin
     try
       if FAddThreadINfo then
@@ -569,9 +599,7 @@ end;
 function TLogFileAppender.openLogFile(pvPre: String = ''): Boolean;
 var
   lvFileName:String;
-begin
-
-
+begin 
   lvFileName :=FBasePath + '\' + pvPre + FormatDateTime('yyyymmddhh', Now()) + '.log';
   try
     AssignFile(FLogFile, lvFileName);

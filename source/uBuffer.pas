@@ -128,6 +128,11 @@ type
     procedure AddBuffer(buf:PAnsiChar; len:Cardinal);
     procedure AddMemBlockLink(MemBlockLink: PMemoryBlock);
     function readBuffer(const buf: PAnsiChar; len: Cardinal): Cardinal;
+
+    /// <summary>
+    ///   跳过一段
+    /// </summary>
+    function Skip(len:Cardinal): Cardinal;
     procedure clearBuffer;
     procedure clearHaveReadBuffer;
 
@@ -1598,6 +1603,56 @@ begin
     Inc(Result, lvNext.DataLen);
     lvNext := lvNext.NextEx;
   end;
+end;
+
+function TBufferLink.Skip(len: Cardinal): Cardinal;
+var
+  lvBuf: PMemoryBlock;
+  lvPosition, l, lvReadCount, lvRemain, lvValidCount:Cardinal;
+begin
+  lvReadCount := 0;
+  lvBuf := FRead;
+  lvPosition := FReadPosition;
+  if lvBuf = nil then
+  begin
+    lvBuf := FHead;
+    lvPosition := 0;
+  end;
+
+  if lvBuf <> nil then
+  begin
+    lvRemain := len;
+    while lvBuf <> nil do
+    begin
+      l := lvBuf.Datalen - lvPosition;//本块内存还剩下的内存数据;
+      if l >= lvRemain then
+      begin
+        //读完
+        inc(lvReadCount, lvRemain);
+        Inc(lvPosition, lvRemain);
+        FReadPosition := lvPosition;
+        FRead := lvBuf;
+        Break;
+      end
+      else if l < lvRemain then  //读取的比需要读的长度小
+      begin
+        lvRemain := lvRemain - l;
+        inc(lvReadCount, l);
+        Inc(lvPosition, l);
+        FReadPosition := lvPosition;
+        FRead := lvBuf;
+        lvBuf := lvBuf.NextEx;
+        if lvBuf <> nil then   //读下一个
+        begin
+          FRead := lvBuf;
+          FReadPosition := 0;
+          lvPosition := 0;
+        end;
+      end;
+    end;
+    Result := lvReadCount;
+  end
+  else Result := 0;
 end;
 
 { TDxObjectPool }
