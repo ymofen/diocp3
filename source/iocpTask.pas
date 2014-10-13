@@ -7,13 +7,17 @@
  *
  *   2014-08-12 21:47:34
  *     + add Enable property
+ *
+ *   2014-10-12 00:50:06
+ *     + add signal task
  *)
 unit iocpTask;
 
 interface
 
 uses
-  iocpEngine, SysUtils, BaseQueue, Messages, Windows, Classes, SyncObjs;
+  iocpEngine, SysUtils, BaseQueue, Messages, Windows, Classes,
+  SyncObjs, DHashTable, iocpLocker;
 
 const
   WM_REQUEST_TASK = WM_USER + 1;
@@ -31,8 +35,34 @@ type
   /// rtPostMessage: use in dll project
   TRunInMainThreadType = (rtSync, rtPostMessage);
 
+  TDataFreeType = (ftNone, ftFreeAsObject, ftUseDispose);
+
+  TSignalTaskData = class(TObject)
+  private
+    FSignalID: Integer;
+    FOnTaskWork: TOnTaskWork;
+  end;
+
+  TSimpleDataObject = class(TObject)
+  private
+    FData: Pointer;
+    FDataString1: String;
+    FDataString2: string;
+    FIntValue1: Integer;
+    FIntValue2: Integer;
+  public
+    constructor Create(const ADataString1: String; const ADataString2: String = '';
+        AIntValue1: Integer = 0; AIntValue2: Integer = 0);
+    property Data: Pointer read FData write FData;
+    property DataString1: String read FDataString1 write FDataString1;
+    property DataString2: string read FDataString2 write FDataString2;
+    property IntValue1: Integer read FIntValue1 write FIntValue1;
+    property IntValue2: Integer read FIntValue2 write FIntValue2;
+  end;
+
   TIocpTaskRequest = class(TIocpRequest)
   private
+    FFreeType: TDataFreeType;
     FStartTime: Cardinal;
     FEndTime: Cardinal;
     FOwner:TIocpTaskMananger;
@@ -59,6 +89,8 @@ type
 
   TIocpTaskMananger = class(TObject)
   private
+    FLocker:TIocpLocker;
+
     FActive: Boolean;
     FEnable: Boolean;
     FIocpEngine: TIocpEngine;
@@ -68,12 +100,17 @@ type
     FFireTempWorker: Boolean;
     FResponseCounter: Integer;
 
+    FSignalTasks: TDHashTable;
+
+    procedure OnSignalTaskDelete(PHashData: Pointer);
+
     procedure SetActive(const Value: Boolean);
 
     procedure incResponseCounter();
     procedure incErrorCounter();
 
     procedure InnerPostTask(pvRequest: TIocpTaskRequest);
+
   protected
     FMessageHandle: HWND;
     procedure DoMainThreadWork(var AMsg: TMessage);
@@ -112,6 +149,24 @@ type
         rtSync); overload;
 
 
+    /// <summary>
+    ///   regsiter a signal, binding callback procedure to a signal
+    /// </summary>
+    procedure registerSignal(pvSignalID: Integer; pvTaskWork: TOnTaskWork);
+
+    /// <summary>
+    ///   regsiter a signal, binding callback procedure to a signal
+    /// </summary>
+    function UnregisterSignal(pvSignalID:Integer): Boolean;
+
+    /// <summary>
+    ///   post a signal task
+    /// </summary>
+    procedure SignalATask(pvSignalID: Integer; pvTaskData: Pointer = nil;
+        pvDataFreeType: TDataFreeType = ftNone; pvRunInMainThread: Boolean = False;
+        pvRunType: TRunInMainThreadType = rtSync); overload;
+
+
     property Active: Boolean read FActive write SetActive;
 
     property Enable: Boolean read FEnable write FEnable;
@@ -129,6 +184,8 @@ var
 function checkInitializeTaskManager(pvWorkerCount: Integer = 0;
     pvMaxWorkerCount: Word = 0): Boolean;
 
+procedure checkFreeData(var pvData: Pointer; pvDataFreeType: TDataFreeType);
+
 implementation
 
 var
@@ -137,8 +194,21 @@ var
 
 resourcestring
   strDebugRequest_State = 'runInMainThread: %s, done: %s, time(ms): %d';
+  strSignalAlreadyRegisted = 'signal(%d) aready registed';
+  strSignalUnRegister = 'signal(%d) unregister';
 
-
+procedure checkFreeData(var pvData: Pointer; pvDataFreeType: TDataFreeType);
+begin
+  if pvData = nil then exit;
+  if pvDataFreeType = ftNone then exit;
+  if pvDataFreeType = ftFreeAsObject then
+  begin
+    TObject(pvData).Free;
+  end else if pvDataFreeType = ftUseDispose then
+  begin
+    Dispose(pvData);
+  end;
+end;
 
 function MakeTaskProc(const pvData: Pointer; const AProc: TOnTaskWorkProc):
     TOnTaskWork;
@@ -175,11 +245,17 @@ begin
   end;
 end;
 
+
+
 constructor TIocpTaskMananger.Create;
 begin
   inherited Create;
+  FLocker := TIocpLocker.Create('iocpTaskLocker');
   FIocpEngine := TIocpEngine.Create();
   FIocpEngine.setWorkerCount(2);
+  FSignalTasks := TDHashTable.Create(17);
+  FSignalTasks.OnDelete := OnSignalTaskDelete;
+
   FMessageHandle := AllocateHWnd(DoMainThreadWork);
   FFireTempWorker := True;
   FActive := false;
@@ -189,7 +265,12 @@ destructor TIocpTaskMananger.Destroy;
 begin
   FIocpEngine.safeStop;
   FIocpEngine.Free;
+
+  FSignalTasks.Clear;
+
+  FSignalTasks.Free;
   DeallocateHWnd(FMessageHandle);
+  FLocker.Free;
   inherited Destroy;
 end;
 
@@ -251,6 +332,14 @@ begin
   end;
 end;
 
+procedure TIocpTaskMananger.OnSignalTaskDelete(PHashData: Pointer);
+begin
+  if PHashData <> nil then
+  begin
+    TSignalTaskData(PHashData).Free;
+  end;
+end;
+
 procedure TIocpTaskMananger.PostATask(pvTaskWorkProc: TOnTaskWorkProc;
     pvTaskData: Pointer = nil; pvRunInMainThread: Boolean = False; pvRunType:
     TRunInMainThreadType = rtSync);
@@ -276,6 +365,27 @@ begin
     // if occur exception, push to requestPool.
     if lvRequest <> nil then requestPool.Push(lvRequest);
     raise;
+  end;
+end;
+
+procedure TIocpTaskMananger.registerSignal(pvSignalID: Integer; pvTaskWork:
+    TOnTaskWork);
+var
+  lvSignalData:TSignalTaskData;
+begin
+  Assert(Assigned(pvTaskWork));
+
+  FLocker.lock();
+  try
+    if FSignalTasks.FindFirst(pvSignalID) <> nil then
+      raise Exception.CreateFmt(strSignalAlreadyRegisted, [pvSignalID]);
+
+    lvSignalData := TSignalTaskData.Create;
+    lvSignalData.FOnTaskWork := pvTaskWork;
+    lvSignalData.FSignalID := pvSignalID;
+    FSignalTasks.Add(pvSignalID, lvSignalData);
+  finally
+    FLocker.unLock;
   end;
 end;
 
@@ -426,6 +536,70 @@ begin
   end;
 end;
 
+procedure TIocpTaskMananger.SignalATask(pvSignalID: Integer; pvTaskData:
+    Pointer = nil; pvDataFreeType: TDataFreeType = ftNone; pvRunInMainThread:
+    Boolean = False; pvRunType: TRunInMainThreadType = rtSync);
+var
+  lvSignalData:TSignalTaskData;
+
+  lvRequest:TIocpTaskRequest;
+  lvTaskWork: TOnTaskWork;
+begin
+  if not FEnable then
+  begin
+    checkFreeData(pvTaskData, pvDataFreeType);
+    exit;
+  end;
+
+
+  FLocker.lock();
+  try
+    lvSignalData := TSignalTaskData(FSignalTasks.FindFirstData(pvSignalID));
+    if lvSignalData = nil then
+    begin
+      checkFreeData(pvTaskData, pvDataFreeType);
+      raise Exception.CreateFmt(strSignalUnRegister, [pvSignalID]);
+    end;
+
+    lvTaskWork := lvSignalData.FOnTaskWork;
+  finally
+    FLocker.unLock;
+  end;
+
+  lvRequest := TIocpTaskRequest(requestPool.Pop);
+  try
+    if lvRequest = nil then
+    begin
+      lvRequest := TIocpTaskRequest.Create;
+    end;
+    lvRequest.DoCleanUp;
+    lvRequest.FFreeType := pvDataFreeType;
+    lvRequest.FOwner := self;
+    lvRequest.FOnTaskWork := lvTaskWork;
+    lvRequest.FTaskData := pvTaskData;
+    lvRequest.FRunInMainThread := pvRunInMainThread;
+    lvRequest.FRunInMainThreadType := pvRunType;
+
+    InnerPostTask(lvRequest);
+  except
+    // if occur exception, push to requestPool.
+    if lvRequest <> nil then requestPool.Push(lvRequest);
+
+    checkFreeData(pvTaskData, pvDataFreeType);
+    raise;
+  end;
+end;
+
+function TIocpTaskMananger.UnregisterSignal(pvSignalID:Integer): Boolean;
+begin
+  FLocker.lock();
+  try
+    Result := FSignalTasks.DeleteFirst(pvSignalID);
+  finally
+    FLocker.unLock;
+  end;
+end;
+
 constructor TIocpTaskRequest.Create;
 begin
   inherited Create;
@@ -447,6 +621,7 @@ begin
   FRunInMainThreadType := rtSync;
   FMessageEvent.ResetEvent;
   FOwner := nil;
+  FFreeType := ftNone;
 end;
 
 function TIocpTaskRequest.getStateINfo: String;
@@ -466,49 +641,54 @@ end;
 
 procedure TIocpTaskRequest.HandleResponse;
 begin
-  FStartTime := GetTickCount;
-  FEndTime := 0;
-  FOwner.incResponseCounter;
-  if FOwner.Active then
-  begin
-    if FRunInMainThread then
+  try
+    FStartTime := GetTickCount;
+    FEndTime := 0;
+    FOwner.incResponseCounter;
+    if FOwner.Active then
     begin
-      case FRunInMainThreadType of
-        rtSync:
-          begin
-            iocpWorker.Synchronize(iocpWorker, InnerDoTask);
-          end;
-        rtPostMessage:
-          begin
-            FMessageEvent.ResetEvent;
-            if PostMessage(FOwner.FMessageHandle, WM_REQUEST_TASK, WPARAM(Self), LPARAM(FMessageEvent)) then
+      if FRunInMainThread then
+      begin
+        case FRunInMainThreadType of
+          rtSync:
             begin
-              FMessageEvent.WaitFor(INFINITE);
-            end else
-            begin
-              FOwner.incErrorCounter;
-              // log exception
+              iocpWorker.Synchronize(iocpWorker, InnerDoTask);
             end;
-          end;
-        else
-          begin
-            //log unkown type
-          end;
-      end;
-    end else
-    begin
-      try
-        InnerDoTask;
-      except
+          rtPostMessage:
+            begin
+              FMessageEvent.ResetEvent;
+              if PostMessage(FOwner.FMessageHandle, WM_REQUEST_TASK, WPARAM(Self), LPARAM(FMessageEvent)) then
+              begin
+                FMessageEvent.WaitFor(INFINITE);
+              end else
+              begin
+                FOwner.incErrorCounter;
+                // log exception
+              end;
+            end;
+          else
+            begin
+              //log unkown type
+            end;
+        end;
+      end else
+      begin
+        try
+          InnerDoTask;
+        except
+        end;
       end;
     end;
+    FEndTime := GetTickCount;
+  finally
+    checkFreeData(FTaskData, FFreeType);
+    requestPool.Push(Self);
   end;
-  FEndTime := GetTickCount;
-  requestPool.Push(Self);
 end;
 
 procedure TIocpTaskRequest.InnerDoTask;
 begin
+
   if Assigned(FOnTaskWork) then
   begin
     FOnTaskWork(Self);
@@ -522,6 +702,18 @@ begin
   begin
     FOnTaskWorkNoneData();
   end;
+
+end;
+
+constructor TSimpleDataObject.Create(const ADataString1: String; const
+    ADataString2: String = ''; AIntValue1: Integer = 0; AIntValue2: Integer =
+    0);
+begin
+  inherited Create;
+  FDataString1 := ADataString1;
+  FDataString2 := ADataString2;
+  FIntValue1 := AIntValue1;
+  FIntValue2 := AIntValue2;
 end;
 
 

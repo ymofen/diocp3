@@ -51,21 +51,18 @@ begin
   if FErrLogger = nil then
   begin
     FErrLogger := TFileLogger.Create;
-    FErrLogger.checkReady;
     FErrLogger.setFilePre('IOCP_ERR_');
     FErrLogger.setAddThreadINfo(True);
   end;
   if FLogger = nil then
   begin
     FLogger := TFileLogger.Create;
-    FLogger.checkReady;
     FLogger.setFilePre('IOCP_LOG_');
     FLogger.setAddThreadINfo(True);
   end;
   if FDebugger = nil then
   begin
     FDebugger := TFileLogger.Create;
-    FDebugger.checkReady;
     FDebugger.setFilePre('IOCP_DEBUG_');
     FDebugger.setAddThreadINfo(True);
   end;

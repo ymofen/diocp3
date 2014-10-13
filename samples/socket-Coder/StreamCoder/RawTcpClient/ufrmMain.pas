@@ -74,14 +74,13 @@ end;
 
 procedure TfrmMain.btnSendObjectClick(Sender: TObject);
 var
-  lvList:TList;
   i: Integer;
   lvStream:TMemoryStream;
   s:AnsiString;
 begin
   lvStream := TMemoryStream.Create;
   try
-   // lvStream.LoadFromFile('C:\1.txt');
+    //lvStream.LoadFromFile('C:\1.txt');
     s := 'this message will send to server';
     lvStream.Write(s[1], Length(s));
 

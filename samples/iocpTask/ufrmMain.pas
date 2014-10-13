@@ -11,9 +11,15 @@ type
     btnPostTask: TButton;
     Memo1: TMemo;
     SpeedTester: TButton;
-    Button1: TButton;
+    btnState: TButton;
+    btnSignal: TButton;
+    btnRegister: TButton;
+    btnUnRegister: TButton;
     procedure btnPostTaskClick(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
+    procedure btnRegisterClick(Sender: TObject);
+    procedure btnSignalClick(Sender: TObject);
+    procedure btnStateClick(Sender: TObject);
+    procedure btnUnRegisterClick(Sender: TObject);
     procedure SpeedTesterClick(Sender: TObject);
   private
     FLogTask: TIocpTaskMananger;
@@ -27,6 +33,8 @@ type
     { Public declarations }
     procedure OnTaskWork();overload;
     procedure OnTaskWork(pvStrData:string);overload;
+
+    procedure OnSignalWork(pvTaskRequest:TIocpTaskRequest);
 
     procedure DoJobProc(pvTaskRequest:TIocpTaskRequest);
   end;
@@ -105,10 +113,39 @@ begin
   iocpTaskManager.PostATask(TaskProcGlobal, nil, True);
 end;
 
-procedure TfrmMain.Button1Click(Sender: TObject);
+procedure TfrmMain.btnRegisterClick(Sender: TObject);
+begin
+  iocpTaskManager.registerSignal(1, self.OnSignalWork);
+end;
+
+procedure TfrmMain.btnSignalClick(Sender: TObject);
+begin
+  iocpTaskManager.SignalATask(1, TSimpleDataObject.Create('signal param'), ftFreeAsObject);
+end;
+
+procedure TfrmMain.btnStateClick(Sender: TObject);
 begin
   Memo1.Clear;
   Memo1.Lines.Add(iocpTaskManager.getStateINfo());
+end;
+
+procedure TfrmMain.btnUnRegisterClick(Sender: TObject);
+begin
+  iocpTaskManager.UnregisterSignal(1);
+end;
+
+procedure TfrmMain.OnSignalWork(pvTaskRequest:TIocpTaskRequest);
+var
+  lvData:TSimpleDataObject;
+begin
+  lvData:= TSimpleDataObject(pvTaskRequest.TaskData);
+  if GetCurrentThreadId = MainThreadID then
+  begin
+    Memo1.Lines.Add('exeucte signal task in main thead:' + lvData.DataString1);
+  end else
+  begin
+    logMessage('exeucte signal task in thread:' + lvData.DataString1);
+  end;
 end;
 
 { TfrmMain }

@@ -2,8 +2,8 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'frmMain'
-  ClientHeight = 362
-  ClientWidth = 546
+  ClientHeight = 378
+  ClientWidth = 713
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -32,7 +32,7 @@ object frmMain: TfrmMain
     TabOrder = 1
   end
   object SpeedTester: TButton
-    Left = 120
+    Left = 89
     Top = 8
     Width = 113
     Height = 25
@@ -40,13 +40,40 @@ object frmMain: TfrmMain
     TabOrder = 2
     OnClick = SpeedTesterClick
   end
-  object Button1: TButton
-    Left = 272
+  object btnState: TButton
+    Left = 424
     Top = 8
+    Width = 99
+    Height = 25
+    Caption = 'get state info'
+    TabOrder = 3
+    OnClick = btnStateClick
+  end
+  object btnSignal: TButton
+    Left = 544
+    Top = 100
+    Width = 89
+    Height = 25
+    Caption = 'signal a task'
+    TabOrder = 4
+    OnClick = btnSignalClick
+  end
+  object btnRegister: TButton
+    Left = 544
+    Top = 37
     Width = 75
     Height = 25
-    Caption = 'Button1'
-    TabOrder = 3
-    OnClick = Button1Click
+    Caption = 'btnRegister'
+    TabOrder = 5
+    OnClick = btnRegisterClick
+  end
+  object btnUnRegister: TButton
+    Left = 544
+    Top = 69
+    Width = 75
+    Height = 25
+    Caption = 'btnUnRegister'
+    TabOrder = 6
+    OnClick = btnUnRegisterClick
   end
 end
