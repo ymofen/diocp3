@@ -162,11 +162,11 @@ begin
   if lvhostInfo = nil then
     RaiseLastOSError;
 
-  lvErr := WSAGetLastError;
-  if lvErr <> 0 then
-  begin
-    RaiseLastOSError(lvErr);
-  end;
+//  lvErr := WSAGetLastError;
+//  if lvErr <> 0 then
+//  begin
+//    RaiseLastOSError(lvErr);
+//  end;
 
   Result := inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^);
 end;
