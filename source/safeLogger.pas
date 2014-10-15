@@ -62,6 +62,9 @@ type
 
   TLogFileAppender = class(TBaseAppender)
   private
+    FProcessIDStr: String;
+
+    FAddProcessID: Boolean;
     FFilePreFix:String;
     FAddThreadINfo: Boolean;
     FAddThreadIDToFileID:Boolean;
@@ -75,8 +78,10 @@ type
     procedure AppendLog(pvData:TLogDataObject); override;
   public
     constructor Create(pvAddThreadINfo: Boolean);
+    property AddProcessID: Boolean read FAddProcessID write FAddProcessID;
     property AddThreadIDToFileID: Boolean read FAddThreadIDToFileID write
         FAddThreadIDToFileID;
+
     property AddThreadINfo: Boolean read FAddThreadINfo write FAddThreadINfo;
 
     property FilePreFix: String read FFilePreFix write FFilePreFix;
@@ -451,8 +456,12 @@ begin
           lvPData := FSafeLogger.FDataQueue.Pop;
           if lvPData = nil then Break;
 
-          ExecuteLogData(lvPData);
-
+          try
+            ExecuteLogData(lvPData);
+          except
+            FSafeLogger.incErrorCounter;
+          end;
+          
           /// push back to logData pool
           __dataObjectPool.Push(lvPData);
         end;
@@ -549,15 +558,20 @@ begin
   begin
     lvPreFix := FFilePreFix + pvData.FMsgType;
   end;
+
+
+  if FAddProcessID then
+    lvPreFix := FProcessIDStr + '_' + lvPreFix;
+    
   if OpenLogFile(lvPreFix) then
   begin
     try
       if FAddThreadINfo then
       begin
-        lvMsg := Format('%s[%s][PID:%d,ThreadID:%d]:%s',
+        lvMsg := Format('%s[%s][PID:%s,ThreadID:%d]:%s',
             [FormatDateTime('hh:nn:ss:zzz', pvData.FTime)
               , TLogLevelCaption[pvData.FLogLevel]
-              , GetCurrentProcessID()
+              , FProcessIDStr
               , pvData.FThreadID
               , pvData.FMsg
             ]
@@ -594,6 +608,8 @@ begin
   inherited Create;
   FBasePath :=ExtractFilePath(ParamStr(0)) + 'log';
   FAddThreadINfo := pvAddThreadINfo;
+  FAddProcessID := true;
+  FProcessIDStr := IntToStr(GetCurrentProcessId);
 end;
 
 function TLogFileAppender.openLogFile(pvPre: String = ''): Boolean;

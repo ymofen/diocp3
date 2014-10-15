@@ -403,7 +403,7 @@ end;
 
 procedure TIocpCore.doFinalize;
 begin
-  
+  if FIOCPHandle <> 0 then CloseHandle(FIOCPHandle);
 end;
 
 procedure TIocpCore.doInitialize;
@@ -547,11 +547,16 @@ begin
   ///
   if FCoInitialized then CoUninitialize();
 
+  
 {$IFDEF __DEBUG}
   InterlockedDecrement(workerCounter);
 {$ENDIF}
 
-  FIocpEngine.decAliveWorker(Self);
+  //try
+    FIocpEngine.decAliveWorker(Self);
+//  except
+//    Assert(False, ('iocpEngine name:' + FIocpEngine.Name));
+//  end;
 end;
 
 procedure TIocpWorker.removeFlag(pvFlag: Integer);
@@ -661,6 +666,11 @@ end;
 destructor TIocpEngine.Destroy;
 begin
   safeStop;
+
+  // wait thread's res back
+  Sleep(10);
+
+  FIocpCore.doFinalize;
   FIocpCore.Free;
   FreeAndNil(FWorkerList);
   FWorkerLocker.Free;
@@ -817,7 +827,9 @@ begin
       // all worker thread is dead
 
       FWorkerList.Clear;
+      {$IFDEF __DEBUG}
       workerCounter := 0;
+      {$ENDIF} 
       if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
     end;
 
