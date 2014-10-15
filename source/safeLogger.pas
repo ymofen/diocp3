@@ -27,6 +27,8 @@ type
   TSafeLogger = class;
   TSyncMainThreadType = (rtSync{$IFDEF MSWINDOWS}, rtPostMessage {$ENDIF});
 
+  TThreadStackFunc = function(AThread:TThread):string;
+
   TLogDataObject = class(TObject)
   public
     FThreadID:Cardinal;
@@ -108,6 +110,8 @@ type
 
   TSafeLogger = class(TObject)
   private
+    FDebugInfo: String;
+    FDebugData: Pointer;
     FWorkerAlive:Boolean;
     
     FLogWorker:TLogWorker;
@@ -140,6 +144,7 @@ type
   private
   {$IFDEF MSWINDOWS}
     FMessageHandle: HWND;
+    FName: String;
     procedure DoMainThreadWork(var AMsg: TMessage);
   {$ENDIF}
     procedure incWorkerCount;
@@ -172,14 +177,21 @@ type
 
     property AppendInMainThread: Boolean read FAppendInMainThread write
         FAppendInMainThread;
+    property DebugData: Pointer read FDebugData;
+    property DebugInfo: String read FDebugInfo;
 
     property Enable: Boolean read FEnable write FEnable;
+    property Name: String read FName write FName;
+
+
 
 
   end;
 
 var
   sfLogger:TSafeLogger;
+
+  __GetThreadStackFunc: TThreadStackFunc;
 
 implementation
 
@@ -194,6 +206,32 @@ const
   WM_SYNC_METHOD = WM_USER + 1;
 
 {$ENDIF}
+
+procedure writeSafeInfo(pvMsg:string);
+var
+  lvFileName, lvBasePath:String;
+  lvLogFile: TextFile;
+begin
+  try
+    lvBasePath :=ExtractFilePath(ParamStr(0)) + 'log';
+    ForceDirectories(lvBasePath);
+    lvFileName :=lvBasePath + '\__safe_' + FormatDateTime('mmddhhnnsszzz', Now()) + '.log';
+
+    AssignFile(lvLogFile, lvFileName);
+    if (FileExists(lvFileName)) then
+      append(lvLogFile)
+    else
+      rewrite(lvLogFile);
+
+    writeln(lvLogFile, pvMsg);
+    flush(lvLogFile);
+    
+    CloseFile(lvLogFile);
+
+  except
+    ;
+  end;
+end;
 
 /// compare target, cmp_val same set target = new_val
 /// return old value
@@ -235,7 +273,7 @@ begin
   FEnable := true;
   FSyncMainThreadType := rtSync;
 {$IFDEF MSWINDOWS}
-  FSyncMainThreadType := rtPostMessage;
+//  FSyncMainThreadType := rtPostMessage;
   FMessageHandle := AllocateHWnd(DoMainThreadWork);
 {$ENDIF}
   FDataQueue := TBaseQueue.Create();
@@ -273,7 +311,9 @@ begin
   begin
     try
       if not FEnable then Exit;
+      FDebugInfo := 'DoMainThreadWork:ExecuteLogData(TLogDataObject(AMsg.WParam))__Start';
       ExecuteLogData(TLogDataObject(AMsg.WParam));
+      FDebugInfo := 'DoMainThreadWork:ExecuteLogData(TLogDataObject(AMsg.WParam))__END';
     finally
       if AMsg.LPARAM <> 0 then
         TEvent(AMsg.LPARAM).SetEvent;
@@ -340,7 +380,15 @@ procedure TSafeLogger.logMessage(pvMsg: string; pvMsgType: string = '';
 var
   lvPData:TLogDataObject;
 begin
+//  if (not FEnable) and (FName = 'gateLogger') then
+//  begin
+//    Assert(FName = 'gateLogger');
+//  end;
+
   if not FEnable then exit;
+
+
+  
 
   lvPData := __dataObjectPool.Pop;
   if lvPData = nil then lvPData:=TLogDataObject.Create;
@@ -387,6 +435,10 @@ begin
 end;
 
 procedure TSafeLogger.stopWorker;
+var
+  l:Cardinal;
+  lvWrite:Boolean;
+  s:String;
 begin
   if FLogWorker <> nil then
   begin
@@ -396,6 +448,9 @@ begin
       FLogWorker.Terminate;
       FLogWorker.FNotify.SetEvent;
     end;
+
+    lvWrite := True;
+    l := GetTickCount;
     while (FWorkerCounter > 0) and workersIsAlive(FLogWorker) do
     begin
       {$IFDEF MSWINDOWS}
@@ -403,7 +458,18 @@ begin
       {$ELSE}
       TThread.Yield;
       {$ENDIF}
+
+      if lvWrite then
+      begin
+        if GetTickCount - l > 10000 then
+        begin
+          writeSafeInfo(FName + 'is dead, debugInfo:'  + FDebugInfo);
+          lvWrite := false;
+        end;
+      end;
     end;
+
+
     FLogWorker := nil;
   end;
 end;
@@ -448,15 +514,18 @@ begin
   try
     while not self.Terminated do
     begin
+      FSafeLogger.FDebugInfo := 'Thread.Execute::FNotify.WaitFor()';
       lvWaitResult := FNotify.WaitFor(1000 * 30);
       if (lvWaitResult=wrSignaled) then
       begin
+        FSafeLogger.FDebugInfo := 'Thread.Execute::FNotify.WaitFor(), succ';
         while not self.Terminated do
         begin
           lvPData := FSafeLogger.FDataQueue.Pop;
           if lvPData = nil then Break;
 
           try
+            FSafeLogger.FDebugData := lvPData;
             ExecuteLogData(lvPData);
           except
             FSafeLogger.incErrorCounter;
@@ -482,14 +551,17 @@ begin
     if FSafeLogger.FSyncMainThreadType = rtSync then
     begin
       FTempLogData := pvData;
+      FSafeLogger.FDebugInfo := 'Synchronize(InnerSyncLogData)';
       Synchronize(InnerSyncLogData);
     end
 {$IFDEF MSWINDOWS}
     else if FSafeLogger.FSyncMainThreadType = rtPostMessage then
     begin
       FMessageEvent.ResetEvent;
+      FSafeLogger.FDebugInfo := 'PostMessage';
       if PostMessage(FSafeLogger.FMessageHandle, WM_SYNC_METHOD, WPARAM(pvData), LPARAM(FMessageEvent)) then
       begin
+        FSafeLogger.FDebugInfo := 'PostMessage succ, waitFor';
         FMessageEvent.WaitFor(INFINITE);
       end else
       begin
@@ -644,10 +716,12 @@ begin
 end;
 
 initialization
+  __GetThreadStackFunc := nil;
   __dataObjectPool := TBaseQueue.Create;
   __dataObjectPool.Name := 'safeLoggerDataPool';
   sfLogger := TSafeLogger.Create();
   sfLogger.setAppender(TLogFileAppender.Create(True));
+
 
 finalization
   __dataObjectPool.FreeDataObject;

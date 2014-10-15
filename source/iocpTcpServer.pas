@@ -51,7 +51,9 @@ type
   TOnDataReceived = procedure(pvClientContext:TIocpClientContext;
       buf:Pointer; len:cardinal; errCode:Integer) of object;
 
-  
+  TOnContextAcceptEvent = procedure(pvSocket: THandle; pvAddr: String; pvPort:
+      Integer; var vAllowAccept: Boolean) of object;
+
   TClientContextNotifyEvent = procedure(pvClientContext: TIocpClientContext) of
       object;
 
@@ -609,6 +611,7 @@ type
 
 
     FOnClientContextError: TOnClientContextError;
+    FOnContextAccept: TOnContextAcceptEvent;
 
     FPort: Integer;
 
@@ -745,6 +748,11 @@ type
     property OnClientContextConnected: TClientContextNotifyEvent read FOnClientContextConnected write FOnClientContextConnected;
 
     /// <summary>
+    ///   
+    /// </summary>
+    property OnContextAccept: TOnContextAcceptEvent read FOnContextAccept write
+        FOnContextAccept;
+    /// <summary>
     ///   listen port
     /// </summary>
     property Port: Integer read FPort write FPort;
@@ -766,6 +774,8 @@ type
     /// </summary>
     property WSASendBufferSize: cardinal read FWSASendBufferSize write
         SetWSASendBufferSize;
+
+
 
 
 
@@ -1113,22 +1123,26 @@ begin
     FSocketHandle := FRawSocket.SocketHandle;
     if not FActive then
     begin
-
       FActive := true;
       Assert(FOwner <> nil);
       FOwner.AddToOnlineList(Self);
-
-      if Assigned(FOwner.FOnClientContextConnected) then
-      begin
-        FOwner.FOnClientContextConnected(Self);
-      end;
-
+      
+      if self.LockContext('onConnected', Self) then
       try
-        OnConnected();
-      except
-      end;
+        if Assigned(FOwner.FOnClientContextConnected) then
+        begin
+          FOwner.FOnClientContextConnected(Self);
+        end;
 
-      PostWSARecvRequest;
+        try
+          OnConnected();
+        except
+        end;
+
+        PostWSARecvRequest;
+      finally
+        self.unLockContext('OnConnected', Self);
+      end;
     end;
   finally
     FContextLocker.unLock;
@@ -1468,53 +1482,72 @@ end;
 procedure TIocpTcpServer.DoAcceptExResponse(pvRequest: TIocpAcceptExRequest);
 var
   lvRet, lvErrCode:Integer;
-  lvContinue:Boolean;
+  function DoAfterAcceptEx():Boolean;
+  begin
+    Result := true;
+    if Assigned(FOnContextAccept) then
+    begin
+      FOnContextAccept(pvRequest.FClientContext.RawSocket.SocketHandle,
+         pvRequest.FClientContext.RemoteAddr, pvRequest.FClientContext.RemotePort, Result);
+
+      if not Result then
+      begin
+        {$IFDEF DEBUG_ON}
+         if logCanWrite then
+          FSafeLogger.logMessage('OnAcceptEvent vAllowAccept = false, Error:%d', [lvErrCode]);
+        {$ENDIF}
+      end;
+    end;
+    if Result then
+    begin
+      if FKeepAlive then
+      begin
+        Result := pvRequest.FClientContext.FRawSocket.setKeepAliveOption();
+
+        if not Result then
+        begin       // set option fail
+           lvErrCode := GetLastError;
+          {$IFDEF DEBUG_ON}  
+           if logCanWrite then
+            FSafeLogger.logMessage('FClientContext.FRawSocket.setKeepAliveOption, Error:%d', [lvErrCode]);
+          {$ENDIF}
+
+          pvRequest.FClientContext.FRawSocket.close;
+
+          // relase client context object
+          releaseClientContext(pvRequest.FClientContext);
+          pvRequest.FClientContext := nil;
+        end;
+      end else
+      begin
+        Result := true;
+      end;
+    end;
+  end;
 begin
   if pvRequest.FErrorCode = 0 then
   begin
-    lvContinue := true;
-    if FKeepAlive then
+    if DoAfterAcceptEx then
     begin
-
-      if not pvRequest.FClientContext.FRawSocket.setKeepAliveOption() then
-      begin       // set option fail
-        lvErrCode := GetLastError;
-        DoClientContextError(pvRequest.FClientContext, lvErrCode);
-
-        pvRequest.FClientContext.FRawSocket.close;
-
-        // relase client context object
-        releaseClientContext(pvRequest.FClientContext);
-        pvRequest.FClientContext := nil;
-        
-        lvContinue := false;
-      end;
-    end;
-
-
-    if lvContinue then
-    begin
-     {$IFDEF SOCKET_REUSE}
-      pvRequest.FClientContext.DoConnected;
-     {$ELSE}
-      lvRet := FIocpEngine.IocpCore.bind2IOCPHandle(pvRequest.FClientContext.FRawSocket.SocketHandle, 0);
-      if lvRet = 0 then
-      begin     // binding error
-        lvErrCode := GetLastError;
-        DoClientContextError(pvRequest.FClientContext, lvErrCode);
-
-        pvRequest.FClientContext.FRawSocket.close;
-
-        // relase client context object
-        releaseClientContext(pvRequest.FClientContext);
-        pvRequest.FClientContext := nil;
-      end else
-      begin
+       {$IFDEF SOCKET_REUSE}
         pvRequest.FClientContext.DoConnected;
-      end;
-     {$ENDIF}
+       {$ELSE}
+        lvRet := FIocpEngine.IocpCore.bind2IOCPHandle(pvRequest.FClientContext.FRawSocket.SocketHandle, 0);
+        if lvRet = 0 then
+        begin     // binding error
+          lvErrCode := GetLastError;
+          DoClientContextError(pvRequest.FClientContext, lvErrCode);
 
+          pvRequest.FClientContext.FRawSocket.close;
 
+          // relase client context object
+          releaseClientContext(pvRequest.FClientContext);
+          pvRequest.FClientContext := nil;
+        end else
+        begin
+          pvRequest.FClientContext.DoConnected;
+        end;
+       {$ENDIF}
     end;
   end else
   begin
