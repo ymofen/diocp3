@@ -51,7 +51,7 @@ function TRawTcpClientCoderImpl.recvBuf(buf: Pointer; len: Cardinal): Cardinal;
 begin
   if FReconnect then
   begin
-    if FTcpClient.Active then FTcpClient.connect;
+    if not FTcpClient.Active then FTcpClient.connect;
     try
       FTcpClient.recv(buf, len);
       Result := len;
@@ -71,7 +71,7 @@ function TRawTcpClientCoderImpl.sendBuf(buf: Pointer; len: Cardinal): Cardinal;
 begin
   if FReconnect then
   begin
-    if FTcpClient.Active then FTcpClient.connect;
+    if not FTcpClient.Active then FTcpClient.connect;
     try
       Result := FTcpClient.sendBuffer(buf, len);
     except
