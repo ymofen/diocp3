@@ -47,12 +47,10 @@ const
 function TIOCPStreamDecoder.Decode(const inBuf: TBufferLink; pvContext:
     TObject): TObject;
 var
-  lvBytes, lvHeadBytes:SysUtils.TBytes;
   lvValidCount, lvReadL:Integer;
   lvPACK_FLAG:Word;
   lvDataLen: Integer;
   lvVerifyValue, lvVerifyDataValue:Cardinal;
-  lvZiped:Byte;
 begin
   Result := nil;
 
@@ -65,7 +63,6 @@ begin
 
   //¼ÇÂ¼¶ÁÈ¡Î»ÖÃ
   inBuf.markReaderIndex;
-  //setLength(lvBytes, 2);
   inBuf.readBuffer(@lvPACK_FLAG, 2);
 
   if lvPACK_FLAG <> PACK_FLAG then
@@ -108,11 +105,8 @@ begin
     if lvVerifyValue <> lvVerifyDataValue then
     begin
       Result.Free;
-      Result := nil;
       Result := TObject(-2);
-    end;
-
-
+    end;  
   end else
   begin
     Result := nil;
