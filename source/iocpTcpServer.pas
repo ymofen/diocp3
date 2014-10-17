@@ -13,21 +13,18 @@ unit iocpTcpServer;
 interface
 
 {$IFDEF DEBUG}
-  {$DEFINE LOGGER_ON}
   {$DEFINE DEBUG_ON}
 {$ENDIF}
 {.$DEFINE SOCKET_REUSE}
 
 {$DEFINE USE_HASHTABLE}
 
-{$DEFINE CHANGE_STATE_USE_LOCKER}
-
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
   winsock, iocpWinsock2,
 
   iocpRawSocket, SyncObjs, Windows, SysUtils,
-  {$IFDEF LOGGER_ON}
+  {$IFDEF DEBUG_ON}
     safeLogger,
   {$ENDIF}
   {$IFDEF USE_HASHTABLE}
@@ -122,10 +119,6 @@ type
   {$ENDIF}
   private
     FAlive:Boolean;
-  {$IFDEF CHANGE_STATE_USE_LOCKER}
-  {$ELSE}
-    FLockActive:Boolean;
-  {$ENDIF}
 
 
     // socket/context map
@@ -555,7 +548,7 @@ type
   {$IFEND}
   TIocpTcpServer = class(TComponent)
   private
-  {$IFDEF LOGGER_ON}
+  {$IFDEF DEBUG_ON}
     FSafeLogger:TSafeLogger;
   {$ENDIF}
 
@@ -568,7 +561,7 @@ type
     procedure SetWSARecvBufferSize(const Value: cardinal);
 
     function isDestroying:Boolean;
-  {$IFDEF LOGGER_ON}
+  {$IFDEF DEBUG_ON}
     function logCanWrite:Boolean;
   {$ENDIF}
   protected
@@ -710,6 +703,11 @@ type
     procedure DisconnectAll;
 
     /// <summary>
+    ///   wait for all conntext is off
+    /// </summary>
+    function WaitForContext(pvTimeOut:Integer): Boolean;
+
+    /// <summary>
     ///   get online client list
     /// </summary>
     procedure getOnlineContextList(pvList:TList);
@@ -833,10 +831,19 @@ end;
 procedure TIocpClientContext.InnerCloseContext;
 begin
   Assert(FOwner <> nil);
-  Assert(FReferenceCounter = 0);
-  Assert(FActive);
-{$IFDEF CHANGE_STATE_USE_LOCKER}
-
+{$IFDEF DEBUG_ON}
+  if FReferenceCounter <> 0 then
+    if FOwner.logCanWrite then
+    FOwner.FSafeLogger.logMessage('InnerCloseContext FReferenceCounter:%d', [FReferenceCounter], 'exception_Debug_');
+  if not FActive then
+  begin
+    if FOwner.logCanWrite then
+      FOwner.FSafeLogger.logMessage('InnerCloseContext FActive is false', 'exception_Debug_');
+    exit;
+  end;
+{$ENDIF}
+//  Assert(FReferenceCounter = 0);
+//  Assert(FActive);
   try
     FActive := false;
   {$IFDEF SOCKET_REUSE}
@@ -863,28 +870,6 @@ begin
     FOwner.releaseClientContext(Self);
   end;
 
-{$ELSE}
-  if lock_cmp_exchange(True, False, FLockActive) then
-  begin
-    try
-      FActive := false;
-      FRawSocket.close;
-      checkReleaseRes;
-      FOwner.FOnlineContextList.remove(self);
-
-      try
-        if Assigned(FOwner.FOnClientContextDisconnected) then
-        begin
-          FOwner.FOnClientContextDisconnected(Self);
-        end;
-        OnDisconnected;
-      except
-      end;
-    finally
-      FOwner.releaseClientContext(Self);
-    end;
-  end;
-{$ENDIF}
 end;
 
 procedure TIocpClientContext.lock;
@@ -1126,16 +1111,21 @@ end;
 
 procedure TIocpClientContext.DoConnected;
 begin
-{$IFDEF CHANGE_STATE_USE_LOCKER}
   FContextLocker.lock('DoConnected');
   try
     FSocketHandle := FRawSocket.SocketHandle;
-    if not FActive then
+    Assert(FOwner <> nil);
+    if FActive then
+    begin
+      {$IFDEF DEBUG_ON}
+        if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('on DoConnected event is already actived', 'exception_Debug_');
+      {$ENDIF}
+    end else
     begin
       FActive := true;
-      Assert(FOwner <> nil);
       FOwner.AddToOnlineList(Self);
-      
+
       if self.LockContext('onConnected', Self) then
       try
         if Assigned(FOwner.FOnClientContextConnected) then
@@ -1156,29 +1146,6 @@ begin
   finally
     FContextLocker.unLock;
   end;
-{$ELSE}
-  if lock_cmp_exchange(False, True, FLockActive) = False then
-  begin
-    try
-      if FOwner = nil then
-        Assert(FOwner <> nil);
-
-      FOwner.FOnlineContextList.add(Self);
-      if Assigned(FOwner.FOnClientContextConnected) then
-      begin
-        FOwner.FOnClientContextConnected(Self);
-      end;
-
-      try
-        OnConnected();
-      except
-      end;
-    finally
-      FActive := true;
-    end;
-    PostWSARecvRequest;
-  end;
-{$ENDIF}
 end;
 
 procedure TIocpClientContext.DoDisconnect;
@@ -1414,7 +1381,7 @@ constructor TIocpTcpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FLocker := TIocpLocker.Create('iocpTcpServer');
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
 {$ENDIF}
@@ -1444,7 +1411,7 @@ end;
 
 destructor TIocpTcpServer.Destroy;
 begin
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   FSafeLogger.Enable := false;
 {$ENDIF}
 
@@ -1467,7 +1434,7 @@ begin
   FContextPool.Free;
   FSendRequestPool.Free;
 
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   FSafeLogger.Free;
 {$ENDIF}
   FLocker.Free;
@@ -1528,7 +1495,7 @@ begin
 
 end;
 
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
 function TIocpTcpServer.logCanWrite: Boolean;
 begin
   Result := (not isDestroying) and FSafeLogger.Enable;
@@ -1814,8 +1781,11 @@ begin
 
     DisconnectAll;
 
+    if not WaitForContext(10000) then
+    begin
+      Sleep(10);
+    end;
     Sleep(10);
-
     // engine stop
     FIocpEngine.safeStop;
 
@@ -1880,7 +1850,7 @@ end;
 procedure TIocpTcpServer.SetName(const NewName: TComponentName);
 begin
   inherited;
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   if FSafeLogger.Appender is TLogFileAppender then
   begin
     if NewName <> '' then
@@ -1918,17 +1888,22 @@ var
 {$ENDIF}
 begin
   {$IFDEF USE_HASHTABLE}
-  for I := 0 to FOnlineContextList.BucketSize - 1 do
-  begin
-    lvBucket := FOnlineContextList.Buckets[I];
-    while lvBucket<>nil do
+  FLocker.lock('getOnlineContextList');
+  try
+    for I := 0 to FOnlineContextList.BucketSize - 1 do
     begin
-      if lvBucket.Data <> nil then
+      lvBucket := FOnlineContextList.Buckets[I];
+      while lvBucket<>nil do
       begin
-         pvList.Add(lvBucket.Data);
+        if lvBucket.Data <> nil then
+        begin
+           pvList.Add(lvBucket.Data);
+        end;
+        lvBucket:=lvBucket.Next;
       end;
-      lvBucket:=lvBucket.Next;
     end;
+  finally
+    FLocker.unLock;
   end;
   {$ELSE}
   FOnlineContextList.write2List(pvList);
@@ -1972,6 +1947,34 @@ begin
   FWSASendBufferSize := Value;
   if FWSASendBufferSize <=0 then
     FWSASendBufferSize := 1024 * 8;
+end;
+
+function TIocpTcpServer.WaitForContext(pvTimeOut:Integer): Boolean;
+var
+  l, c:Integer;
+begin
+  l := GetTickCount;
+  c := FOnlineContextList.Count;
+  while (c > 0) do
+  begin
+    {$IFDEF MSWINDOWS}
+    SwitchToThread;
+    {$ELSE}
+    TThread.Yield;
+    {$ENDIF}
+
+    if GetTickCount - l > pvTimeOut then
+    begin
+      {$IFDEF DEBUG_ON}
+       if logCanWrite then
+        FSafeLogger.logMessage('WaitForContext End Current num:%d', [c]);
+      {$ENDIF}
+      Exit;
+    end;
+    c := FOnlineContextList.Count;
+  end;
+
+  Result := FOnlineContextList.Count = 0;  
 end;
 
 procedure TIocpAcceptorMgr.checkPostRequest;
