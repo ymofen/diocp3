@@ -77,6 +77,7 @@ type
     /// </summary>
     function FindFirst(pvHashValue:TDHashValueType): PDHashData;
 
+
     /// <summary>
     ///   find first data by hashValue
     /// </summary>
@@ -107,6 +108,7 @@ type
     ///   exists?
     /// </summary>
     function Exists(pvHashValue: TDHashValueType): Boolean; overload;
+
 
     /// <summary>
     ///   resize bucket length
@@ -168,7 +170,7 @@ begin
   lvBucket.Data:=pvData;
   lvBucket.Hash:=pvHashValue;
 
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
   lvBucket.Next:=FBuckets[lvIndex];
 
   FBuckets[lvIndex]:=lvBucket;
@@ -192,7 +194,7 @@ var
   lvCurrData, lvPrior:PDHashData;
 begin
   Result := False;
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
   lvCurrData:=FBuckets[lvIndex];
   lvPrior:=nil;
 
@@ -233,7 +235,7 @@ var
   lvCurrData:PDHashData;
 begin
   Result := False;
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -255,7 +257,7 @@ var
   lvCurrData:PDHashData;
 begin
   Result := nil;
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -276,7 +278,7 @@ var
   lvCurrData:PDHashData;
 begin
   Result := nil;
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -330,7 +332,7 @@ var
   lvCurrData, lvPrior:PDHashData;
 begin
   Result := False;
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
   lvCurrData:=FBuckets[lvIndex];
   lvPrior:=nil;
   
@@ -363,7 +365,7 @@ var
   lvCurrData:PDHashData;
 begin
   Result := False;
-  lvIndex:=pvHashValue mod FBucketSize;
+  lvIndex:=Integer(pvHashValue) mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -429,7 +431,7 @@ begin
       while lvData<>nil do
       begin
         lvHash := lvData.Hash;
-        lvIndex := lvHash mod FBucketSize;
+        lvIndex := Integer(lvHash) mod FBucketSize;
         lvNext := lvData.Next;
 
         lvData.Next := FBuckets[lvIndex];
@@ -447,5 +449,6 @@ begin
   else
     FOnCompare := Value;
 end;
+
 
 end.

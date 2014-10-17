@@ -18,6 +18,8 @@ interface
 {$ENDIF}
 {.$DEFINE SOCKET_REUSE}
 
+{$DEFINE USE_HASHTABLE}
+
 {$DEFINE CHANGE_STATE_USE_LOCKER}
 
 uses
@@ -28,7 +30,9 @@ uses
   {$IFDEF LOGGER_ON}
     safeLogger,
   {$ENDIF}
-
+  {$IFDEF USE_HASHTABLE}
+    DHashTable,
+  {$ENDIF}
   BaseQueue, iocpLocker;
 
 const
@@ -91,6 +95,8 @@ type
 
     FDebugINfo: string;
     procedure SetDebugINfo(const Value: string);
+
+
 
     function incReferenceCounter(pvDebugInfo: string; pvObj: TObject): Boolean;
 
@@ -579,20 +585,23 @@ type
     // sendRequest pool
     FSendRequestPool: TBaseQueue;
 
-
+    // extend data
+    FDataPtr: Pointer;
 
     /// data record
     FDataMoniter: TIocpDataMonitor;
 
     FActive: Boolean;
 
-
+  {$IFDEF USE_HASHTABLE}
+    FOnlineContextList : TDHashTable;
+  {$ELSE}
     // onlinie hash list
     FClientsHash: array [0..SOCKET_HASH_SIZE] of TIocpClientContext;
-    FDataPtr: Pointer;
-
     // online clientcontext list
     FOnlineContextList: TContextDoublyLinked;
+  {$ENDIF}
+
 
     // acceptEx request mananger
     FIocpAcceptorMgr:TIocpAcceptorMgr;
@@ -1360,30 +1369,40 @@ end;
 
 
 procedure TIocpTcpServer.AddToOnlineList(pvObject: TIocpClientContext);
+{$IFDEF USE_HASHTABLE}
 var
   lvHash:Integer;
+{$ENDIF}
 begin
-  lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
+  {$IFDEF USE_HASHTABLE}
+    FLocker.lock('AddToOnlineList');
+    try
+      FOnlineContextList.Add(pvObject.FSocketHandle, pvObject);
+    finally
+      FLocker.unLock;
+    end;
+  {$ELSE}
+    lvHash := pvObject.RawSocket.SocketHandle and SOCKET_HASH_SIZE;
 
-  pvObject.FPreForHash := nil;
-  
-  FLocker.lock('AddToOnlineList');
-  try
-    pvObject.FNextForHash := FClientsHash[lvHash];
-    if FClientsHash[lvHash] <> nil then
-      FClientsHash[lvHash].FPreForHash := pvObject;
-    FClientsHash[lvHash] := pvObject;
-  finally
-    FLocker.unLock;
-  end;
+    pvObject.FPreForHash := nil;
 
-  FOnlineContextList.add(pvObject);
+    FLocker.lock('AddToOnlineList');
+    try
+      pvObject.FNextForHash := FClientsHash[lvHash];
+      if FClientsHash[lvHash] <> nil then
+        FClientsHash[lvHash].FPreForHash := pvObject;
+      FClientsHash[lvHash] := pvObject;
+    finally
+      FLocker.unLock;
+    end;
+
+    FOnlineContextList.add(pvObject);
+  {$ENDIF}
 end;
 
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
 begin
   Result := (pvClientContext.FOwner = Self);
-  //Result := FOnlineContextList.IndexOf(pvClientContext) <> -1;
 end;
 
 procedure TIocpTcpServer.close;
@@ -1405,8 +1424,11 @@ begin
   FSendRequestPool := TBaseQueue.Create;
     
   FIocpEngine := TIocpEngine.Create();
-
+  {$IFDEF USE_HASHTABLE}
+  FOnlineContextList := TDHashTable.Create(10949);
+  {$ELSE}
   FOnlineContextList := TContextDoublyLinked.Create();
+  {$ENDIF}
 
   FListenSocket := TRawSocket.Create;
 
@@ -1452,24 +1474,58 @@ begin
   inherited Destroy;
 end;
 
+
+
 procedure TIocpTcpServer.DisconnectAll;
+{$IFDEF USE_HASHTABLE}
+var
+  I:Integer;
+  lvBucket: PDHashData;
+  lvClientContext:TIocpClientContext;
+{$ELSE}
 var
   lvClientContext, lvNextContext:TIocpClientContext;
+{$ENDIF}
 begin
+  {$IFDEF USE_HASHTABLE}
+  FLocker.lock('DisconnectAll');
+  try
+    for I := 0 to FOnlineContextList.BucketSize - 1 do
+    begin
+      lvBucket := FOnlineContextList.Buckets[I];
+      while lvBucket<>nil do
+      begin
+        lvClientContext := TIocpClientContext(lvBucket.Data);
+        if lvClientContext <> nil then
+        begin
+          lvClientContext.RequestDisconnect;
+        end;
+        lvBucket:=lvBucket.Next;
+      end;
+    end;
+  finally
+    FLocker.unLock;
+  end;
+  {$ELSE}
   FOnlineContextList.FLocker.lock('DisconnectAll');
   try
+
+
     lvNextContext := FOnlineContextList.FHead;
 
     // request all context discounnt
     while lvNextContext <> nil do
-    begin    
+    begin
       lvClientContext := lvNextContext;
-      lvNextContext := lvNextContext.FNext; 
-      lvClientContext.RequestDisconnect;    
+      lvNextContext := lvNextContext.FNext;
+      lvClientContext.RequestDisconnect;
     end;
   finally
     FOnlineContextList.FLocker.unLock;
   end;
+  {$ENDIF}
+
+
 end;
 
 {$IFDEF LOGGER_ON}
@@ -1585,22 +1641,35 @@ end;
 
 function TIocpTcpServer.findContext(
   pvSocketHandle: TSocket): TIocpClientContext;
+{$IFDEF USE_HASHTABLE}
+
+{$ELSE}
 var
   lvHash:Integer;
   lvObj:TIocpClientContext;
+{$ENDIF}
 begin
-  Result := nil;
-  lvHash := pvSocketHandle and SOCKET_HASH_SIZE;
-  lvObj := FClientsHash[lvHash];
-  while lvObj <> nil do
-  begin
-    if lvObj.FRawSocket.SocketHandle = pvSocketHandle then
+  FLocker.lock('findContext');
+  try
+    {$IFDEF USE_HASHTABLE}
+    Result := TIocpClientContext(FOnlineContextList.FindFirstData(pvSocketHandle));
+    {$ELSE}
+    Result := nil;
+    lvHash := pvSocketHandle and SOCKET_HASH_SIZE;
+    lvObj := FClientsHash[lvHash];
+    while lvObj <> nil do
     begin
-      Result := lvObj;
-      break;
+      if lvObj.FRawSocket.SocketHandle = pvSocketHandle then
+      begin
+        Result := lvObj;
+        break;
+      end;
+      lvObj := lvObj.FNextForHash;
     end;
-    lvObj := lvObj.FNextForHash;
-  end;                           
+    {$ENDIF}
+  finally
+    FLocker.unLock;
+  end;
 end;
 
 function TIocpTcpServer.getClientContext: TIocpClientContext;
@@ -1684,11 +1753,31 @@ begin
 end;
 
 procedure TIocpTcpServer.RemoveFromOnOnlineList(pvObject: TIocpClientContext);
+{$IFDEF USE_HASHTABLE}
+  {$IFDEF DEBUG_ON}
+    var
+      lvSucc:Boolean;
+  {$ENDIF}
+{$ELSE}
 var
   lvHash:Integer;
+{$ENDIF}
 begin
+{$IFDEF USE_HASHTABLE}
+  FLocker.lock('RemoveFromOnOnlineList');
+  try
+    {$IFDEF DEBUG_ON}
+    lvSucc := FOnlineContextList.DeleteFirst(pvObject.FSocketHandle);
+    Assert(lvSucc);
+    {$ELSE}
+    FOnlineContextList.DeleteFirst(pvObject.FSocketHandle);
+    {$ENDIF}                                               
+  finally
+    FLocker.unLock;
+  end;
+{$ELSE} 
   FOnlineContextList.remove(pvObject);
-  
+
   FLocker.lock('RemoveFromOnOnlineList');
   try
     // hash
@@ -1710,6 +1799,8 @@ begin
 
   pvObject.FNextForHash := nil;
   pvObject.FPreForHash := nil;
+{$ENDIF}
+
 end;
 
 procedure TIocpTcpServer.safeStop;
@@ -1819,8 +1910,29 @@ begin
 end;
 
 procedure TIocpTcpServer.getOnlineContextList(pvList:TList);
+{$IFDEF USE_HASHTABLE}
+var
+  I:Integer;
+  lvBucket: PDHashData;
+{$ELSE}
+{$ENDIF}
 begin
+  {$IFDEF USE_HASHTABLE}
+  for I := 0 to FOnlineContextList.BucketSize - 1 do
+  begin
+    lvBucket := FOnlineContextList.Buckets[I];
+    while lvBucket<>nil do
+    begin
+      if lvBucket.Data <> nil then
+      begin
+         pvList.Add(lvBucket.Data);
+      end;
+      lvBucket:=lvBucket.Next;
+    end;
+  end;
+  {$ELSE}
   FOnlineContextList.write2List(pvList);
+  {$ENDIF}
 end;
 
 function TIocpTcpServer.getSendRequest: TIocpSendRequest;
