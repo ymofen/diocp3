@@ -77,8 +77,8 @@ object frmMain: TfrmMain
       object mmoData: TMemo
         Left = 3
         Top = 3
-        Width = 254
-        Height = 94
+        Width = 450
+        Height = 206
         Lines.Strings = (
           '0123456789')
         TabOrder = 0

@@ -1,10 +1,10 @@
 object frmMain: TfrmMain
   Left = 391
   Top = 275
-  Width = 659
-  Height = 411
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 echo server'
+  ClientHeight = 373
+  ClientWidth = 643
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -62,6 +62,10 @@ object frmMain: TfrmMain
     object TabSheet2: TTabSheet
       Caption = 'log'
       ImageIndex = 1
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object mmoLog: TMemo
         Left = 0
         Top = 0

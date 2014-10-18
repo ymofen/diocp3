@@ -33,6 +33,8 @@ type
     procedure refreshState;
     procedure OnRecvBuffer(pvClientContext:TIocpClientContext; buf:Pointer;
         len:cardinal; errCode:Integer);
+    procedure OnAccept(pvSocket: THandle; pvAddr: String; pvPort: Integer; var
+        vAllowAccept: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -55,6 +57,7 @@ begin
   FTcpServer := TIocpTcpServer.Create(Self);
   FTcpServer.Name := 'iocpSVR';
   FTcpServer.OnDataReceived := self.OnRecvBuffer;
+  FTcpServer.OnContextAccept := OnAccept;
   FTcpServer.createDataMonitor;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
 end;
@@ -115,6 +118,14 @@ end;
 procedure TfrmMain.btnGetWorkerStateClick(Sender: TObject);
 begin
   ShowMessage(FTcpServer.IocpEngine.getWorkerStateInfo(0));
+end;
+
+procedure TfrmMain.OnAccept(pvSocket: THandle; pvAddr: String; pvPort: Integer;
+    var vAllowAccept: Boolean);
+begin
+//  if pvAddr = '127.0.0.1' then
+//    vAllowAccept := false;
+
 end;
 
 procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;

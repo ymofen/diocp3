@@ -36,7 +36,7 @@ type
   private
     FSocketHandle: TSocket;
   public
-    procedure close;    
+    procedure close;
     procedure createTcpSocket;
 
     /// <summary>
@@ -60,7 +60,12 @@ type
 
     function setReadTimeOut(const pvTimeOut: Cardinal): Integer;
 
-    procedure CancelIO();
+    function CancelIO: Boolean;
+
+    /// <summary>
+    ///  The shutdown function disables sends or receives on a socket.
+    /// </summary>
+    function ShutDown(pvHow: Integer = SD_BOTH): Integer;
 
     /// <summary>
     ///   default 5000 check alive
@@ -102,9 +107,9 @@ begin
   Result := iocpWinsock2.bind(FSocketHandle, TSockAddr(sockaddr), SizeOf(sockaddr)) = 0;
 end;
 
-procedure TRawSocket.CancelIO;
+function TRawSocket.CancelIO: Boolean;
 begin
-  Windows.CancelIo(FSocketHandle);
+  Result := Windows.CancelIo(FSocketHandle);
 end;
 
 procedure TRawSocket.close;
@@ -115,7 +120,8 @@ begin
   if lvTempSocket <> INVALID_SOCKET then
   begin
     FSocketHandle := INVALID_SOCKET;
-    Windows.CancelIo(lvTempSocket);
+    
+    iocpWinsock2.shutdown(lvTempSocket, SD_BOTH);
     closesocket(lvTempSocket);
   end;
 end;
@@ -300,6 +306,11 @@ function TRawSocket.setReadTimeOut(const pvTimeOut: Cardinal): Integer;
 begin
   Result := setsockopt(FSocketHandle,
    SOL_SOCKET, SO_RCVTIMEO, PAnsiChar(@pvTimeOut), SizeOf(Cardinal));
+end;
+
+function TRawSocket.ShutDown(pvHow: Integer = SD_BOTH): Integer;
+begin
+  Result := iocpWinsock2.shutdown(FSocketHandle, pvHow);
 end;
 
 function TRawSocket.UpdateAcceptContext(pvSocket: TSocket): Boolean;
