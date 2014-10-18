@@ -61,7 +61,7 @@ type
 
     // next Request
     FNext: TIocpRequest;
-
+    
     FOnResponse: TNotifyEvent;
   protected
     FResponding: Boolean;
@@ -76,11 +76,15 @@ type
 
     FBytesTransferred:NativeUInt;
     FCompletionKey:NativeUInt;
+
+
   protected
 
-    procedure HandleResponse; virtual; abstract;
+    procedure HandleResponse; virtual;
 
     function getStateINfo():String; virtual;
+
+    procedure ResponseDone; virtual;
 
   public
     constructor Create;
@@ -90,6 +94,8 @@ type
     property OnResponse: TNotifyEvent read FOnResponse write FOnResponse;
 
     property ErrorCode: Integer read FErrorCode;
+    
+
 
     /// <summary>
     ///   remark
@@ -271,13 +277,13 @@ type
     /// <summary>
     ///   get worker handle response
     /// </summary>
-    function getWorkerStateInfo(pvTimeOut:Integer = 3000): string;
+    function getWorkerStateInfo(pvTimeOut: Cardinal = 3000): string;
 
     /// <summary>
     ///   get thread call stack
     /// </summary>
-    function getWorkerStackInfos(pvThreadStackFunc:TThreadStackFunc;
-        pvTimeOut:Integer = 3000): string;
+    function getWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc; pvTimeOut:
+        Cardinal = 3000): string;
 
     /// <summary>
     ///   kill worker
@@ -460,6 +466,7 @@ var
   lpOverlapped:POVERLAPPEDEx;
 
   lpCompletionKey:ULONG_PTR;
+  lvTempRequest:TIocpRequest;
 begin
   FIocpEngine.incAliveWorker;
 
@@ -503,26 +510,35 @@ begin
 
         Inc(FResponseCounter);
 
-        FLastRequest := lpOverlapped.iocpRequest;
-        /// reply io request, invoke handleRepsone to do ....
+        lvTempRequest := lpOverlapped.iocpRequest;
+        FLastRequest := lvTempRequest;
+        try
+          if FLastRequest = nil then
+          begin
+            Assert(FLastRequest<>NIL);
+          end;
+          /// reply io request, invoke handleRepsone to do ....
 
-        lpOverlapped.iocpRequest.FResponding := true;
-        lpOverlapped.iocpRequest.FRespondStartTime := Now();
-        lpOverlapped.iocpRequest.FRespondStartTickCount := GetTickCount;
-        lpOverlapped.iocpRequest.FRespondEndTime := 0;
-        lpOverlapped.iocpRequest.FiocpWorker := Self;
-        lpOverlapped.iocpRequest.FErrorCode := lvErrCode;
-        lpOverlapped.iocpRequest.FBytesTransferred := lvBytesTransferred;
-        lpOverlapped.iocpRequest.FCompletionKey := lpCompletionKey;
-        if Assigned(lpOverlapped.iocpRequest.FOnResponse) then
-        begin
-          lpOverlapped.iocpRequest.FOnResponse(lpOverlapped.iocpRequest);
-        end else
-        begin
-          lpOverlapped.iocpRequest.HandleResponse();
+          lvTempRequest.FResponding := true;
+          lvTempRequest.FRespondStartTime := Now();
+          lvTempRequest.FRespondStartTickCount := GetTickCount;
+          lvTempRequest.FRespondEndTime := 0;
+          lvTempRequest.FiocpWorker := Self;
+          lvTempRequest.FErrorCode := lvErrCode;
+          lvTempRequest.FBytesTransferred := lvBytesTransferred;
+          lvTempRequest.FCompletionKey := lpCompletionKey;
+          if Assigned(lvTempRequest.FOnResponse) then
+          begin
+            lvTempRequest.FOnResponse(lvTempRequest);
+          end else
+          begin
+            lvTempRequest.HandleResponse();
+          end;
+          lvTempRequest.FRespondEndTime := Now();
+          lvTempRequest.FResponding := false;
+        finally
+          lvTempRequest.ResponseDone;
         end;
-        lpOverlapped.iocpRequest.FRespondEndTime := Now();
-        lpOverlapped.iocpRequest.FResponding := false;
 
       end else
       begin
@@ -690,8 +706,8 @@ begin
   end;
 end;
 
-function TIocpEngine.getWorkerStackInfos(pvThreadStackFunc:TThreadStackFunc;
-    pvTimeOut:Integer = 3000): string;
+function TIocpEngine.getWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc;
+    pvTimeOut: Cardinal = 3000): string;
 var
   lvStrings :TStrings;
   i, j:Integer;
@@ -734,7 +750,7 @@ begin
   end;
 end;
 
-function TIocpEngine.getWorkerStateInfo(pvTimeOut:Integer = 3000): string;
+function TIocpEngine.getWorkerStateInfo(pvTimeOut: Cardinal = 3000): string;
 var
   lvStrings :TStrings;
   i, j:Integer;
@@ -1119,6 +1135,16 @@ begin
     Result :=Result + sLineBreak + Format('start:%s, end:%s',
       [FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondStartTime),FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondEndTime)]);
   end;
+end;
+
+procedure TIocpRequest.HandleResponse;
+begin
+  
+end;
+
+procedure TIocpRequest.ResponseDone;
+begin
+
 end;
 
 initialization

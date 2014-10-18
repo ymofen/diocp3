@@ -438,7 +438,6 @@ procedure TSafeLogger.stopWorker;
 var
   l:Cardinal;
   lvWrite:Boolean;
-  s:String;
 begin
   if FLogWorker <> nil then
   begin

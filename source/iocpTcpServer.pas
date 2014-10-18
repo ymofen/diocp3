@@ -298,6 +298,11 @@ type
   /// </summary>
   TIocpSendRequest = class(TIocpRequest)
   private
+    /// <summary>
+    ///   can return to pool
+    /// </summary>
+    FCanGiveBack:Boolean;
+    
     // for singlelinked
     FNext:TIocpSendRequest;
 
@@ -319,8 +324,7 @@ type
 
     FOwner: TIocpTcpServer;
 
-    FClientContext:TIocpClientContext;
-
+    FClientContext:TIocpClientContext; 
 
     FOnDataRequestCompleted: TOnDataRequestCompleted;
     /// <summary>
@@ -347,6 +351,9 @@ type
     ///   iocp reply request, run in iocp thread
     /// </summary>
     procedure HandleResponse; override;
+
+
+    procedure ResponseDone; override;
 
 
     procedure DoCleanUp;virtual;
@@ -415,7 +422,9 @@ type
 
   protected
     procedure HandleResponse; override;
-    
+
+    procedure ResponseDone; override;
+
   public
     constructor Create(AOwner: TIocpTcpServer);
   end;
@@ -705,7 +714,7 @@ type
     /// <summary>
     ///   wait for all conntext is off
     /// </summary>
-    function WaitForContext(pvTimeOut:Integer): Boolean;
+    function WaitForContext(pvTimeOut: Cardinal): Boolean;
 
     /// <summary>
     ///   get online client list
@@ -1517,7 +1526,7 @@ var
       begin
         {$IFDEF DEBUG_ON}
          if logCanWrite then
-          FSafeLogger.logMessage('OnAcceptEvent vAllowAccept = false, Error:%d', [lvErrCode]);
+          FSafeLogger.logMessage('OnAcceptEvent vAllowAccept = false');
         {$ENDIF}
       end;
     end;
@@ -1526,26 +1535,17 @@ var
       if FKeepAlive then
       begin
         Result := pvRequest.FClientContext.FRawSocket.setKeepAliveOption();
-
         if not Result then
-        begin       // set option fail
-           lvErrCode := GetLastError;
-          {$IFDEF DEBUG_ON}  
+        begin
+          lvErrCode := GetLastError;
+          {$IFDEF DEBUG_ON}
            if logCanWrite then
             FSafeLogger.logMessage('FClientContext.FRawSocket.setKeepAliveOption, Error:%d', [lvErrCode]);
           {$ENDIF}
-
-          pvRequest.FClientContext.FRawSocket.close;
-
-          // relase client context object
-          releaseClientContext(pvRequest.FClientContext);
-          pvRequest.FClientContext := nil;
         end;
-      end else
-      begin
-        Result := true;
       end;
     end;
+
   end;
 begin
   if pvRequest.FErrorCode = 0 then
@@ -1571,6 +1571,13 @@ begin
           pvRequest.FClientContext.DoConnected;
         end;
        {$ENDIF}
+    end else
+    begin
+      pvRequest.FClientContext.FRawSocket.close;
+      // relase client context object
+      releaseClientContext(pvRequest.FClientContext);
+      pvRequest.FClientContext := nil;
+
     end;
   end else
   begin
@@ -1949,9 +1956,10 @@ begin
     FWSASendBufferSize := 1024 * 8;
 end;
 
-function TIocpTcpServer.WaitForContext(pvTimeOut:Integer): Boolean;
+function TIocpTcpServer.WaitForContext(pvTimeOut: Cardinal): Boolean;
 var
-  l, c:Integer;
+  l:Cardinal;
+  c:Integer;
 begin
   l := GetTickCount;
   c := FOnlineContextList.Count;
@@ -2084,22 +2092,17 @@ begin
     InterlockedIncrement(FOwner.FDataMoniter.FResponseWSAAcceptExCounter);
   end;
 
-  try
-    if FErrorCode = 0 then
-    begin
-      // msdn
-      // The socket sAcceptSocket does not inherit the properties of the socket
-      //  associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT
-      //  is set on the socket.
-      FOwner.FListenSocket.UpdateAcceptContext(FClientContext.FRawSocket.SocketHandle);
+  if FErrorCode = 0 then
+  begin
+    // msdn
+    // The socket sAcceptSocket does not inherit the properties of the socket
+    //  associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT
+    //  is set on the socket.
+    FOwner.FListenSocket.UpdateAcceptContext(FClientContext.FRawSocket.SocketHandle);
 
-      getPeerINfo();
-    end;
-    FOwner.DoAcceptExResponse(Self);
-  finally
-    FAcceptorMgr.releaseRequestObject(Self);
+    getPeerINfo();
   end;
-
+  FOwner.DoAcceptExResponse(Self); 
 end;
 
 function TIocpAcceptExRequest.PostRequest: Boolean;
@@ -2167,6 +2170,12 @@ begin
   begin
     Result := True;
   end;
+end;
+
+procedure TIocpAcceptExRequest.ResponseDone;
+begin
+  inherited;
+  FAcceptorMgr.releaseRequestObject(Self);
 end;
 
 constructor TIocpRecvRequest.Create;
@@ -2358,6 +2367,8 @@ procedure TIocpSendRequest.HandleResponse;
 var
   lvCompleted:Boolean;  // all buffer is sent, for release self
 begin
+  FCanGiveBack := False;
+  
   FIsBusying := false;
   lvCompleted := true;   // default true
   try
@@ -2415,10 +2426,11 @@ begin
     end;
   finally
     FClientContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
-    if lvCompleted then    // 
+
+    if lvCompleted then    //
     begin
-      // release request
-      FOwner.releaseSendRequest(Self);
+      //in reponseDone return to pool
+      FCanGiveBack := True;
     end;
   end;
 end;
@@ -2507,6 +2519,15 @@ end;
 procedure TIocpSendRequest.onSendRequestSucc;
 begin
   FPosition := FPosition + self.FBytesTransferred;
+end;
+
+procedure TIocpSendRequest.ResponseDone;
+begin
+  inherited;
+  if FCanGiveBack then
+  begin
+    FOwner.releaseSendRequest(Self);
+  end; 
 end;
 
 procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
@@ -2765,7 +2786,6 @@ function TContextDoublyLinked.remove(pvContext:TIocpClientContext): Boolean;
 var
   p,n:TIocpClientContext;
 begin
-  Result := false;
   {$IFDEF DEBUG_ON}
   Assert(pvContext <> nil);
   Assert(indexOf(pvContext) <> -1);
