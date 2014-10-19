@@ -1054,27 +1054,29 @@ begin
   FContextLocker.lock('RequestDisconnect');
   
   {$IFDEF SOCKET_REUSE}
+  lvCloseContext := False;
   if not FRequestDisconnect then
   begin
     // cancel
-    //FRawSocket.ShutDown();
+    FRawSocket.ShutDown();
 
-    // post
+    // post succ, in handleReponse Event do
     if not FDisconnectExRequest.PostRequest then
-    begin
+    begin      // post fail,
       FRawSocket.close;
+      if FReferenceCounter = 0 then  lvCloseContext := true;    //      lvCloseContext := true;   //directly close
     end;
     FRequestDisconnect := True;
   end;
   {$ELSE}
   FRequestDisconnect := True;
-  {$ENDIF}
-
   if FReferenceCounter = 0 then  lvCloseContext := true;
+  {$ENDIF}
 
   FContextLocker.unLock;
 
   {$IFDEF SOCKET_REUSE}
+  if lvCloseContext then InnerCloseContext;
   {$ELSE}
   if lvCloseContext then InnerCloseContext else FRawSocket.close;
   {$ENDIF}

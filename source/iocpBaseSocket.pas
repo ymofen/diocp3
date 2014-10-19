@@ -14,9 +14,12 @@ unit iocpBaseSocket;
 
 interface
 
-{$DEFINE LOGGER_ON}
-{$DEFINE DEBUG_MSG_ON}
+{$IFDEF DEBUG}
+  {$DEFINE DEBUG_ON}
+{$ENDIF}
 
+{.$DEFINE SOCKET_REUSE}
+{$DEFINE USE_HASHTABLE}
 
 {$DEFINE CHANGE_STATE_USE_LOCKER}
 
@@ -25,7 +28,7 @@ uses
   winsock, iocpWinsock2,
 
   iocpRawSocket, SyncObjs, Windows, SysUtils,
-  {$IFDEF LOGGER_ON}
+  {$IFDEF DEBUG_ON}
     safeLogger,
   {$ENDIF}
 
@@ -524,11 +527,11 @@ type
 
   TIocpBaseSocket = class(TComponent)
   private
-  {$IFDEF LOGGER_ON}
+  {$IFDEF DEBUG_ON}
     FSafeLogger:TSafeLogger;
   {$ENDIF}
 
-  {$IFDEF DEBUG_MSG_ON}
+  {$IFDEF DEBUG_ON}
     FDebug_SendRequestCounter:Integer;
     FDebug_SendRequestReleaseCounter:Integer;
   {$ENDIF}
@@ -538,7 +541,7 @@ type
     procedure SetWSARecvBufferSize(const Value: Cardinal);
 
     function isDestroying:Boolean;
-  {$IFDEF LOGGER_ON}
+  {$IFDEF DEBUG_ON}
     function logCanWrite:Boolean;
   {$ENDIF}
 
@@ -714,7 +717,7 @@ function lock_cmp_exchange(cmp_val, new_val: Boolean; var target: Boolean):
 
 implementation
 
-//{$IFDEF DEBUG_MSG_ON}
+//{$IFDEF DEBUG_ON}
 //procedure logDebugMessage(pvMsg: string; const args: array of const);
 //begin
 //  sfLogger.logMessage(pvMsg, args);
@@ -757,7 +760,7 @@ begin
       end;
     end else
     begin
-    {$IFDEF DEBUG_MSG_ON}
+    {$IFDEF DEBUG_ON}
       if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('TIocpBaseContext.checkNextSendRequest.checkStart return false',  []);
     {$ENDIF}
@@ -785,7 +788,7 @@ begin
 //      end;
 //    end else
 //    begin
-//      {$IFDEF DEBUG_MSG_ON}
+//      {$IFDEF DEBUG_ON}
 //       if FOwner.logCanWrite then
 //        FOwner.FSafeLogger.logMessage(
 //          'TIocpBaseContext.checkNextSendRequest.checkStart return false',  [],
@@ -905,12 +908,15 @@ end;
 procedure TIocpBaseContext.DoCleanUp;
 begin
   FOwner := nil;
+
+
   if FActive then
   begin
     FRawSocket.close;
     FActive := false;
     checkReleaseRes;
   end;
+  FSending := false;
 end;
 
 procedure TIocpBaseContext.DoConnected;
@@ -1134,7 +1140,7 @@ begin
 
       if not Result then
       begin
-      {$IFDEF DEBUG_MSG_ON}
+      {$IFDEF DEBUG_ON}
         if FOwner.logCanWrite then
           FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
            [FSendRequestLink.Count]);
@@ -1238,11 +1244,11 @@ end;
 constructor TIocpBaseSocket.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
 {$ENDIF}
-  {$IFDEF DEBUG_MSG_ON}
+  {$IFDEF DEBUG_ON}
   FDebug_SendRequestCounter:=0;
   {$ENDIF}
   FOnlineContextList := TContextDoublyLinked.Create();
@@ -1261,7 +1267,7 @@ end;
 
 destructor TIocpBaseSocket.Destroy;
 begin
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   FSafeLogger.Enable := false;
 {$ENDIF}
   FIsDestroying := true;
@@ -1277,7 +1283,7 @@ begin
   FIocpEngine.Free;
 
   FSendRequestPool.Free;
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
   FSafeLogger.Free;
 {$ENDIF}
   inherited Destroy;
@@ -1309,7 +1315,7 @@ begin
   Result := FIsDestroying or (csDestroying in self.ComponentState);
 end;
 
-{$IFDEF LOGGER_ON}
+{$IFDEF DEBUG_ON}
 function TIocpBaseSocket.logCanWrite: Boolean;
 begin
   Result := (not isDestroying) and FSafeLogger.Enable;
@@ -1444,7 +1450,7 @@ begin
   Result.FAlive := true;
   Result.DoCleanup;
   Result.FOwner := Self;
-  {$IFDEF DEBUG_MSG_ON}
+  {$IFDEF DEBUG_ON}
   InterlockedIncrement(FDebug_SendRequestCounter);
   {$ENDIF}
 end;
@@ -1631,7 +1637,7 @@ end;
 
 procedure TIocpRecvRequest.HandleResponse;
 begin
-  {$IFDEF DEBUG_MSG_ON}
+  {$IFDEF DEBUG_ON}
   InterlockedDecrement(FOverlapped.refCount);
   if FOverlapped.refCount <> 0 then
     Assert(FOverlapped.refCount <>0);
@@ -1647,7 +1653,7 @@ begin
 
     if ErrorCode <> 0 then
     begin
-    {$IFDEF DEBUG_MSG_ON}
+    {$IFDEF DEBUG_ON}
       if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',
           [ErrorCode], 'DEBUG_', lgvDebug);
@@ -1658,7 +1664,7 @@ begin
       FContext.RequestDisconnect;
     end else if (FBytesTransferred = 0) then
     begin      // no data recvd, socket is break
-    {$IFDEF DEBUG_MSG_ON}
+    {$IFDEF DEBUG_ON}
       if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',
          [], 'DEBUG_', lgvDebug);
@@ -1698,7 +1704,7 @@ begin
 
   if FContext.incReferenceCounter('TIocpRecvRequest.WSARecvRequest.Post', Self) then
   begin
-    {$IFDEF DEBUG_MSG_ON}
+    {$IFDEF DEBUG_ON}
     InterlockedIncrement(FOverlapped.refCount);
     FDebugInfo := IntToStr(intPtr(FContext));
     {$ENDIF}
@@ -1718,7 +1724,7 @@ begin
       Result := lvRet = WSA_IO_PENDING;
       if not Result then
       begin
-        {$IFDEF DEBUG_MSG_ON}
+        {$IFDEF DEBUG_ON}
          if FOwner.logCanWrite then
           FOwner.FSafeLogger.logMessage(
             'TIocpRecvRequest.PostRequest Error:%d',  [lvRet],
@@ -1821,7 +1827,7 @@ begin
 
     if ErrorCode <> 0 then
     begin
-     {$IFDEF DEBUG_MSG_ON}
+     {$IFDEF DEBUG_ON}
       if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage(
           'TIocpSendRequest.HandleResponse ErrorCode:%d',  [ErrorCode],
@@ -1854,7 +1860,7 @@ begin
         if not checkSendNextBlock then
         begin
           lvCompleted := True;  // exception, send break;
-          {$IFDEF DEBUG_MSG_ON}
+          {$IFDEF DEBUG_ON}
            if FOwner.logCanWrite then
             FOwner.FSafeLogger.logMessage(
               'TIocpSendRequest.checkSendNextBlock return false',  [],
@@ -1872,7 +1878,7 @@ begin
     if lvCompleted then    //
     begin
       // release request
-      {$IFDEF DEBUG_MSG_ON}
+      {$IFDEF DEBUG_ON}
         //FOwner.releaseSendRequest(Self);
         if FOwner.releaseSendRequest(Self) then
            InterlockedIncrement(FOwner.FDebug_SendRequestReleaseCounter)
@@ -1916,7 +1922,7 @@ begin
       begin
         try
            FIsBusying := False;
-           {$IFDEF DEBUG_MSG_ON}
+           {$IFDEF DEBUG_ON}
            if FOwner.logCanWrite then
               FOwner.FSafeLogger.logMessage(
                 'TIocpSendRequest.InnerPostRequest Error:%d', [lvRet],
@@ -1927,7 +1933,7 @@ begin
         except  
            on e:Exception do
            begin
-            {$IFDEF DEBUG_MSG_ON}
+            {$IFDEF DEBUG_ON}
                if FOwner.logCanWrite then
                  FOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Exception:' + E.Message, '', lgvError);
             {$ENDIF}
@@ -2250,7 +2256,7 @@ var
   lvErrCode:Integer;
   lp:Pointer;
 begin
-  {$IFDEF DEBUG_MSG_ON}
+  {$IFDEF DEBUG_ON}
   self.Remark := Format('正在连接%s(%d)', [pvHost, pvPort]);
   {$ENDIF}
   

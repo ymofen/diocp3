@@ -285,11 +285,6 @@ type
     function getWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc; pvTimeOut:
         Cardinal = 3000): string;
 
-    /// <summary>
-    ///   kill worker
-    /// </summary>
-    function KillWorker(pvTimeOut:Integer = 30000):Integer;
-
     constructor Create;
 
     destructor Destroy; override;
@@ -794,33 +789,6 @@ end;
 procedure TIocpEngine.incAliveWorker;
 begin
   InterlockedIncrement(FActiveWorkerCount);
-end;
-
-function TIocpEngine.KillWorker(pvTimeOut: Integer): Integer;
-var
-  i:Integer;
-  lvWorker:TIocpWorker;
-begin
-  Result := 0;
-  self.FWorkerLocker.lock;
-  try
-    for i := 0 to FWorkerList.Count - 1 do
-    begin
-      lvWorker := TIocpWorker(FWorkerList[i]);
-
-      if lvWorker.checkFlag(WORKER_ISBUSY) then
-      begin
-        if GetTickCount - lvWorker.FLastRequest.FRespondStartTickCount > pvTimeOut then
-        begin
-          TerminateThread(lvWorker.Handle, 0);
-          Self.decAliveWorker(lvWorker);
-          Inc(Result);
-        end;
-      end;
-    end;
-  finally
-    self.FWorkerLocker.Leave;
-  end;
 end;
 
 procedure TIocpEngine.safeStop;
