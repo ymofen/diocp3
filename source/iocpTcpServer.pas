@@ -25,9 +25,7 @@ uses
   winsock, iocpWinsock2,
 
   iocpRawSocket, SyncObjs, Windows, SysUtils,
-  {$IFDEF DEBUG_ON}
-    safeLogger,
-  {$ENDIF}
+  safeLogger,
   {$IFDEF USE_HASHTABLE}
     DHashTable,
   {$ENDIF}
@@ -35,6 +33,8 @@ uses
 
 const
   SOCKET_HASH_SIZE = $FFFF;
+
+  CORE_LOG_FILE = 'diocp_core_exception';
 
 
 type
@@ -564,9 +564,7 @@ type
   {$IFEND}
   TIocpTcpServer = class(TComponent)
   private
-  {$IFDEF DEBUG_ON}
     FSafeLogger:TSafeLogger;
-  {$ENDIF}
 
     FLocker:TIocpLocker;
 
@@ -577,9 +575,7 @@ type
     procedure SetWSARecvBufferSize(const Value: cardinal);
 
     function isDestroying:Boolean;
-  {$IFDEF DEBUG_ON}
     function logCanWrite:Boolean;
-  {$ENDIF}
   protected
     FClientContextClass:TIocpClientContextClass;
 
@@ -1050,7 +1046,6 @@ procedure TIocpClientContext.RequestDisconnect;
 var
   lvCloseContext:Boolean;
 begin
-  lvCloseContext := false;
   FContextLocker.lock('RequestDisconnect');
   
   {$IFDEF SOCKET_REUSE}
@@ -1069,6 +1064,7 @@ begin
     FRequestDisconnect := True;
   end;
   {$ELSE}
+  lvCloseContext := False;
   FRequestDisconnect := True;
   if FReferenceCounter = 0 then  lvCloseContext := true;
   {$ENDIF}
@@ -1365,6 +1361,7 @@ end;
 
 procedure TIocpTcpServer.AddToOnlineList(pvObject: TIocpClientContext);
 {$IFDEF USE_HASHTABLE}
+{$ELSE}
 var
   lvHash:Integer;
 {$ENDIF}
@@ -1409,10 +1406,8 @@ constructor TIocpTcpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FLocker := TIocpLocker.Create('iocpTcpServer');
-{$IFDEF DEBUG_ON}
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
-{$ENDIF}
 
   FKeepAlive := true;
   FContextPool := TBaseQueue.Create;
@@ -1428,7 +1423,7 @@ begin
   FListenSocket := TRawSocket.Create;
 
   FIocpAcceptorMgr := TIocpAcceptorMgr.Create(Self, FListenSocket);
-  FIocpAcceptorMgr.FMaxRequest := 1;
+  FIocpAcceptorMgr.FMaxRequest := 100;
   FIocpAcceptorMgr.FMinRequest := 1;
 
   // post wsaRecv block size
@@ -1439,9 +1434,7 @@ end;
 
 destructor TIocpTcpServer.Destroy;
 begin
-{$IFDEF DEBUG_ON}
   FSafeLogger.Enable := false;
-{$ENDIF}
 
   FIsDestroying := true;
 
@@ -1462,9 +1455,9 @@ begin
   FContextPool.Free;
   FSendRequestPool.Free;
 
-{$IFDEF DEBUG_ON}
+
   FSafeLogger.Free;
-{$ENDIF}
+
   FLocker.Free;
   inherited Destroy;
 end;
@@ -1523,16 +1516,23 @@ begin
 
 end;
 
-{$IFDEF DEBUG_ON}
+
 function TIocpTcpServer.logCanWrite: Boolean;
 begin
   Result := (not isDestroying) and FSafeLogger.Enable;
 end;
-{$ENDIF}
+
 
 procedure TIocpTcpServer.DoAcceptExResponse(pvRequest: TIocpAcceptExRequest);
+
+{$IFDEF SOCKET_REUSE}
 var
-  lvRet, lvErrCode:Integer;
+  lvErrCode:Integer;
+{$ELSE}
+var
+  lvRet:Integer;
+  lvErrCode:Integer;
+{$ENDIF}
   function DoAfterAcceptEx():Boolean;
   begin
     Result := true;
@@ -2013,7 +2013,7 @@ begin
        if logCanWrite then
         FSafeLogger.logMessage('WaitForContext End Current num:%d', [c]);
       {$ENDIF}
-      Exit;
+      Break;
     end;
     c := FOnlineContextList.Count;
   end;
@@ -2067,7 +2067,7 @@ begin
       if i > 100 then
       begin
          if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('TIocpAcceptorMgr.checkPostRequest errCounter:%d', [i], 'core_exception_');
+          FOwner.FSafeLogger.logMessage('TIocpAcceptorMgr.checkPostRequest errCounter:%d', [i], CORE_LOG_FILE);
          Break;
       end;
     end;
@@ -2188,12 +2188,11 @@ begin
     if lvRetCode = 0 then
     begin     // binding error
       lvErrCode := GetLastError;
-      {$IFDEF DEBUG_ON}
-       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage(
-          'bind2IOCPHandle(%d) in TIocpAcceptExRequest.PostRequest(SOCKET_REUSE) occur Error :%d',
-          [FClientContext.FRawSocket.SocketHandle, lvErrCode]);
-      {$ENDIF}
+      if FOwner.logCanWrite then
+       FOwner.FSafeLogger.logMessage(
+        'bind2IOCPHandle(%d) in TIocpAcceptExRequest.PostRequest(SOCKET_REUSE) occur Error :%d',
+        [FClientContext.FRawSocket.SocketHandle, lvErrCode], CORE_LOG_FILE);
+
       FClientContext.FRawSocket.close;
       if (FOwner.FDataMoniter <> nil) then
         FOwner.FDataMoniter.incHandleDestroyCounter;
@@ -2223,11 +2222,10 @@ begin
     Result := lvErrCode = WSA_IO_PENDING;
     if not Result then
     begin
-      {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('IocpAcceptEx(%d, %d) in TIocpAcceptExRequest.PostRequest occur Error:%d',
-          [FOwner.FListenSocket.SocketHandle, FClientContext.FRawSocket.SocketHandle,  lvErrCode]);
-      {$ENDIF}
+          [FOwner.FListenSocket.SocketHandle, FClientContext.FRawSocket.SocketHandle,
+          lvErrCode], CORE_LOG_FILE);
 
       FOwner.DoClientContextError(FClientContext, lvErrCode);
 
