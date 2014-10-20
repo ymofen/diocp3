@@ -1043,7 +1043,7 @@ begin
     
   FContextLocker.unLock; 
   
-  if lvCloseContext then InnerCloseContext; 
+  if lvCloseContext then InnerCloseContext;
 end;
 
 procedure TIocpClientContext.RequestDisconnect;
@@ -1574,10 +1574,19 @@ begin
      {$IFDEF SOCKET_REUSE}
       pvRequest.FClientContext.DoConnected;
      {$ELSE}
-      lvRet := FIocpEngine.IocpCore.bind2IOCPHandle(pvRequest.FClientContext.FRawSocket.SocketHandle, 0);
+      lvRet := FIocpEngine.IocpCore.bind2IOCPHandle(
+         pvRequest.FClientContext.FRawSocket.SocketHandle, 0);
       if lvRet = 0 then
       begin     // binding error
         lvErrCode := GetLastError;
+
+        {$IFDEF DEBUG_ON}
+         if FOwner.logCanWrite then
+         FOwner.FSafeLogger.logMessage(
+            'bind2IOCPHandle(%d) in TIocpTcpServer.DoAcceptExResponse occur Error :%d',
+            [FClientContext.FRawSocket.SocketHandle, lvErrCode]);
+        {$ENDIF}
+
         DoClientContextError(pvRequest.FClientContext, lvErrCode);
 
         pvRequest.FClientContext.FRawSocket.close;
@@ -2015,12 +2024,14 @@ end;
 procedure TIocpAcceptorMgr.checkPostRequest;
 var
   lvRequest:TIocpAcceptExRequest;
+  i:Integer;
 begin
   Assert(FOwner <> nil);
   FLocker.lock;
   try
     if FList.Count > FMinRequest then Exit;
 
+    i := 0;
     // post request
     while FList.Count < FMaxRequest do
     begin
@@ -2036,9 +2047,28 @@ begin
         end;
       end else
       begin     // post fail
-        lvRequest.FClientContext.SetSocketState(ssDisconnected);
-        FOwner.releaseClientContext(lvRequest.FClientContext);
+        inc(i);
+
+        try
+          // free this object instead return to pool
+          lvRequest.FClientContext.FAlive := false;
+          lvRequest.FClientContext.Free;
+        except
+        end;
+
+        // return to pool
+        //lvRequest.FClientContext.SetSocketState(ssDisconnected);
+        //FOwner.releaseClientContext(lvRequest.FClientContext);
+
+        // free request
         releaseRequestObject(lvRequest);
+      end;
+
+      if i > 100 then
+      begin
+         if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('TIocpAcceptorMgr.checkPostRequest errCounter:%d', [i], 'core_exception_');
+         Break;
       end;
     end;
   finally
@@ -2160,7 +2190,9 @@ begin
       lvErrCode := GetLastError;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpAcceptExRequest.PostRequest Error :%d', [lvErrCode]);
+        FOwner.FSafeLogger.logMessage(
+          'bind2IOCPHandle(%d) in TIocpAcceptExRequest.PostRequest(SOCKET_REUSE) occur Error :%d',
+          [FClientContext.FRawSocket.SocketHandle, lvErrCode]);
       {$ENDIF}
       FClientContext.FRawSocket.close;
       if (FOwner.FDataMoniter <> nil) then
@@ -2193,9 +2225,14 @@ begin
     begin
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('FIocpEngine.IocpCore.bind2IOCPHandle Error:%d', [lvErrCode]);
+        FOwner.FSafeLogger.logMessage('IocpAcceptEx(%d, %d) in TIocpAcceptExRequest.PostRequest occur Error:%d',
+          [FOwner.FListenSocket.SocketHandle, FClientContext.FRawSocket.SocketHandle,  lvErrCode]);
       {$ENDIF}
+
       FOwner.DoClientContextError(FClientContext, lvErrCode);
+
+      /// destroy socket
+      FClientContext.RawSocket.close;
     end;
   end else
   begin

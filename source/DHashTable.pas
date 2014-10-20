@@ -40,8 +40,8 @@ type
   private
     FOnCompare: TOnDataCompare;
 
-    FBucketSize:Integer;
-    
+    FBucketSize: Cardinal;
+
     FCount:Integer;
 
     FBuckets:TDBuckets;
@@ -60,7 +60,7 @@ type
     procedure SetOnCompare(const Value: TOnDataCompare);
 
   public
-    constructor Create(pvBucketSize: Integer = 1361);
+    constructor Create(pvBucketSize: Cardinal = 1361);
 
     /// <summary>
     ///   for each element and invoke callback proc
@@ -117,7 +117,7 @@ type
 
     property Buckets[AIndex: Integer]: PDHashData read GetBuckets;
 
-    property BucketSize: Integer read FBucketSize;
+    property BucketSize: Cardinal read FBucketSize;
 
     property Count: Integer read FCount;
 
@@ -153,7 +153,7 @@ begin
   FCount:=0;
 end;
 
-constructor TDHashTable.Create(pvBucketSize: Integer = 1361);
+constructor TDHashTable.Create(pvBucketSize: Cardinal = 1361);
 begin
   inherited Create;
   SetBucketSize(pvBucketSize);
@@ -162,7 +162,7 @@ end;
 
 procedure TDHashTable.Add(pvHashValue: TDHashValueType; pvData: Pointer);
 var
-  lvIndex:Integer;
+  lvIndex :Cardinal;
   lvBucket:PDHashData;
 begin
   CreateHashData(lvBucket);
@@ -170,7 +170,7 @@ begin
   lvBucket.Data:=pvData;
   lvBucket.Hash:=pvHashValue;
 
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex := pvHashValue mod FBucketSize;
   lvBucket.Next:=FBuckets[lvIndex];
 
   FBuckets[lvIndex]:=lvBucket;
@@ -190,11 +190,11 @@ end;
 
 function TDHashTable.DeleteFirst(pvHashValue: TDHashValueType): Boolean;
 var
-  lvIndex:Integer;
+  lvIndex:Cardinal;
   lvCurrData, lvPrior:PDHashData;
 begin
   Result := False;
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex:=pvHashValue mod FBucketSize;
   lvCurrData:=FBuckets[lvIndex];
   lvPrior:=nil;
 
@@ -231,11 +231,11 @@ end;
 function TDHashTable.Exists(pvHashValue: TDHashValueType; pvData: Pointer):
     Boolean;
 var
-  lvIndex:Integer;
+  lvIndex:Cardinal;
   lvCurrData:PDHashData;
 begin
   Result := False;
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex:=pvHashValue mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do

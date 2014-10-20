@@ -161,7 +161,7 @@ end;
 function TRawSocket.GetIpAddrByName(const host:string): String;
 var
   lvhostInfo:PHostEnt;
-  lvErr:Integer;
+//  lvErr:Integer;
 begin
   lvhostInfo := gethostbyname(PAnsiChar(AnsiString(host)));
 
