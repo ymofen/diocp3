@@ -1,2 +1,4 @@
 1.修复DHashTable中计算数组位置时可能出现负数，而导致访问违规错误（2014-10-20 14:18:43）
 2.在AcceptEx出现异常后，销毁Socket句柄，以免下次重用时出现相同的错误。
+3.响应完成后TIocpRecvRequest.HandleResponse，
+  先判断是否需要再次投递RecvRequest,然后再减少Context的引用计算器。避免该Context进行返回到连接池后，又进行借出。导致在后面再进行操作时对应的Context不对应
