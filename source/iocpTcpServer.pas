@@ -2050,7 +2050,7 @@ begin
     begin
       {$IFDEF DEBUG_ON}
        if logCanWrite then
-        FSafeLogger.logMessage('WaitForContext End Current num:%d', [c]);
+        FSafeLogger.logMessage('WaitForContext End Current num:%d', [c], CORE_LOG_FILE);
       {$ENDIF}
       Break;
     end;
