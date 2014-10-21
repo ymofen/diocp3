@@ -477,8 +477,16 @@ type
     FHandleCreateCounter:Integer;
     FHandleDestroyCounter:Integer;
 
+    FContextCreateCounter: Integer;
+    FContextOutCounter:Integer;
+    FContextReturnCounter:Integer;
+
     FPushSendQueueCounter: Integer;
     FResponseSendObjectCounter:Integer;
+
+    FSendRequestCreateCounter: Integer;
+    FSendRequestOutCounter:Integer;
+    FSendRequestReturnCounter:Integer;
 
     FPostWSASendCounter:Integer;
     FResponseWSASendCounter:Integer;
@@ -515,8 +523,12 @@ type
 
     procedure clear;
 
+    property ContextCreateCounter: Integer read FContextCreateCounter;
+    property ContextOutCounter: Integer read FContextOutCounter;
+    property ContextReturnCounter: Integer read FContextReturnCounter;
     property HandleCreateCounter: Integer read FHandleCreateCounter;
     property HandleDestroyCounter: Integer read FHandleDestroyCounter;
+    property Locker: TCriticalSection read FLocker;
     property PushSendQueueCounter: Integer read FPushSendQueueCounter;
     property PostSendObjectCounter: Integer read FPostSendObjectCounter;
     property ResponseSendObjectCounter: Integer read FResponseSendObjectCounter;
@@ -532,6 +544,9 @@ type
     property ResponseWSAAcceptExCounter: Integer read FResponseWSAAcceptExCounter;
     property ResponseWSARecvCounter: Integer read FResponseWSARecvCounter;
     property ResponseWSASendCounter: Integer read FResponseWSASendCounter;
+    property SendRequestCreateCounter: Integer read FSendRequestCreateCounter;
+    property SendRequestOutCounter: Integer read FSendRequestOutCounter;
+    property SendRequestReturnCounter: Integer read FSendRequestReturnCounter;
     property SentSize: Int64 read FSentSize;
   end;
 
@@ -1696,11 +1711,19 @@ begin
       Result := TIocpClientContext.Create;
       onCreateClientContext(Result);
     end;
+    if (FDataMoniter <> nil) then
+    begin
+      InterlockedIncrement(FDataMoniter.FContextCreateCounter);
+    end;
     Result.FSendRequestLink.setMaxSize(FMaxSendingQueueSize);
   end;
   Result.FAlive := True;
   Result.DoCleanUp;
   Result.Owner := Self;
+  if (FDataMoniter <> nil) then
+  begin
+    InterlockedIncrement(FDataMoniter.FContextOutCounter);
+  end;
 end;
 
 function TIocpTcpServer.GetWorkerCount: Integer;
@@ -1742,6 +1765,10 @@ begin
   begin
     pvObject.DoCleanUp;
     FContextPool.Push(pvObject);
+    if (FDataMoniter <> nil) then
+    begin
+      InterlockedIncrement(FDataMoniter.FContextReturnCounter);
+    end;
     Result := true;
   end else
   begin
@@ -1754,6 +1781,10 @@ begin
   Assert(FSendRequestPool <> nil);
   if lock_cmp_exchange(True, False, pvObject.FAlive) = True then
   begin
+    if (FDataMoniter <> nil) then
+    begin
+      InterlockedIncrement(FDataMoniter.FSendRequestReturnCounter);
+    end;
     FSendRequestPool.Push(pvObject);
     Result := true;
   end else
@@ -1970,10 +2001,18 @@ begin
     begin
       Result := TIocpSendRequest.Create;
     end;
+    if (FDataMoniter <> nil) then
+    begin
+      InterlockedIncrement(FDataMoniter.FSendRequestCreateCounter);
+    end;
   end;
   Result.FAlive := true;
   Result.DoCleanup;
   Result.FOwner := Self;
+  if (FDataMoniter <> nil) then
+  begin
+    InterlockedIncrement(FDataMoniter.FSendRequestOutCounter);
+  end;
 end;
 
 procedure TIocpTcpServer.SetWSARecvBufferSize(const Value: cardinal);
@@ -2298,14 +2337,15 @@ begin
       FClientContext.DoReceiveData;
     end;
   finally
-    FClientContext.decReferenceCounter(
-      Format('debugInfo:%s, refcount:%d, TIocpRecvRequest.WSARecvRequest.HandleResponse',
-        [FDebugInfo,FOverlapped.refCount]), Self);
-
     if not FClientContext.FRequestDisconnect then
     begin
       FClientContext.PostWSARecvRequest;
     end;
+
+    // may return to pool
+    FClientContext.decReferenceCounter(
+      Format('TIocpRecvRequest.WSARecvRequest.HandleResponse, debugInfo:%s, refcount:%d',
+        [FDebugInfo,FOverlapped.refCount]), Self);                                     
   end;
 end;
 
@@ -2629,9 +2669,11 @@ begin
     FRecvSize:=0;
     FPostWSASendSize:=0;
 
+    FContextCreateCounter := 0;
     FPostWSASendCounter:=0;
     FResponseWSASendCounter:=0;
 
+    FSendRequestCreateCounter := 0;
     FPostWSARecvCounter:=0;
     FResponseWSARecvCounter:=0;
 
@@ -2917,15 +2959,17 @@ begin
     lvErrorCode := WSAGetLastError;
     if lvErrorCode <> ERROR_IO_PENDING then
     begin
-      FContext.decReferenceCounter(
-        Format('TIocpDisconnectExRequest.PostRequest Error: %d', [lvErrorCode]), Self
-        );
       // do normal close;
       FContext.RawSocket.close;
       {$IFDEF DEBUG_ON}
          if FOwner.logCanWrite then
            FOwner.FSafeLogger.logMessage('TIocpDisconnectExRequest.PostRequest Error:%d',  [lvErrorCode]);
       {$ENDIF}
+
+      // context may return to pool
+      FContext.decReferenceCounter(
+        Format('TIocpDisconnectExRequest.PostRequest Error: %d', [lvErrorCode]), Self
+        );
       Result := false;
     end else
     begin
@@ -2948,15 +2992,17 @@ begin
       lvErrorCode := WSAGetLastError;
       if lvErrorCode <> ERROR_IO_PENDING then
       begin
-        FContext.decReferenceCounter(
-          Format('TIocpDisconnectExRequest.PostRequest Error: %d', [lvErrorCode]), Self
-          );
         // do normal close;
         FContext.RawSocket.close;
         {$IFDEF DEBUG_ON}
            if FOwner.logCanWrite then
              FOwner.FSafeLogger.logMessage('TIocpDisconnectExRequest.PostRequest Error:%d',  [lvErrorCode]);
         {$ENDIF}
+
+        // context may return to pool
+        FContext.decReferenceCounter(
+          Format('TIocpDisconnectExRequest.PostRequest Error: %d', [lvErrorCode]), Self
+          );
         Result := false;
       end else
       begin
