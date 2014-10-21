@@ -52,49 +52,49 @@ object FMMonitor: TFMMonitor
   end
   object Label4: TLabel
     Left = 16
-    Top = 197
+    Top = 192
     Width = 48
     Height = 13
     Caption = 'acceptex:'
   end
   object lblAcceptEx: TLabel
     Left = 96
-    Top = 197
+    Top = 192
     Width = 55
     Height = 13
     Caption = 'lblAcceptEx'
   end
   object lblOnlineCounter: TLabel
     Left = 96
-    Top = 217
+    Top = 236
     Width = 79
     Height = 13
     Caption = 'lblOnlineCounter'
   end
   object Label5: TLabel
     Left = 16
-    Top = 217
+    Top = 236
     Width = 32
     Height = 13
     Caption = 'online:'
   end
   object lblRunTimeINfo: TLabel
     Left = 96
-    Top = 257
+    Top = 276
     Width = 72
     Height = 13
     Caption = 'lblRunTimeINfo'
   end
   object Label6: TLabel
     Left = 16
-    Top = 236
+    Top = 255
     Width = 42
     Height = 13
     Caption = 'workers:'
   end
   object lblWorkerCount: TLabel
     Left = 96
-    Top = 236
+    Top = 255
     Width = 79
     Height = 13
     Cursor = crHandPoint
@@ -110,7 +110,7 @@ object FMMonitor: TFMMonitor
   end
   object Label7: TLabel
     Left = 16
-    Top = 257
+    Top = 276
     Width = 43
     Height = 13
     Caption = 'run time:'
@@ -156,6 +156,34 @@ object FMMonitor: TFMMonitor
     Width = 68
     Height = 13
     Caption = 'Socket Handle'
+  end
+  object lblContextInfo: TLabel
+    Left = 96
+    Top = 214
+    Width = 69
+    Height = 13
+    Caption = 'lblContextInfo'
+  end
+  object Label2: TLabel
+    Left = 16
+    Top = 214
+    Width = 62
+    Height = 13
+    Caption = 'context info:'
+  end
+  object lblSendRequest: TLabel
+    Left = 352
+    Top = 192
+    Width = 74
+    Height = 13
+    Caption = 'lblSendRequest'
+  end
+  object Label10: TLabel
+    Left = 272
+    Top = 192
+    Width = 63
+    Height = 13
+    Caption = 'sendRequest'
   end
   object tmrReader: TTimer
     Enabled = False

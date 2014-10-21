@@ -29,6 +29,10 @@ type
     Label8: TLabel;
     lblSocketHandle: TLabel;
     lblSocketHandleCaption: TLabel;
+    lblContextInfo: TLabel;
+    Label2: TLabel;
+    lblSendRequest: TLabel;
+    Label10: TLabel;
     procedure lblRecvDblClick(Sender: TObject);
     procedure lblWorkerCountClick(Sender: TObject);
     procedure tmrReaderTimer(Sender: TObject);
@@ -122,7 +126,15 @@ begin
        FIocpTcpServer.DataMoniter.ResponseWSASendCounter
      ]
     );
-    
+
+  lblSendRequest.Caption := Format('create:%d, out:%d, return:%d',
+     [
+       FIocpTcpServer.DataMoniter.SendRequestCreateCounter,
+       FIocpTcpServer.DataMoniter.SendRequestOutCounter,
+       FIocpTcpServer.DataMoniter.SendRequestReturnCounter
+     ]
+    );
+
   lblSendQueue.Caption := Format('push/pop/complted:%d, %d, %d',
      [
        FIocpTcpServer.DataMoniter.PushSendQueueCounter,
@@ -144,6 +156,16 @@ begin
      [
        FIocpTcpServer.DataMoniter.HandleCreateCounter,
        FIocpTcpServer.DataMoniter.HandleDestroyCounter
+     ]
+    );
+
+  lblContextInfo.Caption := Format('create:%d, out:%d, return:%d',
+     [
+       FIocpTcpServer.DataMoniter.ContextCreateCounter,
+       FIocpTcpServer.DataMoniter.ContextOutCounter,
+       FIocpTcpServer.DataMoniter.ContextReturnCounter
+
+
      ]
     );
 
