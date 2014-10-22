@@ -9,7 +9,7 @@ unit DHashTable;
 interface
 
 uses
-  SysUtils;
+  SysUtils, SyncObjs;
 
 
 type
@@ -61,6 +61,8 @@ type
 
   public
     constructor Create(pvBucketSize: Cardinal = 1361);
+
+    destructor Destroy; override;
 
     /// <summary>
     ///   for each element and invoke callback proc
@@ -124,6 +126,20 @@ type
     property OnDelete: TOnDataNotify read FOnDelete write FOnDelete;
 
     property OnCompare: TOnDataCompare read FOnCompare write SetOnCompare;
+
+  end;
+
+  TDHashTableSafe = class(TDHashTable)
+  private
+    FLocker: TCriticalSection;
+  public
+    constructor Create(pvBucketSize: Cardinal = 1361);
+    destructor Destroy; override;
+
+    procedure Lock();
+
+    procedure unLock();
+
 
   end;
 
@@ -219,6 +235,12 @@ begin
       lvCurrData:=lvPrior.Next;
     end;
   end;
+end;
+
+destructor TDHashTable.Destroy;
+begin
+  Clear;
+  inherited;
 end;
 
 procedure TDHashTable.DoDelete(AHash:TDHashValueType; AData:Pointer);
@@ -452,5 +474,27 @@ begin
     FOnCompare := Value;
 end;
 
+constructor TDHashTableSafe.Create(pvBucketSize: Cardinal = 1361);
+begin
+  inherited Create(pvBucketSize);
+  FLocker := TCriticalSection.Create();
+end;
+
+destructor TDHashTableSafe.Destroy;
+begin
+  FreeAndNil(FLocker);
+  inherited Destroy;
+end;
+
+
+procedure TDHashTableSafe.Lock;
+begin
+  FLocker.Enter;
+end;
+
+procedure TDHashTableSafe.unLock;
+begin
+  FLocker.Leave;
+end;
 
 end.

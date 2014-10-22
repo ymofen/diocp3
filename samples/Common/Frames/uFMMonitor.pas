@@ -135,11 +135,12 @@ begin
      ]
     );
 
-  lblSendQueue.Caption := Format('push/pop/complted:%d, %d, %d',
+  lblSendQueue.Caption := Format('push/pop/complted/abort:%d, %d, %d, %d',
      [
        FIocpTcpServer.DataMoniter.PushSendQueueCounter,
        FIocpTcpServer.DataMoniter.PostSendObjectCounter,
-       FIocpTcpServer.DataMoniter.ResponseSendObjectCounter
+       FIocpTcpServer.DataMoniter.ResponseSendObjectCounter,
+       FIocpTcpServer.DataMoniter.SendRequestAbortCounter
      ]
     );
   lblSentSize.Caption := TRunTimeINfoTools.transByteSize(FIocpTcpServer.DataMoniter.SentSize);

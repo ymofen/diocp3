@@ -162,6 +162,17 @@ var
   // data pool of PQueueData
   queueDataPool :TQueueDataPool;
 
+function IsDebugMode: Boolean;
+begin
+{$IFDEF MSWINDOWS}
+{$warn symbol_platform off}
+  Result := Boolean(DebugHook);
+{$warn symbol_platform on}
+{$ELSE}
+  Result := false;
+{$ENDIF}
+end;
+
 constructor TBaseQueue.Create;
 begin
   inherited Create;
@@ -175,7 +186,9 @@ end;
 destructor TBaseQueue.Destroy;
 begin
   {$IFDEF DEBUG_ON}
+  if IsDebugMode then
     Assert(FPopCounter = FPushCounter, ('[' + FName + ']PopCounter <> PushCounter'));
+
   {$ENDIF}
 
   Clear;
@@ -386,6 +399,7 @@ var
   lvData: PQueueData;
 begin
   {$IFDEF DEBUG_ON}
+  if IsDebugMode then
     Assert(FPopCounter = FPushCounter, ('PopCounter <> PushCounter'));
   {$ENDIF}
 
@@ -457,6 +471,7 @@ end;
 destructor TSimpleQueue.Destroy;
 begin
   {$IFDEF DEBUG_ON}
+  if IsDebugMode then
     Assert(FPopCounter = FPushCounter, ('[' + FName + ']PopCounter <> PushCounter'));
   {$ENDIF}
 

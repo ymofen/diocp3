@@ -12,10 +12,14 @@ unit iocpEngine;
 
 interface
 
+{$IFDEF DEBUG}
+  {$DEFINE DEBUG_ON}
+{$ENDIF}
+
 uses
   Windows, iocpProtocol, SysUtils, Classes, SyncObjs
   , ComObj, ActiveX, iocpLocker;
-{$DEFINE __DEBUG}
+
 
 {$IF CompilerVersion> 23}
   {$define varNativeUInt}
@@ -351,9 +355,11 @@ type
 
   end;
 
+function IsDebugMode: Boolean;
+
 implementation
 
-{$IFDEF __DEBUG}
+{$IFDEF DEBUG_ON}
 var
   workerCounter:Integer;
 {$ENDIF}
@@ -364,9 +370,18 @@ resourcestring
   strDebug_Worker_INfo       = 'thread id: %d, response count: %d';
   strDebug_Worker_StateINfo  = 'busying:%s, waiting:%s, reserved:%s ';
   strDebug_Request_Title     = 'request state info:';
-  
 
 
+function IsDebugMode: Boolean;
+begin
+{$IFDEF MSWINDOWS}
+{$warn symbol_platform off}
+  Result := Boolean(DebugHook);
+{$warn symbol_platform on}
+{$ELSE}
+  Result := false;
+{$ENDIF}
+end;
 
 function getCPUCount: Integer;
 {$IFDEF MSWINDOWS}
@@ -465,7 +480,7 @@ var
 begin
   FIocpEngine.incAliveWorker;
 
-{$IFDEF __DEBUG}
+{$IFDEF DEBUG_ON}
   InterlockedIncrement(workerCounter);
 {$ENDIF}
 
@@ -559,7 +574,7 @@ begin
   if FCoInitialized then CoUninitialize();
 
   
-{$IFDEF __DEBUG}
+{$IFDEF DEBUG_ON}
   InterlockedDecrement(workerCounter);
 {$ENDIF}
 
@@ -811,7 +826,7 @@ begin
       // all worker thread is dead
 
       FWorkerList.Clear;
-      {$IFDEF __DEBUG}
+      {$IFDEF DEBUG_ON}
       workerCounter := 0;
       {$ENDIF} 
       if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
@@ -1116,14 +1131,15 @@ begin
 end;
 
 initialization
-{$IFDEF __DEBUG}
+{$IFDEF DEBUG_ON}
   workerCounter := 0;
 {$ENDIF}
 
 
 finalization
-{$IFDEF __DEBUG}
-  Assert(workerCounter = 0, ('iocpEngine workerCounter :' + IntToStr(workerCounter)));
+{$IFDEF DEBUG_ON}
+  if IsDebugMode then
+    Assert(workerCounter = 0, ('iocpEngine workerCounter :' + IntToStr(workerCounter)));
 {$ENDIF}
 
 end.
