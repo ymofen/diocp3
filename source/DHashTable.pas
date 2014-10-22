@@ -51,7 +51,7 @@ type
     procedure DoDelete(AHash:TDHashValueType; AData:Pointer);
 
     procedure CreateHashData(var vData: PDHashData);
-    function GetBuckets(AIndex: Integer): PDHashData;
+    function GetBuckets(AIndex: Cardinal): PDHashData;
 
     procedure ReleaseHashData(var vData: PDHashData);
 
@@ -115,7 +115,7 @@ type
     /// </summary>
     procedure SetBucketSize(pvBucketSize:Integer);
 
-    property Buckets[AIndex: Integer]: PDHashData read GetBuckets;
+    property Buckets[AIndex: Cardinal]: PDHashData read GetBuckets;
 
     property BucketSize: Cardinal read FBucketSize;
 
@@ -253,11 +253,11 @@ end;
 
 function TDHashTable.FindFirst(pvHashValue:TDHashValueType): PDHashData;
 var
-  lvIndex:Integer;
+  lvIndex:Cardinal;
   lvCurrData:PDHashData;
 begin
   Result := nil;
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex:=pvHashValue mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -274,11 +274,11 @@ end;
 
 function TDHashTable.FindFirstData(pvHashValue:TDHashValueType): Pointer;
 var
-  lvIndex:Integer;
+  lvIndex:Cardinal;
   lvCurrData:PDHashData;
 begin
   Result := nil;
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex:=pvHashValue mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -310,9 +310,9 @@ begin
   end;
 end;
 
-function TDHashTable.GetBuckets(AIndex: Integer): PDHashData;
+function TDHashTable.GetBuckets(AIndex: Cardinal): PDHashData;
 begin
-  if (AIndex < 0) or (AIndex>=FBucketSize) then
+  if (AIndex>=FBucketSize) then
   begin
     raise EDHashTableException.CreateFmt(SHashTableIndexError, [AIndex]);
   end;
@@ -328,11 +328,11 @@ end;
 function TDHashTable.DeleteFirst(pvHashValue: TDHashValueType; pvData:
     Pointer): Boolean;
 var
-  lvIndex:Integer;
+  lvIndex:Cardinal;
   lvCurrData, lvPrior:PDHashData;
 begin
   Result := False;
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex:=pvHashValue mod FBucketSize;
   lvCurrData:=FBuckets[lvIndex];
   lvPrior:=nil;
   
@@ -361,11 +361,11 @@ end;
 
 function TDHashTable.Exists(pvHashValue: TDHashValueType): Boolean;
 var
-  lvIndex:Integer;
+  lvIndex:Cardinal;
   lvCurrData:PDHashData;
 begin
   Result := False;
-  lvIndex:=Integer(pvHashValue) mod FBucketSize;
+  lvIndex:=pvHashValue mod FBucketSize;
 
   lvCurrData:=FBuckets[lvIndex];
   while Assigned(lvCurrData) do
@@ -389,7 +389,7 @@ const
     179669557,359339171,718678369,1437356741,2147483647
     );
 var
-  I, lvIndex, lvBucketSize:Integer;
+  I, lvIndex, lvBucketSize:Cardinal;
   lvHash  : TDHashValueType;
   lvOldBuckets: TDBuckets;
   lvData, lvNext: PDHashData;
@@ -431,7 +431,7 @@ begin
       while lvData<>nil do
       begin
         lvHash := lvData.Hash;
-        lvIndex := Integer(lvHash) mod FBucketSize;
+        lvIndex := lvHash mod FBucketSize;
         lvNext := lvData.Next;
 
         lvData.Next := FBuckets[lvIndex];

@@ -16,7 +16,7 @@ interface
   {$DEFINE DEBUG_ON}
 {$ENDIF}
 
-{$DEFINE SOCKET_REUSE}
+{.$DEFINE SOCKET_REUSE}
 
 {$DEFINE USE_HASHTABLE}
 
@@ -121,10 +121,12 @@ type
   private
     FAlive:Boolean;
 
-
+    {$IFDEF USE_HASHTABLE}
+    {$ELSE}
     // socket/context map
     FPreForHash:TIocpClientContext;
     FNextForHash:TIocpClientContext;
+    {$ENDIF}
 
 
     // link
@@ -1096,22 +1098,28 @@ end;
 
 destructor TIocpClientContext.Destroy;
 begin
-  if FReferenceCounter <> 0 then
+  if DebugHook = 1 then
   begin
-    Assert(FReferenceCounter = 0);
-  end;
+    if FReferenceCounter <> 0 then
+    begin
+      Assert(FReferenceCounter = 0);
+    end;
 
-  if FSendRequestLink.Count > 0 then
-  begin
-    Assert(FSendRequestLink.Count = 0);
+    if FSendRequestLink.Count > 0 then
+    begin
+      Assert(FSendRequestLink.Count = 0);
+    end;
   end;
 
   FRawSocket.close;
   FRawSocket.Free;
 
   FRecvRequest.Free;
-
-  Assert(FSendRequestLink.Count = 0);
+  
+  if DebugHook = 1 then
+  begin
+    Assert(FSendRequestLink.Count = 0);
+  end;
 
   {$IFDEF SOCKET_REUSE}
   FDisconnectExRequest.Free;
@@ -1126,7 +1134,11 @@ end;
 procedure TIocpClientContext.DoCleanUp;
 begin
   FOwner := nil;
-  Assert(FReferenceCounter = 0);
+  if DebugHook = 1 then
+  begin
+    Assert(FReferenceCounter = 0);
+  end;
+
   FRequestDisconnect := false;
   FSending := false;
 
@@ -1596,10 +1608,10 @@ begin
         lvErrCode := GetLastError;
 
         {$IFDEF DEBUG_ON}
-         if FOwner.logCanWrite then
-         FOwner.FSafeLogger.logMessage(
+         if logCanWrite then
+         FSafeLogger.logMessage(
             'bind2IOCPHandle(%d) in TIocpTcpServer.DoAcceptExResponse occur Error :%d',
-            [FClientContext.FRawSocket.SocketHandle, lvErrCode]);
+            [pvRequest.FClientContext.RawSocket.SocketHandle, lvErrCode]);
         {$ENDIF}
 
         DoClientContextError(pvRequest.FClientContext, lvErrCode);
@@ -1855,7 +1867,7 @@ begin
 
     DisconnectAll;
 
-    if not WaitForContext(10000) then
+    if not WaitForContext(30000) then
     begin
       Sleep(10);
     end;
@@ -2299,9 +2311,13 @@ end;
 
 procedure TIocpRecvRequest.HandleResponse;
 begin
+  {$IFDEF DEBUG_ON}
   InterlockedDecrement(FOverlapped.refCount);
   if FOverlapped.refCount <> 0 then
+  begin
     Assert(FOverlapped.refCount <>0);
+  end;
+  {$ENDIF}
 
   Assert(FOwner <> nil);
   try
@@ -2317,6 +2333,8 @@ begin
        if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('IocpRecvRequest response server enginee is off');
       {$ENDIF}
+      // avoid postWSARecv
+      FClientContext.RequestDisconnect;
     end else if FErrorCode <> 0 then
     begin
       {$IFDEF DEBUG_ON}
@@ -2483,10 +2501,16 @@ begin
     begin                                                       
       FOwner.FDataMoniter.incSentSize(FBytesTransferred);
       FOwner.FDataMoniter.incResponseWSASendCounter;
-
     end;
-
-    if FErrorCode <> 0 then
+    if not FOwner.Active then
+    begin
+      {$IFDEF DEBUG_ON}
+       if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse server enginee is off');
+      {$ENDIF}
+      // avoid postWSARecv
+      FClientContext.RequestDisconnect;
+    end else if FErrorCode <> 0 then
     begin
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
@@ -2952,7 +2976,6 @@ function TIocpDisconnectExRequest.DirectlyPost: Boolean;
 var
   lvErrorCode:Integer;
 begin
-  Result := False;
   Result := IocpDisconnectEx(FContext.RawSocket.SocketHandle, @FOverlapped, TF_REUSE_SOCKET, 0);
   if not Result then
   begin
