@@ -389,7 +389,8 @@ const
     179669557,359339171,718678369,1437356741,2147483647
     );
 var
-  I, lvIndex, lvBucketSize:Cardinal;
+  lvIndex, lvBucketSize:Cardinal;
+  I :Integer;
   lvHash  : TDHashValueType;
   lvOldBuckets: TDBuckets;
   lvData, lvNext: PDHashData;
@@ -424,6 +425,7 @@ begin
     // empty
     for I := 0 to FBucketSize - 1 do FBuckets[I]:=nil;
 
+    
     // rearrange element
     for I := 0 to High(lvOldBuckets) do
     begin        
