@@ -3,8 +3,8 @@ unit uIOCPMsgPackCoder;
 interface
 
 uses
-  uIOCPCentre, uBuffer, qmsgpack, Classes, uNetworkTools,
-  uZipTools, SysUtils, uIOCPProtocol, uMyTypes, uMsgPackObject;
+  uIocpCoder, uBuffer, qmsgpack, Classes, 
+  uZipTools, SysUtils, uMsgPackObject, uByteTools;
 
 const
   MAX_OBJECT_SIZE = 1024 * 1024 * 10;  //最大对象大小 10M , 大于10M 则会认为错误的包。
@@ -32,7 +32,8 @@ type
     ///   返回解码好的对象
     /// </returns>
     /// <param name="inBuf"> 接收到的流数据 </param>
-    function Decode(const inBuf: TBufferLink): TObject; override;
+    function Decode(const inBuf: TBufferLink; pvContext: TObject): TObject;
+        override;
   end;
 
 implementation
@@ -92,7 +93,8 @@ begin
   ouBuf.AddBuffer(@lvPACK_FLAG, 2);
   //Head_len: zip + namespaceid
   lvHeadlen := SizeOf(lvZiped) + SizeOf(lvNameSpaceID);
-  lvWriteL := TNetworkTools.htonl(lvHeadlen);
+
+  lvWriteL := TByteTools.swap32(lvHeadlen);
   //head_len
   ouBuf.AddBuffer(@lvWriteL, SizeOf(lvWriteL));
 
@@ -102,7 +104,7 @@ begin
   ouBuf.AddBuffer(@lvNameSpaceID, SizeOf(lvNameSpaceID));
 
   //data_len
-  lvWriteL := TNetworkTools.htonl(lvDataLen);
+  lvWriteL := TByteTools.swap32(lvDataLen);
   ouBuf.AddBuffer(@lvWriteL, SizeOf(lvWriteL));
   //data
   ouBuf.AddBuffer(@lvBytes[0], lvDataLen);
@@ -110,7 +112,8 @@ end;
 
 { TIOCPMsgPackDecoder }
 
-function TIOCPMsgPackDecoder.Decode(const inBuf: TBufferLink): TObject;
+function TIOCPMsgPackDecoder.Decode(const inBuf: TBufferLink; pvContext:
+    TObject): TObject;
 var
   lvBytes, lvHeadBytes:SysUtils.TBytes;
   lvValidCount, lvReadL:Integer;
@@ -143,7 +146,7 @@ begin
 
   //headlen
   inBuf.readBuffer(@lvReadL, SizeOf(lvReadL));
-  lvHeadlen := TNetworkTools.ntohl(lvReadL);
+  lvHeadlen := TByteTools.swap32(lvReadL);
 
   if lvHeadlen > 0 then
   begin
@@ -173,7 +176,7 @@ begin
 
   //buf_len
   inBuf.readBuffer(@lvReadL, SizeOf(lvReadL));
-  lvDataLen := TNetworkTools.ntohl(lvReadL);
+  lvDataLen := TByteTools.swap32(lvReadL);
 
   ///如果数据过大，
   if (lvDataLen > MAX_OBJECT_SIZE)  then
