@@ -52,7 +52,7 @@ object frmMain: TfrmMain
     Top = 56
     Width = 795
     Height = 292
-    ActivePage = TabSheet1
+    ActivePage = tsMonitor
     TabOrder = 4
     object TabSheet1: TTabSheet
       Caption = 'TabSheet1'
