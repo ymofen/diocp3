@@ -56,7 +56,6 @@ object frmMain: TfrmMain
     TabOrder = 4
     object tsPuller: TTabSheet
       Caption = 'tsPuller'
-      ExplicitWidth = 558
       object ListView1: TListView
         Left = 0
         Top = 41
@@ -78,7 +77,6 @@ object frmMain: TfrmMain
           end>
         TabOrder = 0
         ViewStyle = vsReport
-        ExplicitWidth = 558
       end
       object pnlPullerOperator: TPanel
         Left = 0
@@ -88,14 +86,11 @@ object frmMain: TfrmMain
         Align = alTop
         BevelOuter = bvNone
         TabOrder = 1
-        ExplicitTop = -6
-        ExplicitWidth = 558
       end
     end
     object tsMoniter: TTabSheet
       Caption = 'Moniter'
       ImageIndex = 1
-      ExplicitWidth = 558
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -105,7 +100,6 @@ object frmMain: TfrmMain
         BevelKind = bkTile
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitWidth = 558
       end
     end
   end
