@@ -103,7 +103,7 @@ type
   end;
 
 
-  TIocpCoderClientSocket = class(TIocpClientSocket)
+  TIocpCoderClient = class(TIocpClientSocket)
   public
     constructor Create(AOwner: TComponent); override;
   end;
@@ -310,9 +310,9 @@ begin
   FBufferLink := pvBufferLink;
 end;
 
-{ TIocpCoderClientSocket }
+{ TIocpCoderClient }
 
-constructor TIocpCoderClientSocket.Create(AOwner: TComponent);
+constructor TIocpCoderClient.Create(AOwner: TComponent);
 begin
   inherited;
   registerContextClass(TIocpCoderRemoteContext);
