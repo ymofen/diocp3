@@ -34,6 +34,9 @@ uses
 
   BaseQueue, iocpLocker;
 
+const
+  CORE_LOG_FILE = 'diocp_core_exception';
+
 
 type
   TIocpBaseSocket = class;
@@ -108,6 +111,7 @@ type
     FcurrSendRequest:TIocpSendRequest;
 
     FData: Pointer;
+    FOnConnectedEvent: TNotifyContextEvent;
     FOnSocketStateChanged: TNotifyEvent;
 
     /// sendRequest link
@@ -224,12 +228,14 @@ type
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
         true): Boolean;
 
-
     property Active: Boolean read FActive;
 
     property Data: Pointer read FData write FData;
 
     property DebugINfo: string read FDebugINfo write SetDebugINfo;
+    
+    property OnConnectedEvent: TNotifyContextEvent read FOnConnectedEvent write
+        FOnConnectedEvent;
 
     property Owner: TIocpBaseSocket read FOwner write SetOwner;
 
@@ -239,6 +245,8 @@ type
 
     property OnSocketStateChanged: TNotifyEvent read FOnSocketStateChanged write
         FOnSocketStateChanged;
+
+
 
 
 
@@ -645,6 +653,10 @@ type
     ///   get online client list
     /// </summary>
     procedure getOnlineContextList(pvList:TList);
+    /// <summary>
+    ///   wait for all conntext is off
+    /// </summary>
+    function WaitForContext(pvTimeOut: Cardinal): Boolean;
 
     /// <summary>
     ///   client connections counter
@@ -820,7 +832,8 @@ end;
 
 procedure TIocpBaseContext.Close;
 begin
-  FRawSocket.close;
+//  FRawSocket.close;
+  RequestDisconnect;
 end;
 
 constructor TIocpBaseContext.Create;
@@ -932,11 +945,16 @@ begin
 
       FOwner.FOnlineContextList.add(Self);
       try
+
         if Assigned(FOwner.FOnContextConnected) then
         begin
           FOwner.FOnContextConnected(Self);
         end;
         OnConnected();
+        if Assigned(FOnConnectedEvent) then
+        begin
+          FOnConnectedEvent(Self);
+        end; 
       except
       end;
 
@@ -1359,6 +1377,8 @@ begin
 
   DisconnectAll;
 
+  WaitForContext(30000);
+
   // engine Stop
   FIocpEngine.safeStop;
 end;
@@ -1474,6 +1494,35 @@ begin
   FWSASendBufferSize := Value;
   if FWSASendBufferSize <=0 then
     FWSASendBufferSize := 1024 * 8;
+end;
+
+function TIocpBaseSocket.WaitForContext(pvTimeOut: Cardinal): Boolean;
+var
+  l:Cardinal;
+  c:Integer;
+begin
+  l := GetTickCount;
+  c := FOnlineContextList.Count;
+  while (c > 0) do
+  begin
+    {$IFDEF MSWINDOWS}
+    SwitchToThread;
+    {$ELSE}
+    TThread.Yield;
+    {$ENDIF}
+
+    if GetTickCount - l > pvTimeOut then
+    begin
+      {$IFDEF DEBUG_ON}
+       if logCanWrite then
+        FSafeLogger.logMessage('WaitForContext End Current num:%d', [c], CORE_LOG_FILE);
+      {$ENDIF}
+      Break;
+    end;
+    c := FOnlineContextList.Count;
+  end;
+
+  Result := FOnlineContextList.Count = 0;  
 end;
 
 procedure TIocpAcceptorMgr.checkPostRequest(pvContext: TIocpBaseContext);
@@ -1651,11 +1700,18 @@ begin
       FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
     end;
 
-    if ErrorCode <> 0 then
+    if not FOwner.Active then
+    begin
+      {$IFDEF DEBUG_ON}
+      if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('TIocpRecvRequest Owner Off', 'DEBUG_', lgvDebug);
+      {$ENDIF}
+      FContext.RequestDisconnect;
+    end else if ErrorCode <> 0 then
     begin
     {$IFDEF DEBUG_ON}
       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',
+        FOwner.FSafeLogger.logMessage('TIocpRecvRequest response ErrorCode:%d',
           [ErrorCode], 'DEBUG_', lgvDebug);
     {$ENDIF}
 
@@ -1675,14 +1731,17 @@ begin
       FContext.DoReceiveData;
     end;
   finally
-    FContext.decReferenceCounter(
-      Format('debugInfo:%s, refcount:%d, TIocpRecvRequest.WSARecvRequest.HandleResponse',
-        [FDebugInfo,FOverlapped.refCount]), Self);
 
     if not FContext.FRequestDisconnect then
     begin
       FContext.PostWSARecvRequest;
     end;
+
+    FContext.decReferenceCounter(
+      Format('debugInfo:%s, refcount:%d, TIocpRecvRequest.WSARecvRequest.HandleResponse',
+        [FDebugInfo,FOverlapped.refCount]), Self);
+
+
   end;
 end;
 

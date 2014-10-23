@@ -214,6 +214,7 @@ end;
 
 destructor TIocpClientSocket.Destroy;
 begin
+  Close;
   FList.Clear;
   FList.Free;
   inherited Destroy;
