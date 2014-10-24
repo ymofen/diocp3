@@ -35,7 +35,7 @@ const
   SOCKET_HASH_SIZE = $FFFF;
 
   CORE_LOG_FILE = 'diocp_core_exception';
-
+  CORE_DEBUG_FILE = 'diocp_core_debug';
 
 type
   TIocpTcpServer = class;
@@ -866,11 +866,12 @@ begin
 {$IFDEF DEBUG_ON}
   if FReferenceCounter <> 0 then
     if FOwner.logCanWrite then
-    FOwner.FSafeLogger.logMessage('InnerCloseContext FReferenceCounter:%d', [FReferenceCounter], 'exception_Debug_');
+    FOwner.FSafeLogger.logMessage('InnerCloseContext FReferenceCounter:%d', [FReferenceCounter],
+    CORE_LOG_FILE);
   if not FActive then
   begin
     if FOwner.logCanWrite then
-      FOwner.FSafeLogger.logMessage('InnerCloseContext FActive is false', 'exception_Debug_');
+      FOwner.FSafeLogger.logMessage('InnerCloseContext FActive is false', CORE_LOG_FILE);
     exit;
   end;
 {$ENDIF}
@@ -879,8 +880,7 @@ begin
   try
     FActive := false;
   {$IFDEF SOCKET_REUSE}
-    if (FOwner.FDataMoniter <> nil) then
-      FOwner.FDataMoniter.incHandleDestroyCounter;
+
   {$ELSE}
     FRawSocket.close;
   {$ENDIF}
@@ -1032,9 +1032,21 @@ begin
   if FDebugStrings.Count > 40 then
     FDebugStrings.Delete(0);
 
-
   if FReferenceCounter < 0 then
-    Assert(FReferenceCounter >=0 );
+  begin
+    if IsDebugMode then
+    begin
+      Assert(FReferenceCounter >=0);
+    end else
+    begin
+      if FOwner.logCanWrite then
+      begin
+        FOwner.FSafeLogger.logMessage('TIocpClientContext.decReferenceCounter:%d, debugInfo:%s',
+          [FReferenceCounter, FDebugStrings.Text], CORE_DEBUG_FILE);
+      end;
+      FReferenceCounter :=0;
+    end;
+  end;
   if FReferenceCounter = 0 then
     if FRequestDisconnect then lvCloseContext := true;
     
@@ -1057,8 +1069,22 @@ begin
 
   if FDebugStrings.Count > 40 then
     FDebugStrings.Delete(0);
+
   if FReferenceCounter < 0 then
-    Assert(FReferenceCounter >=0 );
+  begin
+    if IsDebugMode then
+    begin
+      Assert(FReferenceCounter >=0);
+    end else
+    begin
+      if FOwner.logCanWrite then
+      begin
+        FOwner.FSafeLogger.logMessage('TIocpClientContext.decReferenceCounterAndRequestDisconnect:%d, debugInfo:%s',
+          [FReferenceCounter, FDebugStrings.Text], CORE_DEBUG_FILE);
+      end;
+      FReferenceCounter :=0;
+    end;
+  end;
   if FReferenceCounter = 0 then
     lvCloseContext := true;
     
@@ -1149,17 +1175,18 @@ end;
 procedure TIocpClientContext.DoCleanUp;
 begin
   FOwner := nil;
-  if IsDebugMode then
-  begin
-    Assert(FReferenceCounter = 0);
-  end;
-
   FRequestDisconnect := false;
   FSending := false;
 
   FDebugStrings.Add(Format('-(%d):%d,%s', [FReferenceCounter, IntPtr(Self), '-----DoCleanUp-----']));
 
-  Assert(not FActive);
+  if IsDebugMode then
+  begin
+    Assert(FReferenceCounter = 0);
+    Assert(not FActive);
+  end;
+
+
 //  if FActive then
 //  begin
 //    FRawSocket.close;
@@ -1176,9 +1203,13 @@ begin
     Assert(FOwner <> nil);
     if FActive then
     begin
+      if IsDebugMode then
+      begin
+        Assert(not FActive);
+      end;
       {$IFDEF DEBUG_ON}
         if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('on DoConnected event is already actived', 'exception_Debug_');
+          FOwner.FSafeLogger.logMessage('on DoConnected event is already actived', CORE_DEBUG_FILE);
       {$ENDIF}
     end else
     begin
@@ -2334,11 +2365,18 @@ begin
   lvDNACounter := Self.FCounter;
 
   {$IFDEF DEBUG_ON}
-
   InterlockedDecrement(FOverlapped.refCount);
   if FOverlapped.refCount <> 0 then
   begin
-    Assert(FOverlapped.refCount <>0);
+    if IsDebugMode then
+    begin
+      Assert(FOverlapped.refCount <>0);
+    end;
+    if FOwner.logCanWrite then
+    begin
+      FOwner.FSafeLogger.logMessage('TIocpRecvRequest.HandleResponse refCount:%d',
+        [FOverlapped.refCount], CORE_DEBUG_FILE);
+    end;
   end;
   {$ENDIF}
 
