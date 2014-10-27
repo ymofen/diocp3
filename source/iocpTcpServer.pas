@@ -360,6 +360,9 @@ type
     procedure ResponseDone; override;
 
 
+    /// <summary>
+    ///   give back to sendRequest ObjectPool
+    /// </summary>
     procedure DoCleanUp;virtual;
 
     /// <summary>
@@ -970,6 +973,7 @@ begin
         InterlockedIncrement(FOwner.FDataMoniter.FSendRequestAbortCounter);
       end;
 
+      lvRequest.CancelRequest;
       FOwner.releaseSendRequest(lvRequest);
     end else
     begin
@@ -2066,7 +2070,7 @@ begin
     end;
   end;
   Result.FAlive := true;
-  Result.DoCleanup;
+  //Result.DoCleanup;
   Result.FOwner := Self;
   if (FDataMoniter <> nil) then
   begin

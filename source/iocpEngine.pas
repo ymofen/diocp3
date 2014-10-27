@@ -86,9 +86,14 @@ type
 
     procedure HandleResponse; virtual;
 
-    function getStateINfo():String; virtual;
+    function getStateINfo(): String; virtual;
 
     procedure ResponseDone; virtual;
+
+    /// <summary>
+    ///   cancel
+    /// </summary>
+    procedure CancelRequest; virtual;
 
   public
     constructor Create;
@@ -928,6 +933,11 @@ begin
   finally
     self.FWorkerLocker.Leave;
   end;
+end;
+
+procedure TIocpRequest.CancelRequest;
+begin
+  
 end;
 
 constructor TIocpRequest.Create;

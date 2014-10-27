@@ -140,7 +140,7 @@ type
     function workersIsAlive(const pvWorker: TLogWorker): Boolean;
 
     procedure checkForWorker;
-    procedure stopWorker;
+    procedure stopWorker(pvTimeOut: Cardinal);
   private
   {$IFDEF MSWINDOWS}
     FMessageHandle: HWND;
@@ -206,6 +206,14 @@ const
   WM_SYNC_METHOD = WM_USER + 1;
 
 {$ENDIF}
+
+function tick_diff(tick_start, tick_end: Cardinal): Cardinal;
+begin
+  if tick_end >= tick_start then
+    result := tick_end - tick_start
+  else
+    result := High(Cardinal) - tick_start + tick_end;
+end;
 
 procedure writeSafeInfo(pvMsg:string);
 var
@@ -286,7 +294,7 @@ destructor TSafeLogger.Destroy;
 begin
   FEnable := false;
   
-  stopWorker;
+  stopWorker(30000);
 
   FDataQueue.FreeDataObject;
   FreeAndNil(FDataQueue);
@@ -434,19 +442,15 @@ begin
   //nothing to do ...
 end;
 
-procedure TSafeLogger.stopWorker;
+procedure TSafeLogger.stopWorker(pvTimeOut: Cardinal);
 var
   l:Cardinal;
   lvWrite:Boolean;
 begin
   if FLogWorker <> nil then
   begin
-    FLogWorker := FLogWorker;
-    if FLogWorker <> nil then
-    begin
-      FLogWorker.Terminate;
-      FLogWorker.FNotify.SetEvent;
-    end;
+    FLogWorker.Terminate;
+    FLogWorker.FNotify.SetEvent;
 
     lvWrite := True;
     l := GetTickCount;
@@ -460,7 +464,7 @@ begin
 
       if lvWrite then
       begin
-        if GetTickCount - l > 10000 then
+        if tick_diff(l, GetTickCount) > 10000 then
         begin
           writeSafeInfo(FName + 'is dead, debugInfo:'  + FDebugInfo);
           lvWrite := false;
@@ -493,14 +497,19 @@ begin
   FreeOnTerminate := true;
   FNotify := TEvent.Create(nil,false,false,'');
   FSafeLogger := ASafeLogger;
+  {$IFDEF MSWINDOWS}
   FMessageEvent := TEvent.Create(nil, true, False, '');
+  {$ENDIF}
+
 
 end;
 
 destructor TLogWorker.Destroy;
 begin
   FNotify.Free;
+  {$IFDEF MSWINDOWS}
   FMessageEvent.Free;
+  {$ENDIF}  
   inherited Destroy;
 end;
 
