@@ -25,7 +25,7 @@ interface
 
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
-  winsock, iocpWinsock2,
+  winsock, iocpWinsock2,  DRefCounter,
 
   iocpRawSocket, SyncObjs, Windows, SysUtils,
   {$IFDEF DEBUG_ON}
@@ -67,6 +67,7 @@ type
   /// </summary>
   TIocpBaseContext = class(TObject)
   private
+    FSendCounter: TDRefCounter;
     FContextLocker: TIocpLocker;
     FLastErrorCode:Integer;
     FDebugINfo: string;
@@ -839,6 +840,7 @@ end;
 constructor TIocpBaseContext.Create;
 begin
   inherited Create;
+  FSendCounter := TDRefCounter.Create;
   FDebugStrings := TStringList.Create;
   FReferenceCounter := 0;
   FContextLocker := TIocpLocker.Create('contextlocker');
@@ -861,6 +863,8 @@ begin
   FRawSocket.Free;
 
   FRecvRequest.Free;
+
+  FSendCounter.Free;
 
   Assert(FSendRequestLink.Count = 0);
   FSendRequestLink.Free;
