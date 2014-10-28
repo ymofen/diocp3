@@ -7,7 +7,7 @@
  *)
 
 
-unit iocpCoderClientSocket;
+unit iocpCoderClient;
 
 
 interface
