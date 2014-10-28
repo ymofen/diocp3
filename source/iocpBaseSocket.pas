@@ -941,7 +941,8 @@ begin
 {$IFDEF CHANGE_STATE_USE_LOCKER}
   FContextLocker.lock('DoConnected');
   try
-    FRequestDisconnect := false;     
+    FSending := false;
+    FRequestDisconnect := false;
     if not FActive then
     begin
       Assert(FOwner <> nil);
