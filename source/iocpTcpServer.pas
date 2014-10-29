@@ -316,6 +316,8 @@ type
     ///   can return to pool
     /// </summary>
     FCanGiveBack:Boolean;
+
+    FMaxSize:Integer;
     
     // for singlelinked
     FNext:TIocpSendRequest;
@@ -374,6 +376,7 @@ type
     ///   give back to sendRequest ObjectPool
     /// </summary>
     procedure DoCleanUp;virtual;
+    function getStateINfo: String; override;
 
     /// <summary>
     ///   post send buffer to iocp queue
@@ -2651,6 +2654,7 @@ begin
   FBuf := nil;
   FLen := 0;
   FPosition := 0;
+  //FMaxSize := 0;
 end;
 
 procedure TIocpSendRequest.HandleResponse;
@@ -2744,6 +2748,8 @@ begin
   begin
     FIsBusying := True;
     FBytesSize := len;
+    if len > FMaxSize then FMaxSize := len;
+    
     FWSABuf.buf := buf;
     FWSABuf.len := len;
     dwFlag := 0;
@@ -2916,6 +2922,22 @@ end;
 function TIocpSendRequest.checkStart: Boolean;
 begin
   Result := checkSendNextBlock;
+end;
+
+function TIocpSendRequest.getStateINfo: String;
+begin
+  Result :=Format('%s %s', [Self.ClassName, self.Remark]);
+  if FResponding then
+  begin
+    Result :=Result + sLineBreak + Format('start:%s, datalen:%d, max:%d',
+      [FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondStartTime), FWSABuf.len, FMaxSize]);
+  end else
+  begin
+    Result :=Result + sLineBreak + Format('start:%s, end:%s, datalen:%d, max:%d',
+      [FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondStartTime),
+        FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondEndTime),
+        FWSABuf.len, FMaxSize]);
+  end;
 end;
 
 procedure TIocpDataMonitor.clear;

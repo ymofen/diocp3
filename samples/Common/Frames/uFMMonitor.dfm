@@ -1,8 +1,8 @@
 object FMMonitor: TFMMonitor
   Left = 0
   Top = 0
-  Width = 483
-  Height = 309
+  Width = 497
+  Height = 314
   TabOrder = 0
   object Label1: TLabel
     Left = 16

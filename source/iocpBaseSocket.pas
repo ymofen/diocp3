@@ -345,6 +345,7 @@ type
 
 
     procedure DoCleanUp;virtual;
+    function getStateINfo: String; override;
 
     /// <summary>
     ///   post send buffer to iocp queue
@@ -2060,6 +2061,22 @@ end;
 function TIocpSendRequest.checkStart: Boolean;
 begin
   Result := checkSendNextBlock;
+end;
+
+function TIocpSendRequest.getStateINfo: String;
+begin
+  Result :=Format('%s %s', [Self.ClassName, self.Remark]);
+  if FResponding then
+  begin
+    Result :=Result + sLineBreak + Format('start:%s, datalen:%d',
+      [FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondStartTime), FWSABuf.len]);
+  end else
+  begin
+    Result :=Result + sLineBreak + Format('start:%s, end:%s, datalen:%d',
+      [FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondStartTime),
+        FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondEndTime),
+        FWSABuf.len]);
+  end;
 end;
 
 procedure TIocpDataMonitor.clear;

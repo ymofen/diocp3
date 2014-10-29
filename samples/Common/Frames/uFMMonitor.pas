@@ -102,9 +102,11 @@ begin
   end;
 
 
-  lblPostRecvINfo.Caption :=   Format('post:%d, response:%d',
+  lblPostRecvINfo.Caption :=   Format('post:%d, response:%d, remain:%d',
      [
        FIocpTcpServer.DataMoniter.PostWSARecvCounter,
+       FIocpTcpServer.DataMoniter.ResponseWSARecvCounter,
+       FIocpTcpServer.DataMoniter.PostWSARecvCounter -
        FIocpTcpServer.DataMoniter.ResponseWSARecvCounter
      ]
     );
@@ -120,10 +122,11 @@ begin
 //     ]
 //    );
 
-  lblSend.Caption := Format('post:%d, response:%u',
+  lblSend.Caption := Format('post:%d, response:%d, remain:%d',
      [
        FIocpTcpServer.DataMoniter.PostWSASendCounter,
-       FIocpTcpServer.DataMoniter.ResponseWSASendCounter
+       FIocpTcpServer.DataMoniter.ResponseWSASendCounter,
+       FIocpTcpServer.DataMoniter.PostWSASendCounter - FIocpTcpServer.DataMoniter.ResponseWSASendCounter
      ]
     );
 
