@@ -22,10 +22,6 @@ type
 
     FBuf:Pointer;
     FBlockSize: Integer;
-
-
-
-
   protected
     /// <summary>
     ///   is all buf send completed?
@@ -67,6 +63,8 @@ type
     function decodeObject: TObject;
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); override;
     procedure recvBuffer(buf:PAnsiChar; len:Cardinal); virtual;
+
+    procedure DoCleanUp;override;
   protected
   public
     constructor Create;override;
@@ -165,6 +163,13 @@ destructor TIOCPCoderClientContext.Destroy;
 begin
   FrecvBuffers.Free;
   inherited Destroy;
+end;
+
+procedure TIOCPCoderClientContext.DoCleanUp;
+begin
+  inherited;
+  // clear cache buffer
+  FrecvBuffers.clearBuffer;
 end;
 
 procedure TIOCPCoderClientContext.add2Buffer(buf: PAnsiChar; len: Cardinal);
