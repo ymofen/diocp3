@@ -123,12 +123,12 @@ type
   TIocpRequestSingleLink = class(TObject)
   private
     FCount: Integer;
-    FHead:TIocpRequest;
-    FTail:TIocpRequest;
+    FHead: TIocpRequest;
+    FTail: TIocpRequest;
     FMaxSize:Integer;
   public
     constructor Create(pvMaxSize: Integer = 1024);
-    procedure setMaxSize(pvMaxSize:Integer);
+    procedure SetMaxSize(pvMaxSize:Integer);
     destructor Destroy; override;
     function Push(pvRequest:TIocpRequest): Boolean;
     function Pop:TIocpRequest;
@@ -996,7 +996,7 @@ begin
 
 end;
 
-procedure TIocpRequestSingleLink.setMaxSize(pvMaxSize: Integer);
+procedure TIocpRequestSingleLink.SetMaxSize(pvMaxSize:Integer);
 begin
   FMaxSize := pvMaxSize;
   if FMaxSize <=0 then FMaxSize := 10;

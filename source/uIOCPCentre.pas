@@ -312,23 +312,37 @@ var
   lvRequest:TIocpCoderSendRequest;
 begin
   if not Active then Exit;
-  
-  lvOutBuffer := TBufferLink.Create;
+  if self.LockContext('writeObject', Self) then
   try
-    TIocpConsole(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
-  except
-    lvOutBuffer.Free;
-    raise;
-  end;
+    lvOutBuffer := TBufferLink.Create;
+    try
+      TIocpConsole(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
+    except
+      lvOutBuffer.Free;
+      raise;
+    end;
 
-  lvRequest := TIocpCoderSendRequest(getSendRequest);
-  lvRequest.setBufferLink(lvOutBuffer);
+    lvRequest := TIocpCoderSendRequest(getSendRequest);
+    lvRequest.setBufferLink(lvOutBuffer);
+    if not InnerPostSendRequestAndCheckStart(lvRequest) then
+    begin
+      {$IFDEF DEBUG_ON}
+      if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, current Queue size:%d',
+         [GetSendQueueSize]);
+      {$ENDIF}
+      Self.RequestDisconnect('PostWSASendRequest Post Fail',
+        lvRequest);
 
-
-  postSendRequest(lvRequest);
-
-  self.StateINfo := 'TIOCPCoderClientContext.writeObject,Í¶µÝµ½·¢ËÍ»º´æ';
-
+      lvRequest.CancelRequest;
+      releaseSendRequest(lvRequest);
+    end else
+    begin
+      self.StateINfo := 'TIOCPCoderClientContext.writeObject,Post Succ';
+    end; 
+  finally
+    self.unLockContext('writeObject', Self);
+  end;    
 end;
 
 constructor TIOCPConsole.Create(AOwner: TComponent);

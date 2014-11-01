@@ -3,7 +3,7 @@ object frmMain: TfrmMain
   Top = 0
   Caption = 'RawTcpClient'
   ClientHeight = 314
-  ClientWidth = 562
+  ClientWidth = 622
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -15,9 +15,9 @@ object frmMain: TfrmMain
   TextHeight = 13
   object mmoRecvMessage: TMemo
     Left = 8
-    Top = 56
-    Width = 521
-    Height = 241
+    Top = 40
+    Width = 606
+    Height = 257
     Lines.Strings = (
       'iocp tcp client demo')
     TabOrder = 0
@@ -48,12 +48,21 @@ object frmMain: TfrmMain
     Text = '9983'
   end
   object btnSendObject: TButton
-    Left = 368
+    Left = 456
     Top = 8
     Width = 105
     Height = 25
     Caption = 'btnSendObject'
     TabOrder = 4
     OnClick = btnSendObjectClick
+  end
+  object btnReConnect: TButton
+    Left = 345
+    Top = 8
+    Width = 88
+    Height = 25
+    Caption = 'btnReConnect'
+    TabOrder = 5
+    OnClick = btnReConnectClick
   end
 end

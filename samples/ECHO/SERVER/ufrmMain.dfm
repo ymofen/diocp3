@@ -3,8 +3,8 @@ object frmMain: TfrmMain
   Top = 275
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 echo server'
-  ClientHeight = 373
-  ClientWidth = 643
+  ClientHeight = 387
+  ClientWidth = 661
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -43,20 +43,24 @@ object frmMain: TfrmMain
   object pgcMain: TPageControl
     Left = 8
     Top = 35
-    Width = 625
-    Height = 330
+    Width = 645
+    Height = 350
     ActivePage = TabSheet1
     TabOrder = 3
     object TabSheet1: TTabSheet
       Caption = 'moniter'
+      ExplicitWidth = 617
+      ExplicitHeight = 302
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
-        Width = 617
-        Height = 302
+        Width = 637
+        Height = 322
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 0
+        ExplicitWidth = 617
+        ExplicitHeight = 302
       end
     end
     object TabSheet2: TTabSheet

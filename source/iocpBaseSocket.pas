@@ -90,7 +90,7 @@ type
 
     function incReferenceCounter(pvDebugInfo: string; pvObj: TObject): Boolean;
 
-    procedure RequestDisconnect;
+    procedure RequestDisconnect(pvDebugInfo: string = ''; pvObj: TObject = nil);
   private
     FAlive:Boolean;
 
@@ -204,8 +204,6 @@ type
 
     procedure unLock();
 
-    procedure setMaxSendingQueueSize(pvSize:Integer);
-
 
   public
     /// <summary>
@@ -228,6 +226,7 @@ type
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
         true): Boolean;
+    procedure SetMaxSendingQueueSize(pvSize:Integer);
 
     property Active: Boolean read FActive;
 
@@ -545,7 +544,7 @@ type
     FDebug_SendRequestCounter:Integer;
     FDebug_SendRequestReleaseCounter:Integer;
   {$ENDIF}
-
+    
     FIsDestroying :Boolean;
     FWSARecvBufferSize: Cardinal;
     procedure SetWSARecvBufferSize(const Value: Cardinal);
@@ -1172,7 +1171,8 @@ begin
 
         FOwner.releaseSendRequest(pvSendRequest);
 
-        Self.RequestDisconnect;
+        Self.RequestDisconnect(Format('Push sendRequest to Sending Queue fail, queue size:%d',
+           [FSendRequestLink.Count]), Self);
       end;
     finally
       decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
@@ -1206,13 +1206,18 @@ begin
   end;
 end;
 
-procedure TIocpBaseContext.RequestDisconnect;
+procedure TIocpBaseContext.RequestDisconnect(pvDebugInfo: string = ''; pvObj:
+    TObject = nil);
 var
   lvCloseContext:Boolean;
 begin
   lvCloseContext := false;
   FContextLocker.lock('RequestDisconnect');
-  
+  if pvDebugInfo <> '' then
+  begin
+    FDebugStrings.Add(Format('*(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
+    if FDebugStrings.Count > 40 then FDebugStrings.Delete(0);
+  end;
   FRequestDisconnect := True;
 
   //
@@ -1443,7 +1448,7 @@ begin
     begin    
       lvClientContext := lvNextContext;
       lvNextContext := lvNextContext.FNext;
-      lvClientContext.RequestDisconnect;    
+      lvClientContext.RequestDisconnect('DisconnectAll', self);
     end;
   finally
     FOnlineContextList.FLocker.unLock;
@@ -1712,7 +1717,7 @@ begin
       if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('TIocpRecvRequest Owner Off', 'DEBUG_', lgvDebug);
       {$ENDIF}
-      FContext.RequestDisconnect;
+      FContext.RequestDisconnect('IocpRecvRequest response server enginee is off', Self);
     end else if ErrorCode <> 0 then
     begin
     {$IFDEF DEBUG_ON}
@@ -1723,7 +1728,7 @@ begin
 
       FContext.DoError(ErrorCode);
 
-      FContext.RequestDisconnect;
+      FContext.RequestDisconnect('IocpRecvRequest response Error',  Self);
     end else if (FBytesTransferred = 0) then
     begin      // no data recvd, socket is break
     {$IFDEF DEBUG_ON}
@@ -1731,7 +1736,7 @@ begin
         FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',
          [], 'DEBUG_', lgvDebug);
     {$ENDIF}
-      FContext.RequestDisconnect;
+      FContext.RequestDisconnect('IocpRecvRequest response FBytesTransferred is zero',  Self);
     end else
     begin
       FContext.DoReceiveData;
@@ -1900,7 +1905,7 @@ begin
      {$ENDIF}
       FOwner.DoClientContextError(FContext, ErrorCode);
 
-      FContext.RequestDisconnect;
+      FContext.RequestDisconnect(Format('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]), Self);
     end else
     begin
       onSendRequestSucc;
@@ -1933,7 +1938,7 @@ begin
           {$ENDIF}
 
           /// kick out the clientContext
-          FContext.RequestDisconnect;
+          FContext.RequestDisconnect('TIocpSendRequest.checkSendNextBlock return false',  Self);
         end;
       end;
     end;
@@ -2371,7 +2376,7 @@ begin
 
 end;
 
-procedure TIocpBaseContext.setMaxSendingQueueSize(pvSize: Integer);
+procedure TIocpBaseContext.SetMaxSendingQueueSize(pvSize:Integer);
 begin
   FSendRequestLink.setMaxSize(pvSize);
 end;

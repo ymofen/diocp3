@@ -22,6 +22,10 @@ type
     TabSheet2: TTabSheet;
     pnlMonitor: TPanel;
     mmoLog: TMemo;
+    pnlTop: TPanel;
+    btnDisconnectAll: TButton;
+    actDisconnectAll: TAction;
+    procedure actDisconnectAllExecute(Sender: TObject);
     procedure actOpenExecute(Sender: TObject);
     procedure actPushMsgExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
@@ -52,6 +56,8 @@ begin
   uiLogger.setLogLines(mmoLog.Lines);
   FTcpServer := TIOCPConsole.Create(Self);
   FTcpServer.createDataMonitor;
+
+  FTcpServer.WorkerCount := 3;
   // register decoder and encoder class
   FTcpServer.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
 
@@ -63,6 +69,11 @@ end;
 destructor TfrmMain.Destroy;
 begin
   inherited Destroy;
+end;
+
+procedure TfrmMain.actDisconnectAllExecute(Sender: TObject);
+begin
+  FTcpServer.DisconnectAll;
 end;
 
 procedure TfrmMain.refreshState;

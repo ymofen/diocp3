@@ -14,6 +14,8 @@ type
     edtHost: TEdit;
     edtPort: TEdit;
     btnSendObject: TButton;
+    btnReConnect: TButton;
+    procedure btnReConnectClick(Sender: TObject);
     procedure btnConnectClick(Sender: TObject);
     procedure btnSendObjectClick(Sender: TObject);
   private
@@ -56,6 +58,12 @@ begin
   inherited Destroy;
 end;
 
+procedure TfrmMain.btnReConnectClick(Sender: TObject);
+begin
+  FTcpClient.Disconnect;
+  btnConnect.Click;
+end;
+
 procedure TfrmMain.btnConnectClick(Sender: TObject);
 begin
   if FTcpClient.Active then
@@ -81,7 +89,13 @@ begin
   lvStream := TMemoryStream.Create;
   try
     //lvStream.LoadFromFile('C:\1.txt');
-    s := 'this message will send to server';
+    s := 'this message will send to server' + sLineBreak;
+    lvStream.Write(s[1], Length(s));
+    s := '========1024 * 6 char=======' + sLineBreak;
+    lvStream.Write(s[1], Length(s));
+
+    SetLength(s, 1024 * 6);
+    FillChar(s[1], 1024 * 6, Ord('a'));
     lvStream.Write(s[1], Length(s));
 
     lvStream.Position := 0;
