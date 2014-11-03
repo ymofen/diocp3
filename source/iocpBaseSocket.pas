@@ -833,7 +833,6 @@ end;
 
 procedure TIocpBaseContext.Close;
 begin
-//  FRawSocket.close;
   RequestDisconnect;
 end;
 
@@ -1066,7 +1065,8 @@ procedure TIocpBaseContext.InnerCloseContext;
 begin
   Assert(FOwner <> nil);
   Assert(FReferenceCounter = 0);
-  Assert(FActive);
+  if not FActive then  
+    Assert(FActive);
   FContextLocker.lock('closeContext');
   try
     try
@@ -1211,8 +1211,10 @@ procedure TIocpBaseContext.RequestDisconnect(pvDebugInfo: string = ''; pvObj:
 var
   lvCloseContext:Boolean;
 begin
+  if not FActive then exit;
   lvCloseContext := false;
   FContextLocker.lock('RequestDisconnect');
+ 
   if pvDebugInfo <> '' then
   begin
     FDebugStrings.Add(Format('*(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));

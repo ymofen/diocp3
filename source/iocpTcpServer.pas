@@ -888,6 +888,8 @@ begin
     exit;
   end;
 {$ENDIF}
+  if not FActive then exit;
+
 //  Assert(FReferenceCounter = 0);
 //  Assert(FActive);
   try
@@ -1131,6 +1133,7 @@ procedure TIocpClientContext.RequestDisconnect(pvDebugInfo: string = ''; pvObj:
 var
   lvCloseContext:Boolean;
 begin
+  if not FActive then exit;    
   FContextLocker.lock('RequestDisconnect');
   if pvDebugInfo <> '' then
   begin
