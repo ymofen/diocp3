@@ -21,3 +21,12 @@ DIOCP 3.5.02
 1.TIOCPBaseSocket(客户端IOCP连接上下文)，在关闭后，再一次进行关闭时包Assert异常)
   :修复了重复调用客户端关闭的问题
   2014-11-03 23:06:58
+
+2.添加DRawSocket.pas，可以用于跨平台
+  2014年11月6日 22:39:14
+
+3.添加DTcpClient.pas, 可以用于跨平台
+  2014年11月6日 22:39:39
+
+4.TDTcpClientCoderImpl实现了ICodeSocket接口，可以用与跨平台
+  2014年11月6日 22:45:54
