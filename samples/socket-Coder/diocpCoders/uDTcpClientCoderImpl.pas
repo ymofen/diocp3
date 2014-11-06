@@ -1,8 +1,6 @@
 (*
    unit owner: d10.ymofen
 
-   + add reconnect param in constructor
-     2014-10-11 22:18:18
 *)
 unit uDTcpClientCoderImpl;
 
@@ -14,7 +12,7 @@ uses
   uICoderSocket, DTcpClient;
 
 type
-  TRawTcpClientCoderImpl = class(TInterfacedObject, ICoderSocket)
+  TDTcpClientCoderImpl = class(TInterfacedObject, ICoderSocket)
   private
     FReconnect: Boolean;
     FTcpClient: TDTcpClient;
@@ -29,7 +27,7 @@ type
 
 implementation
 
-constructor TRawTcpClientCoderImpl.Create(ATcpClient: TDTcpClient; pvReconnect:
+constructor TDTcpClientCoderImpl.Create(ATcpClient: TDTcpClient; pvReconnect:
     Boolean = true);
 begin
   inherited Create;
@@ -37,19 +35,19 @@ begin
   FReconnect := pvReconnect;
 end;
 
-destructor TRawTcpClientCoderImpl.Destroy;
+destructor TDTcpClientCoderImpl.Destroy;
 begin
   inherited Destroy;
 end;
 
-{ TRawTcpClientCoderImpl }
+{ TDTcpClientCoderImpl }
 
-procedure TRawTcpClientCoderImpl.closeSocket;
+procedure TDTcpClientCoderImpl.closeSocket;
 begin
   FTcpClient.Disconnect;
 end;
 
-function TRawTcpClientCoderImpl.recvBuf(buf: Pointer; len: Cardinal): Cardinal;
+function TDTcpClientCoderImpl.recvBuf(buf: Pointer; len: Cardinal): Cardinal;
 begin
   if FReconnect then
   begin
@@ -69,7 +67,7 @@ begin
 
 end;
 
-function TRawTcpClientCoderImpl.sendBuf(buf: Pointer; len: Cardinal): Cardinal;
+function TDTcpClientCoderImpl.sendBuf(buf: Pointer; len: Cardinal): Cardinal;
 begin
   if FReconnect then
   begin

@@ -3,7 +3,13 @@ unit uStreamCoderSocket;
 interface
 
 uses
-  uICoderSocket, Classes, SysUtils, uZipTools;
+  uICoderSocket, Classes,
+{$IFDEF POSIX}
+    DZipTools,
+{$ELSE}
+    uZipTools,
+{$ENDIF}
+  SysUtils;
 
 type
   {$if CompilerVersion < 18}
@@ -110,8 +116,12 @@ begin
     lvReadL := lvReadL + lvTempL;
   end;
 
-
+{$IFDEF POSIX}
+  lvVerifyDataValue := TDZipTools.verifyData(lvBytes[0], lvDataLen);
+{$ELSE}
   lvVerifyDataValue := TZipTools.verifyData(lvBytes[0], lvDataLen);
+{$ENDIF}
+
   if lvVerifyDataValue <> lvVerifyValue then
   begin
     raise Exception.Create(strRecvException_VerifyErr);
@@ -152,7 +162,12 @@ begin
     SetLength(lvBuf, lvDataLen);
     TStream(pvObject).Read(lvBuf[0], lvDataLen);
     //veri value
+{$IFDEF POSIX}
+    lvVerifyValue := TDZipTools.verifyData(lvBuf[0], lvDataLen);
+{$ELSE}
     lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
+{$ENDIF}
+
     lvStream.Write(lvVerifyValue, SizeOf(lvVerifyValue));
 
 
