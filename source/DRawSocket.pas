@@ -117,10 +117,11 @@ begin
   FillChar(FSockaddr, SizeOf(sockaddr_in), 0);
   FSockaddr.sin_family := AF_INET;
   FSockaddr.sin_port := htons(pvPort);
-  FSockaddr.sin_addr.s_addr :=inet_addr(PAnsichar(UTF8Encode(pvAddr)));
 {$IFDEF POSIX}
+  FSockaddr.sin_addr.s_addr :=inet_addr(MarshaledAString(UTF8Encode(pvAddr)));
   Result := Posix.SysSocket.Connect(FSocketHandle, sockaddr(FSockaddr), sizeof(sockaddr_in))  = 0;
 {$ELSE}
+  FSockaddr.sin_addr.s_addr :=inet_addr(PAnsichar(UTF8Encode(pvAddr)));
   Result := winsock.Connect(FSocketHandle, FSockaddr, sizeof(sockaddr_in))  = 0;
 {$ENDIF}
 end;
