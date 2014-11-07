@@ -4,7 +4,7 @@ interface
 
 uses
   SimpleMsgPack, SysUtils, Windows, Classes, Math, uCRCTools,
-  superobject, uZipTools;
+  uZipTools;
 
 type
   TFileOperaHandler = class(TObject)

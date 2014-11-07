@@ -11,7 +11,8 @@ uses
   uMyClientContext in 'Service\uMyClientContext.pas',
   uZipTools in '..\..\diocpCoders\uZipTools.pas',
   SimpleMsgPack in '..\Common\SimpleMsgPack.pas',
-  uFileOperaHandler in 'Service\uFileOperaHandler.pas';
+  uFileOperaHandler in 'Service\uFileOperaHandler.pas',
+  uCRCTools in '..\..\diocpCoders\uCRCTools.pas';
 
 {$R *.res}
 
