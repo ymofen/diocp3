@@ -3,7 +3,7 @@ unit uDIOCPStreamCoder;
 interface
 
 uses
-  uIocpCoder, uBuffer, Classes, SysUtils, uZipTools, iocpTcpServer;
+  uIocpCoder, uBuffer, Classes, SysUtils, iocpTcpServer;
 
 type
   TIOCPStreamDecoder = class(TIOCPDecoder)
@@ -30,10 +30,28 @@ type
     procedure Encode(pvDataObject:TObject; const ouBuf: TBufferLink); override;
   end;
 
+function verifyData(const buf; len:Cardinal): Cardinal;
+
 implementation
 
 uses
   uByteTools;
+
+function verifyData(const buf; len: Cardinal): Cardinal;
+var
+  i:Cardinal;
+  p:PByte;
+begin
+  i := 0;
+  Result := 0;
+  p := PByte(@buf);
+  while i < len do
+  begin
+    Result := Result + p^;
+    Inc(p);
+    Inc(i);
+  end;
+end;
 
 const
   PACK_FLAG = $D10;
@@ -100,7 +118,7 @@ begin
     inBuf.readBuffer(TMemoryStream(Result).Memory, lvDataLen);
     TMemoryStream(Result).Position := 0;
 
-    lvVerifyDataValue := TZipTools.verifyData(TMemoryStream(Result).Memory^, lvDataLen);
+    lvVerifyDataValue := verifyData(TMemoryStream(Result).Memory^, lvDataLen);
 
     if lvVerifyValue <> lvVerifyDataValue then
     begin
@@ -145,7 +163,7 @@ begin
   TStream(pvDataObject).Read(lvBuf[0], lvDataLen);
 
   //veri value
-  lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
+  lvVerifyValue := verifyData(lvBuf[0], lvDataLen);
 
   ouBuf.AddBuffer(@lvVerifyValue, SizeOf(lvVerifyValue));
 

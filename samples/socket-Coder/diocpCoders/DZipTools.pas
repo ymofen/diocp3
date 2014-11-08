@@ -26,10 +26,20 @@ type
 implementation
 
 class procedure TDZipTools.UnZipStream(const pvInStream, pvOutStream: TStream);
+var
+  lvBytes, lvOutBytes:TBytes;
 begin
-  if pvInStream= nil then Exit;
-  if pvInStream.Size = 0 then Exit;
-  ZLib.ZDecompressStream(pvInStream, pvOutStream);
+  SetLength(lvBytes, pvInStream.Size);
+  pvInStream.Position := 0;
+  pvInStream.Read(lvBytes[0], pvInStream.Size);
+  ZLib.ZDecompress(lvBytes, lvOutBytes);
+
+  pvOutStream.Size := 0;
+  pvOutStream.Write(lvOutBytes[0], Length(lvOutBytes));
+
+//  if pvInStream= nil then Exit;
+//  if pvInStream.Size = 0 then Exit;
+//  ZLib.ZDecompressStream(pvInStream, pvOutStream);
 end;
 
 class function TDZipTools.verifyData(const buf; len: Cardinal): Cardinal;
@@ -78,8 +88,18 @@ begin
 end;
 
 class procedure TDZipTools.ZipStream(const pvInStream, pvOutStream: TStream);
+var
+  lvBytes, lvOutBytes:TBytes;
 begin
-  ZLib.ZCompressStream(pvInStream, pvOutStream);
+  SetLength(lvBytes, pvInStream.Size);
+  pvInStream.Position := 0;
+  pvInStream.Read(lvBytes[0], pvInStream.Size);
+  ZLib.ZCompress(lvBytes, lvOutBytes);
+
+  pvOutStream.Size := 0;
+  pvOutStream.Write(lvOutBytes[0], Length(lvOutBytes));
+
+  //ZLib.ZDecompress(pvInStream, pvOutStream);
 end;
 
 end.
