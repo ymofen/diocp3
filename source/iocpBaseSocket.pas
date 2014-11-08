@@ -2343,13 +2343,20 @@ var
   lvRet:BOOL;
   lvErrCode:Integer;
   lp:Pointer;
+  lvRemoteIP:String;
 begin
   {$IFDEF DEBUG_ON}
   self.Remark := Format('正在连接%s(%d)', [pvHost, pvPort]);
   {$ENDIF}
-  
+
+  try
+    lvRemoteIP := FContext.RawSocket.GetIpAddrByName(pvHost);
+  except
+    lvRemoteIP := pvHost;
+  end;
+
   FContext.setSocketState(ssConnecting);
-  lvSockAddrIn := iocpSocketUtils.getSocketAddr(pvHost, pvPort);
+  lvSockAddrIn := iocpSocketUtils.getSocketAddr(lvRemoteIP, pvPort);
 
   FContext.RawSocket.bind('0.0.0.0', 0);
 
