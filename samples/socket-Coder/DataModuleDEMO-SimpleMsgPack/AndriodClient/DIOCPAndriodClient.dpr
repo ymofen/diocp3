@@ -10,16 +10,13 @@ uses
   uRemoteServerDIOCPImpl in 'service\uRemoteServerDIOCPImpl.pas',
   uIRemoteServer in 'interface\uIRemoteServer.pas',
   SimpleMsgPack in '..\Common\SimpleMsgPack.pas',
-{$IFDEF POSIX}
+  {$IFDEF POSIX}
   DZipTools in '..\..\diocpCoders\DZipTools.pas',
-{$ELSE}
+  {$ELSE}
   uZipTools in '..\..\diocpCoders\uZipTools.pas',
-{$ENDIF}
-
-  uStreamCoderSocket in '..\..\diocpCoders\uStreamCoderSocket.pas'
-
-
-  ;
+  {$ENDIF }
+  uStreamCoderSocket in '..\..\diocpCoders\uStreamCoderSocket.pas',
+  Datasnap.DBClient in 'Datasnap.DBClient.pas';
 
 {$R *.res}
 

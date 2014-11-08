@@ -80,14 +80,15 @@ begin
         dspMain.DataSet := qryMain;
         vData := dspMain.Data;
 
-        try
-          cdsMain.Data := vData;
-        except
-          on E:Exception do
-          begin
-            raise Exception.Create('服务端尝试赋值给cdsMain.Data时出现了异常:' + e.Message);
-          end;
-        end;
+        /// 测试CDS解析数据是是否正常XE6自带的CDS解析时会出现异常
+//        try
+//          cdsMain.Data := vData;
+//        except
+//          on E:Exception do
+//          begin
+//            raise Exception.Create('服务端尝试赋值给cdsMain.Data时出现了异常:' + e.Message);
+//          end;
+//        end;
 
         qryMain.Close;
         Result := true;

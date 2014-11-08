@@ -62,7 +62,7 @@ object frmMain: TfrmMain
       TabOrder = 6
       Width = 369.000000000000000000
       Lines.Strings = (
-        'select * from YesoulChenYu')
+        'select top 10 * from YesoulChenYu')
     end
   end
   object StringGrid1: TStringGrid
