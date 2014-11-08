@@ -4,18 +4,23 @@ interface
 
 uses
   uIRemoteServer,
-  uRawTcpClientCoderImpl,
+  DTcpClient,
+  uDTcpClientCoderImpl,
   uStreamCoderSocket,
-  uZipTools,
   SimpleMsgPack,
   Classes,
   SysUtils,
-  RawTcpClient, uICoderSocket;
+{$IFDEF POSIX}
+    DZipTools,
+{$ELSE}
+    uZipTools,
+{$ENDIF}
+  uICoderSocket;
 
 type
   TRemoteServerDIOCPImpl = class(TInterfacedObject, IRemoteServer)
   private
-    FTcpClient: TRawTcpClient;
+    FTcpClient: TDTcpClient;
     FCoderSocket: ICoderSocket;
     FMsgPack:TSimpleMsgPack;
     FSendStream:TMemoryStream;
@@ -38,8 +43,8 @@ implementation
 constructor TRemoteServerDIOCPImpl.Create;
 begin
   inherited Create;
-  FTcpClient := TRawTcpClient.Create(nil);
-  FCoderSocket := TRawTcpClientCoderImpl.Create(FTcpClient);
+  FTcpClient := TDTcpClient.Create(nil);
+  FCoderSocket := TDTcpClientCoderImpl.Create(FTcpClient);
   
   FMsgPack := TSimpleMsgPack.Create;
   FRecvStream := TMemoryStream.Create;
@@ -69,14 +74,23 @@ begin
   FMsgPack.ForcePathObject('cmd.index').AsInteger := pvCmdIndex;
   FMsgPack.ForcePathObject('cmd.data').AsVariant := vData;
   FMsgPack.EncodeToStream(FSendStream);
+
+{$IFDEF POSIX}
+  TDZipTools.ZipStream(FSendStream, FSendStream);
+{$ELSE}
   TZipTools.compressStreamEX(FSendStream);
+{$ENDIF}
+
 
   TStreamCoderSocket.SendObject(FCoderSocket, FSendStream);
 
   TStreamCoderSocket.RecvObject(FCoderSocket, FRecvStream);
 
+{$IFDEF POSIX}
+  TDZipTools.UnZipStream(FRecvStream, FRecvStream);
+{$ELSE}
   TZipTools.unCompressStreamEX(FRecvStream);
-
+{$ENDIF}
   FRecvStream.Position := 0;
   
   FMsgPack.DecodeFromStream(FRecvStream);
