@@ -5,6 +5,8 @@
  *	 v3.0.1(2014-7-16 21:36:30)
  *     + first release
  *
+ *
+ *
  *   thanks qsl's suggestion
  *)
  
@@ -2409,6 +2411,8 @@ var
   lvDNACounter:Integer;
   lvBreak:Boolean;
   lvContext:TIocpClientContext;
+  lvDebugInfo:String;
+  lvRefCount:Integer;
 begin
   lvDNACounter := Self.FCounter;
 
@@ -2464,6 +2468,9 @@ begin
       FClientContext.DoReceiveData;
     end;
   finally
+    lvDebugInfo := FDebugInfo;
+    lvRefCount := FOverlapped.refCount;
+    
     // postWSARecv before decReferenceCounter
     if not FClientContext.FRequestDisconnect then
     begin
@@ -2473,7 +2480,7 @@ begin
     // may return to pool
     FClientContext.decReferenceCounter(
       Format('TIocpRecvRequest.WSARecvRequest.HandleResponse, DNACounter:%d, debugInfo:%s, refcount:%d',
-        [lvDNACounter, FDebugInfo, FOverlapped.refCount]), Self);
+        [lvDNACounter, lvDebugInfo, lvRefCount]), Self);
 
 //  for debug context DebugStrings
 //    if FClientContext.FRequestDisconnect then

@@ -275,8 +275,6 @@ begin
 
   lvFileName := lvFileName + '.temp';
 
-
-
   if pvDataObject.I['start'] = 0 then
   begin    // 第一传送 删除临时文件
     if FileExists(lvFileName) then SysUtils.DeleteFile(lvFileName);
@@ -313,9 +311,13 @@ begin
   begin
     lvFileStream := TFileStream.Create(AFileName, fmOpenRead);
     try
+
       pvINfo.I['size'] := lvFileStream.Size;
 
-      pvINfo.I['checksum'] := TZipTools.verifyStream(lvFileStream, 0);
+      if pvINfo.B['cmd.checksum'] then
+      begin      // 获取checksum值
+        pvINfo.I['checksum'] := TZipTools.verifyStream(lvFileStream, 0);
+      end;
       
     finally
       lvFileStream.Free;

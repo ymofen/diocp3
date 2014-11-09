@@ -30,3 +30,11 @@ DIOCP 3.5.02
 
 4.TDTcpClientCoderImpl实现了ICodeSocket接口，可以用与跨平台
   2014年11月6日 22:45:54
+
+5.添加客户端添加Andriod使用的DEMO[samples\socket-Coder\DataModuleDEMO-Andriod]
+  2014-11-09 17:09:30
+
+6.在响应WSARecv处理中(TIocpRecvRequest.HandleResponse)最后记录日志时,
+  在继续投递了WSARecv之后访问了对象的全局字符串变量可能会造成记录状态时出现访问冲突。
+  在投递之前用过程的局部变量进行记录, 然后再投递WSARecv。记录状态日志时使用过程的局部变量
+  2014-11-09 22:41:57
