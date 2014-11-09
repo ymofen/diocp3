@@ -110,10 +110,18 @@ begin
 end;
 
 procedure TIocpRemoteContext.Connect;
+var
+  lvRemoteIP:String;
 begin
   if SocketState <> ssDisconnected then raise Exception.Create(strCannotConnect);
 
   reCreateSocket;
+
+  try
+    lvRemoteIP := RawSocket.GetIpAddrByName(FHost);
+  except
+    lvRemoteIP := FHost;
+  end;
 
   if not RawSocket.connect(FHost, FPort) then
     RaiseLastOSError;
