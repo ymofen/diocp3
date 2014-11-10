@@ -123,7 +123,7 @@ begin
     lvRemoteIP := FHost;
   end;
 
-  if not RawSocket.connect(FHost, FPort) then
+  if not RawSocket.connect(lvRemoteIP, FPort) then
     RaiseLastOSError;
 
   DoConnected;
