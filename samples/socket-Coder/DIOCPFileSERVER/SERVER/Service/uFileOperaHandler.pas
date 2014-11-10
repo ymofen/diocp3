@@ -51,6 +51,9 @@ type
 
 implementation
 
+uses
+  safeLogger;
+
 { TFTPWrapper_ProgressBar }
 
 class function TFileOperaHandler.BigFileSize(const AFileName: string): Int64;
@@ -123,12 +126,15 @@ begin
   lvFileName:= extractServerFileName(pvDataObject);
   if not FileExists(lvFileName) then
     raise Exception.CreateFmt('(%s)文件不存在!', [pvDataObject.S['fileName']]);
-  SysUtils.DeleteFile(lvFileName);
-
-  if FileExists(lvFileName) then
+  if not SysUtils.DeleteFile(lvFileName) then
   begin
-    raise Exception.Create('文件删除失败!');
+     RaiseLastOSError;
   end;
+
+//  if FileExists(lvFileName) then
+//  begin
+//
+//  end;
 end;
 
 class function TFileOperaHandler.FileRename(pvSrcFile:String;
@@ -244,6 +250,7 @@ begin
     pvDataObject.Clear();
     pvDataObject.I['fileSize'] := lvFileStream.Size;
     lvSize := Min(SEC_SIZE, lvFileStream.Size-lvFileStream.Position);
+    sfLogger.logMessage('size:%d/%d', [lvSize, lvFileStream.Position], 'debug_output');
     
     // 文件数据
     pvDataObject.ForcePathObject('data').LoadBinaryFromStream(lvFileStream, lvSize);
