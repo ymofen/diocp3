@@ -87,7 +87,8 @@ end;
 
 procedure TIocpLocker.lock(pvDebugInfo: String = '');
 begin
-  FTryEnterInfo := pvDebugInfo;
+// unsafe
+//  FTryEnterInfo := pvDebugInfo;
   {$IFDEF USECriticalSection}
      Enter;
   {$ELSE}

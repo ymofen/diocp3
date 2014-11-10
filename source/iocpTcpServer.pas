@@ -335,8 +335,8 @@ type
     FLen:Cardinal;
 
     FOwner: TIocpTcpServer;
-
-    FClientContext:TIocpClientContext; 
+ protected
+    FClientContext:TIocpClientContext;
 
     FOnDataRequestCompleted: TOnDataRequestCompleted;
   protected
@@ -1055,6 +1055,10 @@ var
   lvCloseContext:Boolean;
 begin
   lvCloseContext := false;
+  if self = nil then
+  begin
+    Assert(False);
+  end;
   FContextLocker.lock('decReferenceCounter');
   Dec(FReferenceCounter);
   Result := FReferenceCounter;
@@ -2630,10 +2634,12 @@ end;
 procedure TIocpSendRequest.HandleResponse;
 var
   lvGiveBack: Boolean;  // for release self
+  lvContext:TIocpClientContext;
+  lvResponseState:Integer;
 begin
   FCanGiveBack := False;
 
-
+  lvContext := FClientContext;
   FIsBusying := false;
   lvGiveBack := true;   // default true
   try
@@ -2646,6 +2652,7 @@ begin
     if not FOwner.Active then
     begin
       FReponseState := 4;
+      lvResponseState := 4;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse server enginee is off');
@@ -2655,6 +2662,7 @@ begin
     end else if FErrorCode <> 0 then
     begin
       FReponseState := 3;
+      lvResponseState := 3;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
@@ -2664,10 +2672,12 @@ begin
     end else
     begin
       FReponseState := 1;
+      lvResponseState := 1;
       onSendRequestSucc;
       if isCompleted then    // is all buf send completed?
       begin
         FReponseState := 2;
+        lvResponseState := 2;
         if FOwner.FDataMoniter <> nil then
         begin
           FOwner.FDataMoniter.incResponseSendObjectCounter;
@@ -2685,12 +2695,17 @@ begin
       end else
       begin
         FReponseState := 1;  // succ
+        lvResponseState := 10;
         lvGiveBack := False;
+
+        // maybe handleresponse succ set FCanGiveBack is true and give back send object
+        //  could be responseDone GiveBack repeat
         if not checkSendNextBlock then
         begin
           lvGiveBack := True;  // exception send break;
 
           FReponseState := 3;  // error
+          lvResponseState := 3;
           
           {$IFDEF DEBUG_ON}
            if FOwner.logCanWrite then
@@ -2703,7 +2718,13 @@ begin
       end;
     end;
   finally
-    FClientContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
+//    if FClientContext = nil then
+//    begin
+//      Assert(False);
+//      FReponseState := lvResponseState;
+//    end;
+
+    lvContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
 
     if lvGiveBack then    //
     begin
@@ -2815,10 +2836,24 @@ end;
 procedure TIocpSendRequest.ResponseDone;
 begin
   inherited;
-  if FCanGiveBack then
+
+  if (Self.FAlive) then
   begin
-    FOwner.releaseSendRequest(Self);
+    if FCanGiveBack then
+    begin
+      FOwner.releaseSendRequest(Self);
+    end;
+  end else
+  begin
+    // may be
+//    if IsDebugMode then
+//    begin
+//      Assert(FOwner <> nil);
+//      Assert(Self.FAlive);
+//    end;
   end;
+
+
 end;
 
 procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
