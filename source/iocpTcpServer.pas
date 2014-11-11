@@ -198,7 +198,7 @@ type
     /// <summary>
     ///
     /// </summary>
-    function GetSendRequest():TIocpSendRequest;
+    function GetSendRequest: TIocpSendRequest;
 
     /// <summary>
     ///   Give Back
@@ -314,9 +314,6 @@ type
   /// </summary>
   TIocpSendRequest = class(TIocpRequest)
   private
-    // Post +1, succ -1 ,
-    //  0 can give back on ResponseDone
-    FRefCounter: Integer;
     
     FMaxSize:Integer;
     
@@ -340,8 +337,6 @@ type
     FLen:Cardinal;
 
     FOwner: TIocpTcpServer;
-    procedure incRef;
-    function decRef: Integer;
  protected
     FClientContext:TIocpClientContext;
 
@@ -361,9 +356,9 @@ type
     procedure onSendRequestSucc; virtual;
 
     /// <summary>
-    ///   post send a block
+    ///   post send
     /// </summary>
-    function checkSendNextBlock: Boolean; virtual;
+    function ExecuteSend: Boolean; virtual;
   protected
     /// <summary>
     ///   iocp reply request, run in iocp thread
@@ -373,12 +368,6 @@ type
 
     procedure ResponseDone; override;
 
-
-    /// <summary>
-    ///   ResponseDone, succ and completed
-    ///    occur in ResponseDone before Push back
-    /// </summary>
-    procedure OnResponseCompletedDone; virtual;
 
 
     /// <summary>
@@ -404,7 +393,7 @@ type
     /// <summary>
     ///   set buf inneed to send
     /// </summary>
-    procedure setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
+    procedure SetBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
 
     property ClientContext: TIocpClientContext read FClientContext;
 
@@ -974,7 +963,7 @@ begin
   if lvRequest <> nil then
   begin   
     FcurrSendRequest := lvRequest;
-    if lvRequest.checkSendNextBlock then
+    if lvRequest.ExecuteSend then
     begin
       if (FOwner.FDataMoniter <> nil) then
       begin
@@ -1319,7 +1308,7 @@ begin
   Result := FSendRequestLink.Count;
 end;
 
-function TIocpClientContext.getSendRequest: TIocpSendRequest;
+function TIocpClientContext.GetSendRequest: TIocpSendRequest;
 begin
   Result := FOwner.getSendRequest;
   Assert(Result <> nil);
@@ -2602,34 +2591,14 @@ begin
   Result := PostRequest(FInnerBuffer.buf, FInnerBuffer.len);
 end;
 
-function TIocpSendRequest.checkSendNextBlock: Boolean;
-var
-  l:Cardinal;
+function TIocpSendRequest.ExecuteSend: Boolean;
 begin
-  if FPosition < FLen then
-  begin
-    l := FLen - FPosition;
-    if l > FOwner.FWSASendBufferSize then l := FOwner.FWSASendBufferSize;
-    Result := InnerPostRequest(Pointer(IntPtr(FBuf) + IntPtr(FPosition)), l);
-  end else
-  begin
-    Result := false;
-    if IsDebugMode then
-    begin
-      Assert(False);
-    end;
-  end;
+  Result := InnerPostRequest(FBuf, FLen);
 end;
 
 constructor TIocpSendRequest.Create;
 begin
   inherited Create;
-  FRefCounter := 0;
-end;
-
-function TIocpSendRequest.decRef: Integer;
-begin
-   Result := InterlockedDecrement(FRefCounter);
 end;
 
 destructor TIocpSendRequest.Destroy;
@@ -2643,7 +2612,6 @@ end;
 
 procedure TIocpSendRequest.DoCleanUp;
 begin
-  FRefCounter := 0;
   FBytesSize := 0;
   FNext := nil;
   FOwner := nil;
@@ -2688,45 +2656,22 @@ begin
       FClientContext.RequestDisconnect(Format('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]), Self);
     end else
     begin
-      FReponseState := 1;
       onSendRequestSucc;
-      if isCompleted then    // is all buf send completed?
+
+      FReponseState := 2;
+      if FOwner.FDataMoniter <> nil then
       begin
-        FReponseState := 2;
-        if FOwner.FDataMoniter <> nil then
-        begin
-          FOwner.FDataMoniter.incResponseSendObjectCounter;
-        end;
-
-        if Assigned(FOnDataRequestCompleted) then
-        begin
-          FOnDataRequestCompleted(FClientContext, Self);
-        end;
-
-        FClientContext.DoSendRequestCompleted(Self);
-
-        FClientContext.postNextSendRequest;
-
-      end else
-      begin
-        FReponseState := 1;  // succ
-
-        // maybe handleresponse succ set FCanGiveBack is true and give back send object
-        //  could be responseDone GiveBack repeat
-        if not checkSendNextBlock then
-        begin
-
-          FReponseState := 3;  // error
-         
-          {$IFDEF DEBUG_ON}
-           if FOwner.logCanWrite then
-             FOwner.FSafeLogger.logMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
-          {$ENDIF}
-
-          /// kick out the clientContext
-          FClientContext.RequestDisconnect('TIocpSendRequest.checkSendNextBlock return false',  Self);;
-        end;
+        FOwner.FDataMoniter.incResponseSendObjectCounter;
       end;
+
+      if Assigned(FOnDataRequestCompleted) then
+      begin
+        FOnDataRequestCompleted(FClientContext, Self);
+      end;
+
+      FClientContext.DoSendRequestCompleted(Self);
+
+      FClientContext.postNextSendRequest;
     end;
   finally
 //    if FClientContext = nil then
@@ -2736,11 +2681,6 @@ begin
 //    end;
     lvContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
   end;
-end;
-
-procedure TIocpSendRequest.incRef;
-begin
-  InterlockedIncrement(FRefCounter);
 end;
 
 function TIocpSendRequest.InnerPostRequest(buf: Pointer; len: Cardinal):
@@ -2767,7 +2707,6 @@ begin
   lvContext := FClientContext;
   if lvContext.incReferenceCounter('InnerPostRequest::WSASend_Start', self) then
   try
-    incRef;
     lvRet := WSASend(lvContext.FRawSocket.SocketHandle,
                       @FWSABuf,
                       1,
@@ -2819,7 +2758,6 @@ begin
   finally
     if not Result then
     begin      // post fail, dec ref, if post succ, response dec ref
-      decRef;
       if IsDebugMode then
       begin
         Assert(lvContext = FClientContext);
@@ -2840,11 +2778,6 @@ begin
   Result := FPosition >= FLen;
 end;
 
-procedure TIocpSendRequest.OnResponseCompletedDone;
-begin
-  ;
-end;
-
 procedure TIocpSendRequest.onSendRequestSucc;
 begin
   FPosition := FPosition + self.FBytesTransferred;
@@ -2853,25 +2786,20 @@ end;
 procedure TIocpSendRequest.ResponseDone;
 begin
   inherited;
-  if decRef = 0 then
+  if FOwner = nil then
   begin
-    if FOwner = nil then
+    if IsDebugMode then
     begin
-      if IsDebugMode then
-      begin
-        Assert(FOwner <> nil);
-        Assert(Self.FAlive);
-      end;
-    end else
-    begin
-      OnResponseCompletedDone;
-      
-      FOwner.releaseSendRequest(Self);
+      Assert(FOwner <> nil);
+      Assert(Self.FAlive);
     end;
+  end else
+  begin
+    FOwner.releaseSendRequest(Self);
   end;
 end;
 
-procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
+procedure TIocpSendRequest.SetBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
     Boolean = true);
 begin
   if pvCopyBuf then

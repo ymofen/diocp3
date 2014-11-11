@@ -16,36 +16,6 @@ uses
   ;
 
 type
-  TIocpCoderSendRequest = class(iocpTcpServer.TIocpSendRequest)
-  private
-    FBufferLink: TBufferLink;
-
-    FBuf:Pointer;
-    FBlockSize: Integer;
-  protected
-    /// <summary>
-    ///   is all buf send completed?
-    /// </summary>
-    function isCompleted: Boolean; override;
-
-    /// <summary>
-    ///  on request successful
-    /// </summary>
-    procedure onSendRequestSucc; override;
-
-    /// <summary>
-    ///   post send a block
-    /// </summary>
-    function checkSendNextBlock: Boolean; override;
-
-
-    procedure DoCleanUp;override;
-  public
-    constructor Create; override;
-    destructor Destroy; override;
-    procedure setBufferLink(pvBufferLink:TBufferLink);
-  end;
-
 
   TIOCPCoderClientContext = class(iocpTcpServer.TIOCPClientContext)
   private
@@ -309,7 +279,9 @@ end;
 procedure TIOCPCoderClientContext.writeObject(const pvDataObject:TObject);
 var
   lvOutBuffer:TBufferLink;
-  lvRequest:TIocpCoderSendRequest;
+  lvBytes:TBytes;
+  len:Cardinal;
+
 begin
   if not Active then Exit;
   if self.LockContext('writeObject', Self) then
@@ -317,28 +289,22 @@ begin
     lvOutBuffer := TBufferLink.Create;
     try
       TIocpConsole(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
-    except
+      len := lvOutBuffer.validCount;
+      SetLength(lvBytes, len);
+
+      if PostWSASendRequest(@lvBytes[0], len) then
+      begin
+        Self.StateINfo := 'TIOCPCoderClientContext.writeObject,Post Succ';
+      end else
+      begin
+        {$IFDEF DEBUG_ON}
+        if FOwner.logCanWrite then
+          FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, current Queue size:%d',
+           [GetSendQueueSize]);
+        {$ENDIF}
+      end;
+    finally
       lvOutBuffer.Free;
-      raise;
-    end;
-
-    lvRequest := TIocpCoderSendRequest(getSendRequest);
-    lvRequest.setBufferLink(lvOutBuffer);
-    if not InnerPostSendRequestAndCheckStart(lvRequest) then
-    begin
-      {$IFDEF DEBUG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, current Queue size:%d',
-         [GetSendQueueSize]);
-      {$ENDIF}
-      Self.RequestDisconnect('PostWSASendRequest Post Fail',
-        lvRequest);
-
-      lvRequest.CancelRequest;
-      releaseSendRequest(lvRequest);
-    end else
-    begin
-      self.StateINfo := 'TIOCPCoderClientContext.writeObject,Post Succ';
     end; 
   finally
     self.unLockContext('writeObject', Self);
@@ -349,7 +315,6 @@ constructor TIOCPConsole.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FClientContextClass := TIOCPCoderClientContext;
-  FIocpSendRequestClass := TIocpCoderSendRequest;
 end;
 
 destructor TIOCPConsole.Destroy;
@@ -390,85 +355,6 @@ begin
   FEncoder := pvEncoder;
 end;
 
-constructor TIocpCoderSendRequest.Create;
-begin
-  inherited Create;
-  FBlockSize := 0;
-  FBufferLink := nil;
-end;
 
-destructor TIocpCoderSendRequest.Destroy;
-begin
-  if FBlockSize <> 0 then
-  begin
-    FreeMem(FBuf);
-    FBlockSize := 0;
-  end;
-
-  if FBufferLink <> nil then
-  begin
-    FBufferLink.clearBuffer;
-    FBufferLink.Free;
-    FBufferLink := nil;
-  end;
-  inherited Destroy;
-end;
-
-procedure TIocpCoderSendRequest.DoCleanUp;
-begin
-  inherited;
-
-  if FBlockSize <> 0 then
-  begin
-    FreeMem(FBuf);
-    FBlockSize := 0;
-  end;
-
-  if FBufferLink <> nil then
-  begin
-    FBufferLink.clearBuffer;
-    FBufferLink.Free;
-    FBufferLink := nil;
-  end;
-end;
-
-{ TIocpCoderSendRequest }
-
-function TIocpCoderSendRequest.checkSendNextBlock: Boolean;
-var
-  l:Cardinal;
-begin
-  if FBlockSize = 0 then
-  begin
-    FBlockSize := Owner.WSASendBufferSize;
-    GetMem(FBuf, FBlockSize);
-  end;
-
-  l := FBufferLink.readBuffer(FBuf, FBlockSize);
-
-  Result := InnerPostRequest(FBuf, l);
-end;
-
-function TIocpCoderSendRequest.isCompleted: Boolean;
-begin
-  Result := FBufferLink.validCount = 0;
-
-  if Result  then
-  begin  // release Buffer
-    FBufferLink.clearBuffer;
-  end;
-end;
-
-
-
-procedure TIocpCoderSendRequest.onSendRequestSucc;
-begin
-  ;
-end;
-
-procedure TIocpCoderSendRequest.setBufferLink(pvBufferLink: TBufferLink);
-begin
-  FBufferLink := pvBufferLink;
-end;
 
 end.

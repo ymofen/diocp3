@@ -86,7 +86,7 @@ type
 
     procedure HandleResponse; virtual;
 
-    function getStateINfo(): String; virtual;
+    function GetStateINfo: String; virtual;
 
     procedure ResponseDone; virtual;
 
@@ -1117,7 +1117,7 @@ begin
   end;
 end;
 
-function TIocpRequest.getStateINfo: String;
+function TIocpRequest.GetStateINfo: String;
 begin
   Result :=Format('%s %s', [Self.ClassName, FRemark]);
   if FResponding then
