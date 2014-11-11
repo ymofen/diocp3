@@ -60,8 +60,11 @@ begin
 
   FRawSocket.createTcpSocket;
   //FRawSocket.setReadTimeOut(FReadTimeOut);
-  lvIpAddr := FHost;
-  //lvIpAddr := FRawSocket.GetIpAddrByName(FHost);
+  //lvIpAddr := FHost;
+
+  // may domain name
+  lvIpAddr := FRawSocket.GetIpAddrByName(FHost);
+
   FActive := FRawSocket.connect(lvIpAddr, FPort);
   if not FActive then
   begin
