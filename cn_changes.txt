@@ -38,3 +38,16 @@ DIOCP 3.5.02
   在继续投递了WSARecv之后访问了对象的全局字符串变量可能会造成记录状态时出现访问冲突。
   在投递之前用过程的局部变量进行记录, 然后再投递WSARecv。记录状态日志时使用过程的局部变量
   2014-11-09 22:41:57
+
+DIOCP 3.5.03
+  2014-11-11 22:31:23
+
+1.DRawSocket 添加GetIpByName跨平台的解析域名到IP地址的函数。
+  2014-11-11 12:32:48
+  
+2.优化发送数据发送TIocpSendRequest发送流程。
+  1>去掉FCanGiveBack属性。
+  2>增加引用计数，在WSASend +1, 在ResponseDone时 -1 如果=0时 换回对象池。
+  3>添加OnResponseCompletedDone虚函数，在TIocpSendRequest还回对象池之前进行调用。
+  *TIocpSendRequest可以推送大于WSASendBlockSize的数据，推送时会一块块进行推送，在响应完成时会进行下一块数据的推送<下一块的投递可能得到第二个线程的立即执行>
+  2014-11-11 22:50:48

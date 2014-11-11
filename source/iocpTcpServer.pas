@@ -72,6 +72,7 @@ type
   /// </summary>
   TIocpClientContext = class(TObject)
   private
+    // current socket handle
     FSocketHandle:TSocket;
     
     FDebugStrings:TStrings;
@@ -313,6 +314,10 @@ type
   /// </summary>
   TIocpSendRequest = class(TIocpRequest)
   private
+    // Post +1, succ -1 ,
+    //  0 can give back on ResponseDone
+    FRefCounter: Integer;
+    
     FMaxSize:Integer;
     
     // for singlelinked
@@ -335,6 +340,8 @@ type
     FLen:Cardinal;
 
     FOwner: TIocpTcpServer;
+    procedure incRef;
+    function decRef: Integer;
  protected
     FClientContext:TIocpClientContext;
 
@@ -342,10 +349,6 @@ type
   protected
     /// 0:none, 1:succ, 2:completed, 3: has err, 4:owner is off
     FReponseState:Byte;
-    /// <summary>
-    ///   can return to pool
-    /// </summary>
-    FCanGiveBack:Boolean;
     
     /// <summary>
     ///   is all buf send completed?
@@ -372,10 +375,20 @@ type
 
 
     /// <summary>
+    ///   ResponseDone, succ and completed
+    ///    occur in ResponseDone before Push back
+    /// </summary>
+    procedure OnResponseCompletedDone; virtual;
+
+
+    /// <summary>
     ///   give back to sendRequest ObjectPool
     /// </summary>
     procedure DoCleanUp;virtual;
-    function getStateINfo: String; override;
+
+
+    function GetStateINfo: String; override;
+    
     /// <summary>
     ///   post send buffer to iocp queue
     ///    if post fail then return false
@@ -1880,6 +1893,10 @@ end;
 
 function TIocpTcpServer.releaseSendRequest(pvObject:TIocpSendRequest): Boolean;
 begin
+  if self = nil then
+  begin
+    Assert(False);
+  end;
   if FSendRequestPool = nil then
   begin
     // check call stack is crash
@@ -2607,6 +2624,12 @@ end;
 constructor TIocpSendRequest.Create;
 begin
   inherited Create;
+  FRefCounter := 0;
+end;
+
+function TIocpSendRequest.decRef: Integer;
+begin
+   Result := InterlockedDecrement(FRefCounter);
 end;
 
 destructor TIocpSendRequest.Destroy;
@@ -2620,6 +2643,7 @@ end;
 
 procedure TIocpSendRequest.DoCleanUp;
 begin
+  FRefCounter := 0;
   FBytesSize := 0;
   FNext := nil;
   FOwner := nil;
@@ -2633,15 +2657,10 @@ end;
 
 procedure TIocpSendRequest.HandleResponse;
 var
-  lvGiveBack: Boolean;  // for release self
   lvContext:TIocpClientContext;
-  lvResponseState:Integer;
 begin
-  FCanGiveBack := False;
-
   lvContext := FClientContext;
   FIsBusying := false;
-  lvGiveBack := true;   // default true
   try
     Assert(FOwner<> nil);
     if (FOwner.FDataMoniter <> nil) then
@@ -2652,7 +2671,6 @@ begin
     if not FOwner.Active then
     begin
       FReponseState := 4;
-      lvResponseState := 4;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse server enginee is off');
@@ -2662,7 +2680,6 @@ begin
     end else if FErrorCode <> 0 then
     begin
       FReponseState := 3;
-      lvResponseState := 3;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
         FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
@@ -2672,12 +2689,10 @@ begin
     end else
     begin
       FReponseState := 1;
-      lvResponseState := 1;
       onSendRequestSucc;
       if isCompleted then    // is all buf send completed?
       begin
         FReponseState := 2;
-        lvResponseState := 2;
         if FOwner.FDataMoniter <> nil then
         begin
           FOwner.FDataMoniter.incResponseSendObjectCounter;
@@ -2695,18 +2710,14 @@ begin
       end else
       begin
         FReponseState := 1;  // succ
-        lvResponseState := 10;
-        lvGiveBack := False;
 
         // maybe handleresponse succ set FCanGiveBack is true and give back send object
         //  could be responseDone GiveBack repeat
         if not checkSendNextBlock then
         begin
-          lvGiveBack := True;  // exception send break;
 
           FReponseState := 3;  // error
-          lvResponseState := 3;
-          
+         
           {$IFDEF DEBUG_ON}
            if FOwner.logCanWrite then
              FOwner.FSafeLogger.logMessage('TIocpSendRequest.checkSendNextBlock return false',  []);
@@ -2723,15 +2734,13 @@ begin
 //      Assert(False);
 //      FReponseState := lvResponseState;
 //    end;
-
     lvContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
-
-    if lvGiveBack then    //
-    begin
-      //send Request in reponseDone return to pool
-      FCanGiveBack := True;
-    end;
   end;
+end;
+
+procedure TIocpSendRequest.incRef;
+begin
+  InterlockedIncrement(FRefCounter);
 end;
 
 function TIocpSendRequest.InnerPostRequest(buf: Pointer; len: Cardinal):
@@ -2758,6 +2767,7 @@ begin
   lvContext := FClientContext;
   if lvContext.incReferenceCounter('InnerPostRequest::WSASend_Start', self) then
   try
+    incRef;
     lvRet := WSASend(lvContext.FRawSocket.SocketHandle,
                       @FWSABuf,
                       1,
@@ -2809,6 +2819,7 @@ begin
   finally
     if not Result then
     begin      // post fail, dec ref, if post succ, response dec ref
+      decRef;
       if IsDebugMode then
       begin
         Assert(lvContext = FClientContext);
@@ -2816,6 +2827,7 @@ begin
       lvContext.decReferenceCounter(
         Format('InnerPostRequest::WSASend_Fail, ErrorCode:%d', [lvErrorCode])
          , Self);
+
     end;
 
     // if result is true, maybe on HandleResponse dispose and push back to pool
@@ -2828,6 +2840,11 @@ begin
   Result := FPosition >= FLen;
 end;
 
+procedure TIocpSendRequest.OnResponseCompletedDone;
+begin
+  ;
+end;
+
 procedure TIocpSendRequest.onSendRequestSucc;
 begin
   FPosition := FPosition + self.FBytesTransferred;
@@ -2836,24 +2853,22 @@ end;
 procedure TIocpSendRequest.ResponseDone;
 begin
   inherited;
-
-  if (Self.FAlive) then
+  if decRef = 0 then
   begin
-    if FCanGiveBack then
+    if FOwner = nil then
     begin
+      if IsDebugMode then
+      begin
+        Assert(FOwner <> nil);
+        Assert(Self.FAlive);
+      end;
+    end else
+    begin
+      OnResponseCompletedDone;
+      
       FOwner.releaseSendRequest(Self);
     end;
-  end else
-  begin
-    // may be
-//    if IsDebugMode then
-//    begin
-//      Assert(FOwner <> nil);
-//      Assert(Self.FAlive);
-//    end;
   end;
-
-
 end;
 
 procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
@@ -2876,7 +2891,7 @@ begin
   FPosition := 0;
 end;
 
-function TIocpSendRequest.getStateINfo: String;
+function TIocpSendRequest.GetStateINfo: String;
 begin
   Result :=Format('%s %s', [Self.ClassName, self.Remark]);
   if FResponding then
