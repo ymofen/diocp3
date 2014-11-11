@@ -20,12 +20,11 @@ type
     LinkGridToDataSourceBindSourceDB1: TLinkGridToDataSource;
     BindSourceDB1: TBindSourceDB;
     StringGrid1: TStringGrid;
-    pnlLeft: TPanel;
-    btnOpen: TButton;
     pnlTopSet: TPanel;
     edtPort: TEdit;
     edtHost: TEdit;
     btnConnect: TButton;
+    btnOpen: TButton;
     procedure btnConnectClick(Sender: TObject);
     procedure btnOpenClick(Sender: TObject);
   private

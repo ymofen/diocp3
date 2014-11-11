@@ -151,6 +151,9 @@ type
     procedure SetAsSingle(const Value: Single);
     function GetAsSingle: Single;
 
+    procedure SetAsBytes(const Value: TBytes);
+    function GetAsBytes: TBytes;
+    
     procedure checkObjectDataType(ANewType: TMsgPackType = mptMap);
 
     function findObj(pvName:string): TSimpleMsgPack;
@@ -160,6 +163,7 @@ type
 
 
   private
+
 
     /// <summary>
     ///   find object index by a path 
@@ -188,6 +192,7 @@ type
     ///   delete a children
     /// </summary>
     procedure NotifyForDeleteChildren;
+
 
   public
     constructor Create;
@@ -230,6 +235,8 @@ type
     property AsSingle: Single read GetAsSingle write SetAsSingle;
     property AsDateTime: TDateTime read GetAsDateTime write SetAsDateTime;
     property AsVariant: Variant read GetAsVariant write SetAsVariant;
+
+    property AsBytes: TBytes read GetAsBytes write SetAsBytes;
 
     property O[pvPath: String]: TSimpleMsgPack read GetO write SetO;
     property S[pvPath: String]: string read GetS write SetS;
@@ -971,6 +978,11 @@ begin
 
 end;
 
+function TSimpleMsgPack.GetAsBytes: TBytes;
+begin
+  Result := FValue;
+end;
+
 function TSimpleMsgPack.GetAsDateTime: TDateTime;
 begin
   if FDataType in [mptDateTime, mptFloat] then
@@ -1664,6 +1676,37 @@ begin
         l := swap16(l);
         setAsInteger(l);
       end;
+
+      $ce, $d2:
+      begin
+        //  uint 32 stores a 32-bit big-endian unsigned integer
+        //  +--------+--------+--------+--------+--------+
+        //  |  0xce  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ
+        //  +--------+--------+--------+--------+--------+
+        //  int 32 stores a 32-bit big-endian signed integer
+        //  +--------+--------+--------+--------+--------+
+        //  |  0xd2  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|
+        //  +--------+--------+--------+--------+--------+
+        l := 0;
+        pvStream.Read(l, 4);
+        l := swap32(l);
+        setAsInteger(l);
+      end;
+      $cf, $d3:
+      begin
+        //  uint 64 stores a 64-bit big-endian unsigned integer
+        //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        //  |  0xcf  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|
+        //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        //  int 64 stores a 64-bit big-endian signed integer
+        //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        //  |  0xd3  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|
+        //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        i64 := 0;
+        pvStream.Read(i64, 8);
+        i64 := swap64(i64);
+        setAsInteger(i64);
+      end;   
     end;
   end;
 end;
@@ -1733,6 +1776,12 @@ begin
   PBoolean(@FValue[0])^ := Value;
 end;
 
+procedure TSimpleMsgPack.SetAsBytes(const Value: TBytes);
+begin
+  FDataType := mptBinary;
+  FValue := Value;
+end;
+
 procedure TSimpleMsgPack.SetAsDateTime(const Value: TDateTime);
 begin
   FDataType := mptDateTime;
@@ -1756,7 +1805,8 @@ end;
 
 procedure TSimpleMsgPack.SetAsSingle(const Value: Single);
 begin
-
+  FDataType := mptSingle;
+  PSingle(FValue)^ := Value;
 end;
 
 procedure TSimpleMsgPack.setAsString(pvValue: string);

@@ -445,6 +445,7 @@ begin
   end;
 
   l := FBufferLink.readBuffer(FBuf, FBlockSize);
+
   Result := InnerPostRequest(FBuf, l);
 end;
 

@@ -21,35 +21,18 @@ object frmMain: TfrmMain
     object mmoSQL: TMemo
       Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
       Align = Client
-      Height = 96.000000000000000000
+      Height = 80.000000000000000000
       TabOrder = 2
-      Width = 280.000000000000000000
+      Width = 384.000000000000000000
       Lines.Strings = (
         'select top 10 * '
         '   from YesoulChenYu')
     end
-    object pnlLeft: TPanel
-      Align = Right
-      Height = 96.000000000000000000
-      Position.X = 280.000000000000000000
-      Position.Y = 65.000000000000000000
-      Width = 104.000000000000000000
-      TabOrder = 4
-      object btnOpen: TButton
-        Height = 36.000000000000000000
-        Position.X = 15.000000000000000000
-        Position.Y = 40.000000000000000000
-        TabOrder = 4
-        Text = 'Open'
-        Width = 89.000000000000000000
-        OnClick = btnOpenClick
-      end
-    end
     object pnlTopSet: TPanel
       Align = Top
-      Height = 65.000000000000000000
+      Height = 81.000000000000000000
       Width = 384.000000000000000000
-      TabOrder = 5
+      TabOrder = 4
       object edtPort: TEdit
         Touch.InteractiveGestures = [LongTap, DoubleTap]
         TabOrder = 2
@@ -69,13 +52,22 @@ object frmMain: TfrmMain
         Height = 32.000000000000000000
       end
       object btnConnect: TButton
-        Height = 44.000000000000000000
+        Height = 36.000000000000000000
         Position.X = 207.000000000000000000
         Position.Y = 5.000000000000000000
         TabOrder = 3
         Text = 'Connect'
         Width = 81.000000000000000000
         OnClick = btnConnectClick
+      end
+      object btnOpen: TButton
+        Height = 36.000000000000000000
+        Position.X = 7.000000000000000000
+        Position.Y = 45.000000000000000000
+        TabOrder = 4
+        Text = 'Open'
+        Width = 89.000000000000000000
+        OnClick = btnOpenClick
       end
     end
   end

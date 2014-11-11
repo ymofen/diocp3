@@ -2,6 +2,7 @@ program diocpTcpClientDemo;
 
 uses
   FastMM4,
+  ExceptionLog,
   FastMM4Messages,
   Forms,
   ufrmMain in 'ufrmMain.pas' {frmMain},
