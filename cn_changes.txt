@@ -51,3 +51,11 @@ DIOCP 3.5.03
   3>添加OnResponseCompletedDone虚函数，在TIocpSendRequest还回对象池之前进行调用。
   *TIocpSendRequest可以推送大于WSASendBlockSize的数据，推送时会一块块进行推送，在响应完成时会进行下一块数据的推送<下一块的投递可能得到第二个线程的立即执行>
   2014-11-11 22:50:48
+  
+3.进一步精简发送流程。
+  1>去掉底层的TIocpSendRequest分包方案，上一层一次性投递多少就发送多少数据
+  2>PostWSASendBuffer添加参数SendBufferReleaseType，可以决定投递完成的Buffer处理方式。
+  2014-11-11 23:57:35
+
+4.添加文件服务器DEMO。客户端基于MyBean插件。可以直接使用。
+  2014-11-12 13:07:29

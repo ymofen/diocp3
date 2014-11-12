@@ -47,6 +47,8 @@ type
   TIocpSendRequest = class;
   TIocpDisconnectExRequest = class;
 
+  TDataReleaseType = (dtNone, dtFreeMem, dtDispose);
+
   TIocpClientContextClass = class of TIocpClientContext;
 
   TOnClientContextError = procedure(pvClientContext: TIocpClientContext; errCode:
@@ -252,7 +254,15 @@ type
     ///    if request is completed, will call DoSendRequestCompleted procedure
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
-        true): Boolean;
+        true): Boolean; overload;
+
+    /// <summary>
+    ///  post send request to iocp queue, if post successful return true.
+    ///    if request is completed, will call DoSendRequestCompleted procedure
+    /// </summary>
+    function PostWSASendRequest(buf: Pointer; len: Cardinal; pvBufReleaseType:
+        TDataReleaseType): Boolean; overload;
+
 
     property Active: Boolean read FActive;
 
@@ -314,6 +324,7 @@ type
   /// </summary>
   TIocpSendRequest = class(TIocpRequest)
   private
+    FSendBufferReleaseType: TDataReleaseType;
     
     FMaxSize:Integer;
     
@@ -326,17 +337,16 @@ type
 
     FBytesSize:Cardinal;
 
-    FCopyBuf:TWsaBuf;
-
     // send buf record
     FWSABuf:TWsaBuf;
 
 
     FBuf:Pointer;
-    FPosition:Cardinal;
     FLen:Cardinal;
 
     FOwner: TIocpTcpServer;
+
+    procedure CheckClearSendBuffer();
  protected
     FClientContext:TIocpClientContext;
 
@@ -345,16 +355,6 @@ type
     /// 0:none, 1:succ, 2:completed, 3: has err, 4:owner is off
     FReponseState:Byte;
     
-    /// <summary>
-    ///   is all buf send completed?
-    /// </summary>
-    function isCompleted:Boolean;virtual;
-
-    /// <summary>
-    ///  on request successful
-    /// </summary>
-    procedure onSendRequestSucc; virtual;
-
     /// <summary>
     ///   post send
     /// </summary>
@@ -393,7 +393,12 @@ type
     /// <summary>
     ///   set buf inneed to send
     /// </summary>
-    procedure SetBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
+    procedure SetBuffer(buf: Pointer; len: Cardinal; pvBufReleaseType: TDataReleaseType); overload;
+
+    /// <summary>
+    ///   set buf inneed to send
+    /// </summary>
+    procedure SetBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true); overload;
 
     property ClientContext: TIocpClientContext read FClientContext;
 
@@ -1417,18 +1422,41 @@ end;
 
 
 
+function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true): Boolean;
+var
+  lvBuf: PAnsiChar;
+begin
+  if len = 0 then raise Exception.Create('PostWSASendRequest::request buf is zero!');
+  if pvCopyBuf then
+  begin
+    GetMem(lvBuf, len);
+    Move(buf^, lvBuf^, len);
+    Result := PostWSASendRequest(lvBuf, len, dtFreeMem);
+    if not Result then
+    begin            //post fail
+      FreeMem(lvBuf);
+    end;
+  end else
+  begin
+    lvBuf := buf;
+    Result := PostWSASendRequest(lvBuf, len, dtNone);
+  end;
+
+end;
+
 function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
-    pvCopyBuf: Boolean = true): Boolean;
+    pvBufReleaseType: TDataReleaseType): Boolean;
 var
   lvRequest:TIocpSendRequest;
 begin
+  Result := false;
   if len = 0 then raise Exception.Create('PostWSASendRequest::request buf is zero!');
   if self.Active then
   begin
     if self.incReferenceCounter('PostWSASendRequest', Self) then
     try
       lvRequest := getSendRequest;
-      lvRequest.setBuffer(buf, len, pvCopyBuf);
+      lvRequest.SetBuffer(buf, len, pvBufReleaseType);
       Result := InnerPostSendRequestAndCheckStart(lvRequest);
       if not Result then
       begin
@@ -1439,7 +1467,7 @@ begin
         {$ENDIF}
         Self.RequestDisconnect('TIocpClientContext.PostWSASendRequest Post Fail',
           lvRequest);
-          
+
         lvRequest.CancelRequest;
         FOwner.releaseSendRequest(lvRequest);
       end;
@@ -2596,6 +2624,19 @@ begin
   Result := InnerPostRequest(FBuf, FLen);
 end;
 
+procedure TIocpSendRequest.CheckClearSendBuffer;
+begin
+  if FLen > 0 then
+  begin
+    case FSendBufferReleaseType of
+      dtDispose: Dispose(FBuf);
+      dtFreeMem: FreeMem(FBuf);
+    end;
+  end;
+  FSendBufferReleaseType := dtNone;
+  FLen := 0;
+end;
+
 constructor TIocpSendRequest.Create;
 begin
   inherited Create;
@@ -2603,23 +2644,20 @@ end;
 
 destructor TIocpSendRequest.Destroy;
 begin
-  if FCopyBuf.len <> 0 then
-  begin
-    FreeMem(FCopyBuf.buf);
-  end;
+  CheckClearSendBuffer;
   inherited Destroy;
 end;
 
 procedure TIocpSendRequest.DoCleanUp;
 begin
+  CheckClearSendBuffer;
   FBytesSize := 0;
   FNext := nil;
   FOwner := nil;
   FClientContext := nil;
-  FBuf := nil;
-  FLen := 0;
-  FPosition := 0;
   FReponseState := 0;
+
+
   //FMaxSize := 0;
 end;
 
@@ -2656,8 +2694,6 @@ begin
       FClientContext.RequestDisconnect(Format('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]), Self);
     end else
     begin
-      onSendRequestSucc;
-
       FReponseState := 2;
       if FOwner.FDataMoniter <> nil then
       begin
@@ -2773,16 +2809,6 @@ begin
   end;
 end;
 
-function TIocpSendRequest.isCompleted: Boolean;
-begin
-  Result := FPosition >= FLen;
-end;
-
-procedure TIocpSendRequest.onSendRequestSucc;
-begin
-  FPosition := FPosition + self.FBytesTransferred;
-end;
-
 procedure TIocpSendRequest.ResponseDone;
 begin
   inherited;
@@ -2799,24 +2825,45 @@ begin
   end;
 end;
 
-procedure TIocpSendRequest.SetBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
-    Boolean = true);
+procedure TIocpSendRequest.SetBuffer(buf: Pointer; len: Cardinal;
+  pvBufReleaseType: TDataReleaseType);
+begin
+  CheckClearSendBuffer;
+  FBuf := buf;
+  FLen := len;
+  FSendBufferReleaseType := pvBufReleaseType;
+end;
+
+procedure TIocpSendRequest.SetBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
+var
+  lvBuf: PAnsiChar;
 begin
   if pvCopyBuf then
   begin
-    if FCopyBuf.len > 0 then FreeMem(FCopyBuf.buf);
-
-    FCopyBuf.len := len;
-    GetMem(FCopyBuf.buf, FCopyBuf.len);
-    Move(buf^, FCopyBuf.buf^, FCopyBuf.len);
-    FBuf := FCopyBuf.buf;
-    FLen := FCopyBuf.len;
+    GetMem(lvBuf, len);
+    Move(buf^, lvBuf^, len);
+    SetBuffer(lvBuf, len, dtFreeMem);
   end else
   begin
-    FBuf := buf;
-    FLen := len;
+    SetBuffer(buf, len, dtNone);
   end;
-  FPosition := 0;
+
+//
+//  if pvCopyBuf then
+//  begin
+//    if FCopyBuf.len > 0 then FreeMem(FCopyBuf.buf);
+//
+//    FCopyBuf.len := len;
+//    GetMem(FCopyBuf.buf, FCopyBuf.len);
+//    Move(buf^, FCopyBuf.buf^, FCopyBuf.len);
+//    FBuf := FCopyBuf.buf;
+//    FLen := FCopyBuf.len;
+//  end else
+//  begin
+//    FBuf := buf;
+//    FLen := len;
+//  end;
+//  FPosition := 0;
 end;
 
 function TIocpSendRequest.GetStateINfo: String;

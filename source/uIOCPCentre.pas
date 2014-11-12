@@ -279,9 +279,8 @@ end;
 procedure TIOCPCoderClientContext.writeObject(const pvDataObject:TObject);
 var
   lvOutBuffer:TBufferLink;
-  lvBytes:TBytes;
+  lvBuf:Pointer;
   len:Cardinal;
-
 begin
   if not Active then Exit;
   if self.LockContext('writeObject', Self) then
@@ -290,13 +289,16 @@ begin
     try
       TIocpConsole(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
       len := lvOutBuffer.validCount;
-      SetLength(lvBytes, len);
-
-      if PostWSASendRequest(@lvBytes[0], len) then
+      GetMem(lvBuf, len);
+      lvOutBuffer.readBuffer(lvBuf, len);
+                      
+      if PostWSASendRequest(lvBuf, len, dtFreeMem) then
       begin
         Self.StateINfo := 'TIOCPCoderClientContext.writeObject,Post Succ';
       end else
       begin
+        // post fail
+        FreeMem(lvBuf);
         {$IFDEF DEBUG_ON}
         if FOwner.logCanWrite then
           FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, current Queue size:%d',
