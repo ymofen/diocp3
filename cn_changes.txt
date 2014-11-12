@@ -59,3 +59,6 @@ DIOCP 3.5.03
 
 4.添加文件服务器DEMO。客户端基于MyBean插件。可以直接使用。
   2014-11-12 13:07:29
+
+5.同步iocpBaseSocket.TIocpSendRequest的发送流程和IocpTcpServer.TIocpSendRequest一致
+  2014-11-12 23:05:17

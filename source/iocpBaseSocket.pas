@@ -45,6 +45,7 @@ type
   TIocpRecvRequest = class;
   TIocpSendRequest = class;
 
+
   TIocpSendRequestClass = class of TIocpSendRequest;
   TIocpContextClass = class of TIocpBaseContext;
 
@@ -61,6 +62,9 @@ type
   /// </summary>
   TOnDataRequestCompleted = procedure(pvClientContext:TIocpBaseContext;
       pvRequest:TIocpRequest) of object;
+
+      
+  TDataReleaseType = (dtNone, dtFreeMem, dtDispose);
 
   /// <summary>
   ///   client object
@@ -199,6 +203,14 @@ type
     /// </summary>
     procedure DoDisconnect;
     procedure InnerCloseContext;
+    /// <summary>
+    ///  1.post reqeust to sending queue,
+    ///    return false if SendQueue Size is greater than maxSize,
+    ///
+    ///  2.check sending flag, start if sending is false
+    /// </summary>
+    function InnerPostSendRequestAndCheckStart(pvSendRequest:TIocpSendRequest):
+        Boolean;
 
     procedure lock();
 
@@ -225,7 +237,13 @@ type
     ///    if request is completed, will call DoSendRequestCompleted procedure
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
-        true): Boolean;
+        true): Boolean; overload;
+    /// <summary>
+    ///  post send request to iocp queue, if post successful return true.
+    ///    if request is completed, will call DoSendRequestCompleted procedure
+    /// </summary>
+    function PostWSASendRequest(buf: Pointer; len: Cardinal; pvBufReleaseType:
+        TDataReleaseType): Boolean; overload;
     procedure SetMaxSendingQueueSize(pvSize:Integer);
 
     property Active: Boolean read FActive;
@@ -292,6 +310,8 @@ type
   /// </summary>
   TIocpSendRequest = class(TIocpRequest)
   private
+    FSendBufferReleaseType: TDataReleaseType;
+    
     // for singlelinked
     FNext:TIocpSendRequest;
 
@@ -308,7 +328,6 @@ type
 
 
     FBuf:Pointer;
-    FPosition:Cardinal;
     FLen:Cardinal;
 
     FOwner: TIocpBaseSocket;
@@ -317,31 +336,23 @@ type
 
 
     FOnDataRequestCompleted: TOnDataRequestCompleted;
+    procedure CheckClearSendBuffer;
     /// <summary>
     ///   checkStart to post
     /// </summary>
     function checkStart: Boolean;
   protected
     /// <summary>
-    ///   is all buf send completed?
-    /// </summary>
-    function isCompleted:Boolean;virtual;
-
-    /// <summary>
-    ///  on request successful
-    /// </summary>
-    procedure onSendRequestSucc; virtual;
-
-    /// <summary>
     ///   post send a block
     /// </summary>
-    function checkSendNextBlock: Boolean; virtual;
+    function ExecuteSend: Boolean; virtual;
   protected
     /// <summary>
     ///   iocp reply request, run in iocp thread
     /// </summary>
     procedure HandleResponse; override;
 
+    procedure ResponseDone; override;
 
     procedure DoCleanUp;virtual;
     function getStateINfo: String; override;
@@ -351,6 +362,8 @@ type
     /// </summary>
     function InnerPostRequest(buf: Pointer; len: Cardinal): Boolean;
 
+    procedure UnBindingSendBuffer;
+
   public
     constructor Create; virtual;
 
@@ -359,7 +372,12 @@ type
     /// <summary>
     ///   set buf inneed to send
     /// </summary>
-    procedure setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);
+    procedure setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true);overload;
+    /// <summary>
+    ///   set buf inneed to send
+    /// </summary>
+    procedure SetBuffer(buf: Pointer; len: Cardinal; pvBufReleaseType:
+        TDataReleaseType); overload;
 
     property Owner: TIocpBaseSocket read FOwner;
     /// <summary>
@@ -474,6 +492,10 @@ type
 
     FLocker: TCriticalSection;
     FPostSendObjectCounter: Integer;
+    FSendRequestAbortCounter: Integer;
+    FSendRequestCreateCounter: Integer;
+    FSendRequestOutCounter: Integer;
+    FSendRequestReturnCounter: Integer;
 
     procedure incSentSize(pvSize:Cardinal);
     procedure incPostWSASendSize(pvSize:Cardinal);
@@ -509,6 +531,10 @@ type
     property ResponseWSAAcceptExCounter: Integer read FResponseWSAAcceptExCounter;
     property ResponseWSARecvCounter: Integer read FResponseWSARecvCounter;
     property ResponseWSASendCounter: Integer read FResponseWSASendCounter;
+    property SendRequestAbortCounter: Integer read FSendRequestAbortCounter;
+    property SendRequestCreateCounter: Integer read FSendRequestCreateCounter;
+    property SendRequestOutCounter: Integer read FSendRequestOutCounter;
+    property SendRequestReturnCounter: Integer read FSendRequestReturnCounter;
     property SentSize: Int64 read FSentSize;
   end;
 
@@ -602,7 +628,7 @@ type
     /// <summary>
     ///   push back to pool
     /// </summary>
-    function releaseSendRequest(pvObject:TIocpSendRequest): Boolean;
+    function ReleaseSendRequest(pvObject:TIocpSendRequest): Boolean;
 
   protected
     /// <summary>
@@ -758,60 +784,46 @@ function TIocpBaseContext.checkNextSendRequest: Boolean;
 var
   lvRequest:TIocpSendRequest;
 begin
-  Result := false;
   Assert(FOwner <> nil);
-  lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
-  if lvRequest <> nil then
-  begin
-    FcurrSendRequest := lvRequest;
-    if lvRequest.checkStart then
+
+  FContextLocker.lock();
+  try
+    lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
+    if lvRequest = nil then
     begin
-      Result := True;
+      FSending := false;
+      exit;
+    end;
+  finally
+    FContextLocker.unLock;
+  end;
+
+  if lvRequest <> nil then
+  begin   
+    FcurrSendRequest := lvRequest;
+    if lvRequest.ExecuteSend then
+    begin
       if (FOwner.FDataMoniter <> nil) then
       begin
         FOwner.FDataMoniter.incPostSendObjectCounter;
       end;
     end else
     begin
-    {$IFDEF DEBUG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpBaseContext.checkNextSendRequest.checkStart return false',  []);
-    {$ENDIF}
+      FcurrSendRequest := nil;
 
+      /// cancel request
+      lvRequest.CancelRequest;
+
+      {$IFDEF DEBUG_ON}
+      if FOwner.logCanWrite then
+        FOwner.FSafeLogger.logMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
+      {$ENDIF}
       /// kick out the clientContext
-      RequestDisconnect;
+      RequestDisconnect('checkNextSendRequest::lvRequest.checkSendNextBlock Fail', lvRequest);
+    
+      FOwner.ReleaseSendRequest(lvRequest);
     end;
   end;
-
-
-//  lvRequest := TIocpSendRequest(FSendRequestLink.Pop);
-//  if lvRequest = nil then
-//  begin
-//    FSending := false;
-//  end;
-//
-//  if lvRequest <> nil then
-//  begin
-//    FcurrSendRequest := lvRequest;
-//    if lvRequest.checkStart then
-//    begin
-//      if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
-//      begin
-//        FOwner.FDataMoniter.incPostSendObjectCounter;
-//      end;
-//    end else
-//    begin
-//      {$IFDEF DEBUG_ON}
-//       if FOwner.logCanWrite then
-//        FOwner.FSafeLogger.logMessage(
-//          'TIocpBaseContext.checkNextSendRequest.checkStart return false',  [],
-//            'DEBUG_', lgvDebug);
-//      {$ENDIF}
-//
-//      /// close the Context
-//      self.Close;
-//    end;
-//  end;
 end;
 
 procedure TIocpBaseContext.checkReleaseRes;
@@ -1193,17 +1205,24 @@ end;
 function TIocpBaseContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
     pvCopyBuf: Boolean = true): Boolean;
 var
-  lvRequest:TIocpSendRequest;
+  lvBuf: PAnsiChar;
 begin
-  if self.Active then
+  if len = 0 then raise Exception.Create('PostWSASendRequest::request buf is zero!');
+  if pvCopyBuf then
   begin
-    lvRequest := getSendRequest;
-    lvRequest.setBuffer(buf, len, pvCopyBuf);
-    Result := postSendRequest(lvRequest);
+    GetMem(lvBuf, len);
+    Move(buf^, lvBuf^, len);
+    Result := PostWSASendRequest(lvBuf, len, dtFreeMem);
+    if not Result then
+    begin            //post fail
+      FreeMem(lvBuf);
+    end;
   end else
   begin
-    Result := false;
+    lvBuf := buf;
+    Result := PostWSASendRequest(lvBuf, len, dtNone);
   end;
+
 end;
 
 procedure TIocpBaseContext.RequestDisconnect(pvDebugInfo: string = ''; pvObj:
@@ -1371,17 +1390,50 @@ begin
   FContextClass := pvContextClass;
 end;
 
-function TIocpBaseSocket.releaseSendRequest(pvObject:TIocpSendRequest): Boolean;
+function TIocpBaseSocket.ReleaseSendRequest(pvObject:TIocpSendRequest): Boolean;
 begin
+  if self = nil then
+  begin
+    Assert(False);
+  end;
+  if FSendRequestPool = nil then
+  begin
+    // check call stack is crash
+    Assert(FSendRequestPool <> nil);
+  end;
+
+  if IsDebugMode then
+  begin
+    Assert(pvObject.FAlive)
+  end;
+
   if lock_cmp_exchange(True, False, pvObject.FAlive) = True then
   begin
+    if (FDataMoniter <> nil) then
+    begin
+      InterlockedIncrement(FDataMoniter.FSendRequestReturnCounter);
+    end;
+    pvObject.DoCleanUp;
     FSendRequestPool.Push(pvObject);
     Result := true;
   end else
   begin
-    Result := false;
-    Assert(Result = true);
+    if IsDebugMode then
+    begin
+      Assert(false)
+    end;
   end;
+
+
+//  if lock_cmp_exchange(True, False, pvObject.FAlive) = True then
+//  begin
+//    FSendRequestPool.Push(pvObject);
+//    Result := true;
+//  end else
+//  begin
+//    Result := false;
+//    Assert(Result = true);
+//  end;
 end;
 
 procedure TIocpBaseSocket.Close;
@@ -1841,21 +1893,9 @@ begin
   Result := PostRequest(FInnerBuffer.buf, FInnerBuffer.len);
 end;
 
-function TIocpSendRequest.checkSendNextBlock: Boolean;
-var
-  l:Cardinal;
+function TIocpSendRequest.ExecuteSend: Boolean;
 begin
-  if FPosition < FLen then
-  begin
-    l := FLen - FPosition;
-    if l > FOwner.FWSASendBufferSize then l := FOwner.FWSASendBufferSize;
-
-    Result := InnerPostRequest(Pointer(IntPtr(FBuf) + IntPtr(FPosition)), l)
-
-  end else
-  begin
-    Result := false;
-  end;
+  Result := InnerPostRequest(FBuf, FLen);
 end;
 
 constructor TIocpSendRequest.Create;
@@ -1865,30 +1905,40 @@ end;
 
 destructor TIocpSendRequest.Destroy;
 begin
-  if FCopyBuf.len <> 0 then
-  begin
-    FreeMem(FCopyBuf.buf);
-  end;
+  CheckClearSendBuffer;
   inherited Destroy;
+end;
+
+procedure TIocpSendRequest.CheckClearSendBuffer;
+begin
+  if FLen > 0 then
+  begin
+    case FSendBufferReleaseType of
+      dtDispose: Dispose(FBuf);
+      dtFreeMem: FreeMem(FBuf);
+    end;
+  end;
+  FSendBufferReleaseType := dtNone;
+  FLen := 0;
 end;
 
 procedure TIocpSendRequest.DoCleanUp;
 begin
+  CheckClearSendBuffer;
   FBytesSize := 0;
   FNext := nil;
   FOwner := nil;
   FContext := nil;
   FBuf := nil;
   FLen := 0;
-  FPosition := 0;
 end;
 
 procedure TIocpSendRequest.HandleResponse;
 var
-  lvCompleted:Boolean;  // buffer is send completed, for release self
+  lvContext:TIocpBaseContext;
 begin
+  lvContext := FContext;
   FIsBusying := false;
-  lvCompleted := true;   // default true
   try
     Assert(FOwner<> nil);
     if (FOwner.FDataMoniter <> nil) then
@@ -1905,80 +1955,57 @@ begin
           'TIocpSendRequest.HandleResponse ErrorCode:%d',  [ErrorCode],
             'DEBUG_', lgvDebug);
      {$ENDIF}
-      FOwner.DoClientContextError(FContext, ErrorCode);
+      FOwner.DoClientContextError(lvContext, ErrorCode);
 
-      FContext.RequestDisconnect(Format('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]), Self);
+      lvContext.RequestDisconnect(Format('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]), Self);
     end else
     begin
-      onSendRequestSucc;
-      if isCompleted then    // buf send completed?
+      // succ
+      if FOwner.FDataMoniter <> nil then
       begin
-        if FOwner.FDataMoniter <> nil then
-        begin
-          FOwner.FDataMoniter.incResponseSendObjectCounter;
-        end;
-
-        if Assigned(FOnDataRequestCompleted) then
-        begin
-          FOnDataRequestCompleted(FContext, Self);
-        end;
-
-        FContext.DoSendRequestCompleted(Self);
-
-        FContext.postNextSendRequest;
-      end else
-      begin
-        lvCompleted := False;
-        if not checkSendNextBlock then
-        begin
-          lvCompleted := True;  // exception, send break;
-          {$IFDEF DEBUG_ON}
-           if FOwner.logCanWrite then
-            FOwner.FSafeLogger.logMessage(
-              'TIocpSendRequest.checkSendNextBlock return false',  [],
-                'DEBUG_', lgvDebug);
-          {$ENDIF}
-
-          /// kick out the clientContext
-          FContext.RequestDisconnect('TIocpSendRequest.checkSendNextBlock return false',  Self);
-        end;
+        FOwner.FDataMoniter.incResponseSendObjectCounter;
       end;
+
+      if Assigned(FOnDataRequestCompleted) then
+      begin
+        FOnDataRequestCompleted(lvContext, Self);
+      end;
+
+      lvContext.DoSendRequestCompleted(Self);
+
+      lvContext.postNextSendRequest;
     end;
   finally
     // maybe release context
-    FContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
-    if lvCompleted then    //
-    begin
-      // release request
-      {$IFDEF DEBUG_ON}
-        //FOwner.releaseSendRequest(Self);
-        if FOwner.releaseSendRequest(Self) then
-           InterlockedIncrement(FOwner.FDebug_SendRequestReleaseCounter)
-      {$ELSE}
-         FOwner.releaseSendRequest(Self);
-      {$ENDIF}
-    end;
+    lvContext.decReferenceCounter('TIocpSendRequest.WSASendRequest.Response', Self);
   end;
 end;
 
 function TIocpSendRequest.InnerPostRequest(buf: Pointer; len: Cardinal):
     Boolean;
 var
-  lvRet: Integer;
+  lvErrorCode, lvRet: Integer;
   dwFlag: Cardinal;
   lpNumberOfBytesSent:Cardinal;
+  lvContext:TIocpBaseContext;
+  lvOwner:TIocpBaseSocket;
 begin
   Result := false;
-  if FContext.incReferenceCounter('TIocpSendRequest.WSASendRequest', Self) then
-  begin
-    FIsBusying := True;
-    FBytesSize := len;
-    FWSABuf.buf := buf;
-    FWSABuf.len := len;
-    dwFlag := 0;
-    lpNumberOfBytesSent := 0;
-    
-    lvRet := WSASend(FContext.FRawSocket.SocketHandle,
+  FIsBusying := True;
+  FBytesSize := len;
+  FWSABuf.buf := buf;
+  FWSABuf.len := len;
+  dwFlag := 0;
+  lvErrorCode := 0;
+  lpNumberOfBytesSent := 0;
+
+  // maybe on HandleResonse and release self
+  lvOwner := FOwner;
+
+  lvContext := FContext;
+  if lvContext.incReferenceCounter('InnerPostRequest::WSASend_Start', self) then
+  try
+    lvRet := WSASend(lvContext.FRawSocket.SocketHandle,
                       @FWSABuf,
                       1,
                       lpNumberOfBytesSent,
@@ -1988,86 +2015,97 @@ begin
     );
     if lvRet = SOCKET_ERROR then
     begin
-      lvRet := WSAGetLastError;
-      Result := lvRet = WSA_IO_PENDING;
+      lvErrorCode := WSAGetLastError;
+      Result := lvErrorCode = WSA_IO_PENDING;
       if not Result then
       begin
         try
            FIsBusying := False;
-           {$IFDEF DEBUG_ON}
-           if FOwner.logCanWrite then
-              FOwner.FSafeLogger.logMessage(
-                'TIocpSendRequest.InnerPostRequest Error:%d', [lvRet],
-                  'DEBUG_', lgvDebug);
-           {$ENDIF}
-
-           FOwner.DoClientContextError(FContext, lvRet);
+        {$IFDEF DEBUG_ON}
+           if lvOwner.logCanWrite then
+             lvOwner.FSafeLogger.logMessage('TIocpSendRequest.WSASendRequest Error:%d',  [lvErrorCode]);
+        {$ENDIF}
         except  
-           on e:Exception do
-           begin
+          on e:Exception do
+          begin    
             {$IFDEF DEBUG_ON}
-               if FOwner.logCanWrite then
-                 FOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Exception:' + E.Message, '', lgvError);
+               if lvOwner.logCanWrite then
+                 lvOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Exception:' + E.Message, '', lgvError);
             {$ENDIF}
-           end;
+          end;
         end;
-         /// request kick out
-         FContext.decReferenceCounterAndRequestDisconnect('TIocpSendRequest.InnerPostRequest.fail', Self);
-
-         FOwner.releaseSendRequest(Self);
+        /// request kick out
+        lvContext.RequestDisconnect('TIocpSendRequest.InnerPostRequest.fail', Self);
       end else
-      begin
-        if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
+      begin      // maybe on HandleResonse and release self
+        if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then
         begin
-          FOwner.FDataMoniter.incPostWSASendSize(len);
-          FOwner.FDataMoniter.incPostWSASendCounter;
+          lvOwner.FDataMoniter.incPostWSASendSize(len);
+          lvOwner.FDataMoniter.incPostWSASendCounter;
         end;
       end;
     end else
-    begin
+    begin       // maybe on HandleResonse and release self
       Result := True;
-      if (FOwner <> nil) and (FOwner.FDataMoniter <> nil) then
+      if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then
       begin
-        FOwner.FDataMoniter.incPostWSASendSize(len);
-        FOwner.FDataMoniter.incPostWSASendCounter;
+        lvOwner.FDataMoniter.incPostWSASendSize(len);
+        lvOwner.FDataMoniter.incPostWSASendCounter;
       end;
     end;
+  finally
+    if not Result then
+    begin      // post fail, dec ref, if post succ, response dec ref
+      if IsDebugMode then
+      begin
+        Assert(lvContext = FContext);
+      end;
+      lvContext.decReferenceCounter(
+        Format('InnerPostRequest::WSASend_Fail, ErrorCode:%d', [lvErrorCode])
+         , Self);
+
+    end;
+
+    // if result is true, maybe on HandleResponse dispose and push back to pool
+
   end;
-end;
-
-function TIocpSendRequest.isCompleted: Boolean;
-begin
-  Result := FPosition >= FLen;
-end;
-
-procedure TIocpSendRequest.onSendRequestSucc;
-begin
-  FPosition := FPosition + self.FBytesTransferred;
 end;
 
 procedure TIocpSendRequest.setBuffer(buf: Pointer; len: Cardinal; pvCopyBuf:
     Boolean = true);
+var
+  lvBuf: PAnsiChar;
 begin
   if pvCopyBuf then
   begin
-    if FCopyBuf.len > 0 then FreeMem(FCopyBuf.buf);
-
-    FCopyBuf.len := len;
-    GetMem(FCopyBuf.buf, FCopyBuf.len);
-    Move(buf^, FCopyBuf.buf^, FCopyBuf.len);
-    FBuf := FCopyBuf.buf;
-    FLen := FCopyBuf.len;
+    GetMem(lvBuf, len);
+    Move(buf^, lvBuf^, len);
+    SetBuffer(lvBuf, len, dtFreeMem);
   end else
   begin
-    FBuf := buf;
-    FLen := len;
+    SetBuffer(buf, len, dtNone);
   end;
-  FPosition := 0;
+
+//  if pvCopyBuf then
+//  begin
+//    if FCopyBuf.len > 0 then FreeMem(FCopyBuf.buf);
+//
+//    FCopyBuf.len := len;
+//    GetMem(FCopyBuf.buf, FCopyBuf.len);
+//    Move(buf^, FCopyBuf.buf^, FCopyBuf.len);
+//    FBuf := FCopyBuf.buf;
+//    FLen := FCopyBuf.len;
+//  end else
+//  begin
+//    FBuf := buf;
+//    FLen := len;
+//  end;
+//  FPosition := 0;
 end;
 
 function TIocpSendRequest.checkStart: Boolean;
 begin
-  Result := checkSendNextBlock;
+  Result := ExecuteSend;
 end;
 
 function TIocpSendRequest.getStateINfo: String;
@@ -2084,6 +2122,38 @@ begin
         FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondEndTime),
         FWSABuf.len]);
   end;
+end;
+
+procedure TIocpSendRequest.ResponseDone;
+begin
+  inherited;
+  if FOwner = nil then
+  begin
+    if IsDebugMode then
+    begin
+      Assert(FOwner <> nil);
+      Assert(Self.FAlive);
+    end;
+  end else
+  begin
+    FOwner.ReleaseSendRequest(Self);
+  end;
+end;
+
+procedure TIocpSendRequest.SetBuffer(buf: Pointer; len: Cardinal;
+    pvBufReleaseType: TDataReleaseType);
+begin
+  CheckClearSendBuffer;
+  FBuf := buf;
+  FLen := len;
+  FSendBufferReleaseType := pvBufReleaseType;
+end;
+
+procedure TIocpSendRequest.UnBindingSendBuffer;
+begin
+  FBuf := nil;
+  FLen := 0;
+  FSendBufferReleaseType := dtNone;
 end;
 
 procedure TIocpDataMonitor.clear;
@@ -2383,6 +2453,75 @@ begin
     Result := True;
   end;
 
+end;
+
+function TIocpBaseContext.InnerPostSendRequestAndCheckStart(
+    pvSendRequest:TIocpSendRequest): Boolean;
+var
+  lvStart:Boolean;
+begin
+  lvStart := false;
+  FContextLocker.lock();
+  try
+    Result := FSendRequestLink.Push(pvSendRequest);
+    if Result then
+    begin
+      if not FSending then
+      begin
+        FSending := true;
+        lvStart := true;  // start send work
+      end;
+    end;
+  finally
+    FContextLocker.unLock;
+  end;
+
+  if lvStart then
+  begin      // start send work
+    if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
+    begin
+      FOwner.FDataMoniter.incPushSendQueueCounter;
+    end;
+    checkNextSendRequest;
+  end;
+end;
+
+function TIocpBaseContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
+    pvBufReleaseType: TDataReleaseType): Boolean;
+var
+  lvRequest:TIocpSendRequest;
+begin
+  Result := false;
+  if len = 0 then raise Exception.Create('PostWSASendRequest::request buf is zero!');
+  if self.Active then
+  begin
+    if self.incReferenceCounter('PostWSASendRequest', Self) then
+    begin
+      try
+        lvRequest := GetSendRequest;
+        lvRequest.SetBuffer(buf, len, pvBufReleaseType);
+        Result := InnerPostSendRequestAndCheckStart(lvRequest);
+        if not Result then
+        begin
+          /// Push Fail unbinding buf
+          lvRequest.UnBindingSendBuffer;
+
+          {$IFDEF DEBUG_ON}
+          if FOwner.logCanWrite then
+            FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+             [FSendRequestLink.Count]);
+          {$ENDIF}
+          Self.RequestDisconnect('TIocpBaseContext.PostWSASendRequest Post Fail',
+            lvRequest);
+
+          lvRequest.CancelRequest;
+          FOwner.ReleaseSendRequest(lvRequest);
+        end;
+      finally
+        self.decReferenceCounter('PostWSASendRequest', Self);
+      end;
+    end;
+  end;
 end;
 
 procedure TIocpBaseContext.SetMaxSendingQueueSize(pvSize:Integer);
