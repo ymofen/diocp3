@@ -4,11 +4,6 @@ interface
 
 uses
   uICoderSocket, Classes,
-{$IFDEF POSIX}
-    DZipTools,
-{$ELSE}
-    uZipTools,
-{$ENDIF}
   SysUtils;
 
 type
@@ -37,6 +32,8 @@ type
     class function SendObject(pvSocket: ICoderSocket; pvObject: TObject): Integer;
   end;
 
+function verifyData(const buf; len:Cardinal): Cardinal;
+
 
 implementation
 
@@ -44,6 +41,22 @@ implementation
 
 uses
   uByteTools;
+
+function verifyData(const buf; len: Cardinal): Cardinal;
+var
+  i:Cardinal;
+  p:PByte;
+begin
+  i := 0;
+  Result := 0;
+  p := PByte(@buf);
+  while i < len do
+  begin
+    Result := Result + p^;
+    Inc(p);
+    Inc(i);
+  end;
+end;
 
 const
   PACK_FLAG = $D10;
@@ -117,9 +130,9 @@ begin
   end;
 
 {$IFDEF POSIX}
-  lvVerifyDataValue := TDZipTools.verifyData(lvBytes[0], lvDataLen);
+  lvVerifyDataValue := verifyData(lvBytes[0], lvDataLen);
 {$ELSE}
-  lvVerifyDataValue := TZipTools.verifyData(lvBytes[0], lvDataLen);
+  lvVerifyDataValue := verifyData(lvBytes[0], lvDataLen);
 {$ENDIF}
 
   if lvVerifyDataValue <> lvVerifyValue then
@@ -162,11 +175,8 @@ begin
     SetLength(lvBuf, lvDataLen);
     TStream(pvObject).Read(lvBuf[0], lvDataLen);
     //veri value
-{$IFDEF POSIX}
-    lvVerifyValue := TDZipTools.verifyData(lvBuf[0], lvDataLen);
-{$ELSE}
-    lvVerifyValue := TZipTools.verifyData(lvBuf[0], lvDataLen);
-{$ENDIF}
+    lvVerifyValue := verifyData(lvBuf[0], lvDataLen);
+
 
     lvStream.Write(lvVerifyValue, SizeOf(lvVerifyValue));
 
