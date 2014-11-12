@@ -351,6 +351,7 @@ type
     FClientContext:TIocpClientContext;
 
     FOnDataRequestCompleted: TOnDataRequestCompleted;
+    procedure UnBindingSendBuffer();
   protected
     /// 0:none, 1:succ, 2:completed, 3: has err, 4:owner is off
     FReponseState:Byte;
@@ -671,8 +672,6 @@ type
 
     FPort: Integer;
 
-    FWSASendBufferSize: cardinal;
-
     procedure DoClientContextError(pvClientContext: TIocpClientContext;
         pvErrorCode: Integer);
     function GetWorkerCount: Integer;
@@ -711,19 +710,17 @@ type
     /// <summary>
     ///   pop sendRequest object
     /// </summary>
-    function getSendRequest():TIocpSendRequest;
+    function GetSendRequest: TIocpSendRequest;
 
     /// <summary>
     ///   push back to pool
     /// </summary>
-    function releaseSendRequest(pvObject:TIocpSendRequest): Boolean;
+    function ReleaseSendRequest(pvObject:TIocpSendRequest): Boolean;
 
   private
     procedure DoAcceptExResponse(pvRequest: TIocpAcceptExRequest);
 
     function GetClientCount: Integer;
-    procedure SetWSASendBufferSize(const Value: cardinal);
-
   public
     constructor Create(AOwner: TComponent); override;
 
@@ -829,18 +826,6 @@ type
     /// </summary>
     property WSARecvBufferSize: cardinal read FWSARecvBufferSize write
         SetWSARecvBufferSize;
-
-    /// <summary>
-    ///   max size for post WSASend
-    /// </summary>
-    property WSASendBufferSize: cardinal read FWSASendBufferSize write
-        SetWSASendBufferSize;
-
-
-
-
-
-
 
 
 
@@ -1025,7 +1010,7 @@ begin
   FAlive := False;
   FRawSocket := TRawSocket.Create();
   FActive := false;
-  FSendRequestLink := TIocpRequestSingleLink.Create(10);
+  FSendRequestLink := TIocpRequestSingleLink.Create(100);
   FRecvRequest := TIocpRecvRequest.Create;
   FRecvRequest.FClientContext := self;
 
@@ -1315,7 +1300,7 @@ end;
 
 function TIocpClientContext.GetSendRequest: TIocpSendRequest;
 begin
-  Result := FOwner.getSendRequest;
+  Result := FOwner.GetSendRequest;
   Assert(Result <> nil);
   Result.FClientContext := self;
 end;
@@ -1454,29 +1439,31 @@ begin
   if self.Active then
   begin
     if self.incReferenceCounter('PostWSASendRequest', Self) then
-    try
-      lvRequest := getSendRequest;
-      lvRequest.SetBuffer(buf, len, pvBufReleaseType);
-      Result := InnerPostSendRequestAndCheckStart(lvRequest);
-      if not Result then
-      begin
-        {$IFDEF DEBUG_ON}
-        if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-           [FSendRequestLink.Count]);
-        {$ENDIF}
-        Self.RequestDisconnect('TIocpClientContext.PostWSASendRequest Post Fail',
-          lvRequest);
+    begin
+      try
+        lvRequest := GetSendRequest;
+        lvRequest.SetBuffer(buf, len, pvBufReleaseType);
+        Result := InnerPostSendRequestAndCheckStart(lvRequest);
+        if not Result then
+        begin
+          /// Push Fail unbinding buf
+          lvRequest.UnBindingSendBuffer;
 
-        lvRequest.CancelRequest;
-        FOwner.releaseSendRequest(lvRequest);
+          {$IFDEF DEBUG_ON}
+          if FOwner.logCanWrite then
+            FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+             [FSendRequestLink.Count]);
+          {$ENDIF}
+          Self.RequestDisconnect('TIocpClientContext.PostWSASendRequest Post Fail',
+            lvRequest);
+
+          lvRequest.CancelRequest;
+          FOwner.ReleaseSendRequest(lvRequest);
+        end;
+      finally
+        self.decReferenceCounter('PostWSASendRequest', Self);
       end;
-    finally
-      self.decReferenceCounter('PostWSASendRequest', Self);
     end;
-  end else
-  begin
-    Result := false;
   end;
 end;
 
@@ -1576,12 +1563,10 @@ begin
 
   FIocpAcceptorMgr := TIocpAcceptorMgr.Create(Self, FListenSocket);
   FIocpAcceptorMgr.FMaxRequest := 100;
-  FIocpAcceptorMgr.FMinRequest := 1;
+  FIocpAcceptorMgr.FMinRequest := 30;
 
   // post wsaRecv block size
   FWSARecvBufferSize := 1024 * 4;
-
-  FWSASendBufferSize := 1024 * 4;
 end;
 
 destructor TIocpTcpServer.Destroy;
@@ -1908,7 +1893,7 @@ begin
   end;
 end;
 
-function TIocpTcpServer.releaseSendRequest(pvObject:TIocpSendRequest): Boolean;
+function TIocpTcpServer.ReleaseSendRequest(pvObject:TIocpSendRequest): Boolean;
 begin
   if self = nil then
   begin
@@ -2131,7 +2116,7 @@ begin
   {$ENDIF}
 end;
 
-function TIocpTcpServer.getSendRequest: TIocpSendRequest;
+function TIocpTcpServer.GetSendRequest: TIocpSendRequest;
 begin
   if Self = nil then
   begin
@@ -2169,13 +2154,6 @@ begin
   begin
     FWSARecvBufferSize := 1024 * 4;
   end;
-end;
-
-procedure TIocpTcpServer.SetWSASendBufferSize(const Value: cardinal);
-begin
-  FWSASendBufferSize := Value;
-  if FWSASendBufferSize <=0 then
-    FWSASendBufferSize := 1024 * 8;
 end;
 
 function TIocpTcpServer.WaitForContext(pvTimeOut: Cardinal): Boolean;
@@ -2864,6 +2842,13 @@ begin
 //    FLen := len;
 //  end;
 //  FPosition := 0;
+end;
+
+procedure TIocpSendRequest.UnBindingSendBuffer;
+begin
+  FBuf := nil;
+  FLen := 0;
+  FSendBufferReleaseType := dtNone;
 end;
 
 function TIocpSendRequest.GetStateINfo: String;

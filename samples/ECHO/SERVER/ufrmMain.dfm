@@ -49,8 +49,6 @@ object frmMain: TfrmMain
     TabOrder = 3
     object TabSheet1: TTabSheet
       Caption = 'moniter'
-      ExplicitWidth = 617
-      ExplicitHeight = 302
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -59,8 +57,6 @@ object frmMain: TfrmMain
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitWidth = 617
-        ExplicitHeight = 302
       end
     end
     object TabSheet2: TTabSheet
@@ -73,8 +69,8 @@ object frmMain: TfrmMain
       object mmoLog: TMemo
         Left = 0
         Top = 0
-        Width = 617
-        Height = 302
+        Width = 637
+        Height = 322
         Align = alClient
         Lines.Strings = (
           'mmoLog')

@@ -135,21 +135,21 @@ var
 begin
   if errCode = 0 then
   begin
-    j := InterlockedIncrement(iCounter);
+//   j := InterlockedIncrement(iCounter);
 //    if j mod 2000 = 0 then
 //    begin
 //      pvClientContext.RequestDisconnect;
 //      exit;
 //    end;
 
-    if j mod 2000 = 0 then
-    begin
-      for i := 0 to 200 do
-      begin
-        pvClientContext.PostWSASendRequest(buf, len);
-      end;
-      exit;
-    end;
+//    if j mod 2000 = 0 then
+//    begin
+//      for i := 0 to 200 do
+//      begin
+//        pvClientContext.PostWSASendRequest(buf, len);
+//      end;
+//      exit;
+//    end;
 
     pvClientContext.PostWSASendRequest(buf, len);
 
