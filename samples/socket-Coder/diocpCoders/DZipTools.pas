@@ -6,6 +6,10 @@ uses
   Classes, Zlib, SysUtils;
 
 type
+{$if CompilerVersion< 18.5}
+  TBytes = array of Byte;
+{$IFEND}
+
   TDZipTools = class(TObject)
   public
     /// <summary>

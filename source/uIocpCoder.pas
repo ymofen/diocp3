@@ -6,6 +6,9 @@ uses
   uBuffer;
 
 type
+{$if CompilerVersion< 18.5}
+  TBytes = array of Byte;
+{$IFEND}
 
   TIOCPDecoder = class(TObject)
   public
