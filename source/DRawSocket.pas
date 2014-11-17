@@ -14,6 +14,7 @@ uses
   SysUtils
 {$IFDEF POSIX}
     , Posix.Base, Posix.SysSocket, Posix.arpainet, Posix.NetinetIn, Posix.UniStd
+    , Posix.NetDB 
 {$ELSE}
     , Windows, winsock
 {$ENDIF};
@@ -121,8 +122,6 @@ type
         1: (S_un_w: TIdSunW);
         2: (S_addr: LongWord);
   end;
-var
-  i: Integer;
 begin
   Result := IntToStr(TIdIn4Addr(AInAddr).S_un_b.s_b1) + '.'   {Do not Localize}
             + IntToStr(TIdIn4Addr(AInAddr).S_un_b.s_b2) + '.' {Do not Localize}
@@ -260,7 +259,7 @@ var
 {$ENDIF}
 begin
 {$IFDEF POSIX}
-  Result := ResolvingHostName;
+  Result := ResolvingHostName(pvHost);
 {$ELSE}
   lvhostInfo := gethostbyname(PAnsiChar(AnsiString(pvHost)));
   if lvhostInfo = nil then
