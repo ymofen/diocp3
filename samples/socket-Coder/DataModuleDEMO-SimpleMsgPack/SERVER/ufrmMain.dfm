@@ -13,6 +13,7 @@ object frmMain: TfrmMain
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
+  OnClose = FormClose
   PixelsPerInch = 96
   TextHeight = 13
   object edtPort: TEdit
@@ -41,8 +42,6 @@ object frmMain: TfrmMain
     object tsMoniter: TTabSheet
       Caption = 'Moniter'
       ImageIndex = 1
-      ExplicitWidth = 558
-      ExplicitHeight = 282
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -51,8 +50,6 @@ object frmMain: TfrmMain
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitWidth = 558
-        ExplicitHeight = 282
       end
     end
   end

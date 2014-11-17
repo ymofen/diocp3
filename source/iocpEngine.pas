@@ -274,12 +274,12 @@ type
     /// <summary>
     ///   check worker thread is alive
     /// </summary>
-    function workersIsAlive():Boolean;
+    function WorkersIsAlive: Boolean;
 
     procedure incAliveWorker;
     procedure decAliveWorker(const pvWorker: TIocpWorker);
   public
-    procedure writeStateINfo(const pvStrings:TStrings);
+    procedure WriteStateINfo(const pvStrings:TStrings);
 
     function getStateINfo: String;
 
@@ -324,13 +324,18 @@ type
     /// <summary>
     ///   stop and wait worker thread
     /// </summary>
-    procedure safeStop;
+    procedure SafeStop(pvTimeOut: Integer = 1000);
 
 
     /// <summary>
     ///   check active, start
     /// </summary>
     procedure checkStart;
+
+    /// <summary>
+    ///  Stop workers
+    /// </summary>
+    function StopWorkers(pvTimeOut: Cardinal): Boolean;
 
 
 
@@ -360,7 +365,12 @@ type
 
   end;
 
+var
+  __ProcessIDStr:String;
+
 function IsDebugMode: Boolean;
+procedure SafeWriteFileMsg(pvMsg:String; pvFilePre:string);
+function tick_diff(tick_start, tick_end: Cardinal): Cardinal;
 
 implementation
 
@@ -375,6 +385,39 @@ resourcestring
   strDebug_Worker_INfo       = 'thread id: %d, response count: %d';
   strDebug_Worker_StateINfo  = 'busying:%s, waiting:%s, reserved:%s ';
   strDebug_Request_Title     = 'request state info:';
+
+procedure SafeWriteFileMsg(pvMsg:String; pvFilePre:string);
+var
+  lvFileName, lvBasePath:String;
+  lvLogFile: TextFile;
+begin
+  try
+    lvBasePath :=ExtractFilePath(ParamStr(0)) + 'log';
+    ForceDirectories(lvBasePath);
+    lvFileName :=lvBasePath + '\' + __ProcessIDStr+ '_' + pvFilePre +
+     FormatDateTime('mmddhhnnsszzz', Now()) + '.log';
+
+    AssignFile(lvLogFile, lvFileName);
+    if (FileExists(lvFileName)) then
+      append(lvLogFile)
+    else
+      rewrite(lvLogFile);
+
+    writeln(lvLogFile, pvMsg);
+    flush(lvLogFile);
+    CloseFile(lvLogFile);
+  except
+    ;
+  end;
+end;
+
+function tick_diff(tick_start, tick_end: Cardinal): Cardinal;
+begin
+  if tick_end >= tick_start then
+    result := tick_end - tick_start
+  else
+    result := High(Cardinal) - tick_start + tick_end;
+end;
 
 
 function IsDebugMode: Boolean;
@@ -696,7 +739,7 @@ end;
 
 destructor TIocpEngine.Destroy;
 begin
-  safeStop;
+  SafeStop;
 
   // wait thread's res back
   Sleep(10);
@@ -714,7 +757,7 @@ var
 begin
   lvStrings := TStringList.Create;
   try
-    writeStateINfo(lvStrings);
+    WriteStateINfo(lvStrings);
     Result := lvStrings.Text;
   finally
     lvStrings.Free;
@@ -786,7 +829,7 @@ begin
           if GetTickCount - lvWorker.FLastRequest.FRespondStartTickCount > pvTimeOut then
           begin
             lvStrings.Add(Format(strDebug_WorkerTitle, [i + 1]));
-            lvWorker.writeStateINfo(lvStrings);
+            lvWorker.WriteStateINfo(lvStrings);
             inc(j);
           end;
         end;
@@ -811,44 +854,13 @@ begin
   InterlockedIncrement(FActiveWorkerCount);
 end;
 
-procedure TIocpEngine.safeStop;
-var
-  i: Integer;
+procedure TIocpEngine.SafeStop(pvTimeOut: Integer = 1000);
 begin
-  if FActive then
-  begin
-    if workersIsAlive then
-    begin
-      for i := 0 to FWorkerList.Count -1 do
-      begin
-        if not FIocpCore.postIOExitRequest then
-        begin
-          RaiseLastOSError;
-        end;
-      end;
-    end else
-    begin
-      // all worker thread is dead
+  // 30's
+  StopWorkers(pvTimeOut);
 
-      FWorkerList.Clear;
-      {$IFDEF DEBUG_ON}
-      workerCounter := 0;
-      {$ENDIF} 
-      if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
-    end;
-
-    if FSafeStopSign <> nil then
-    begin
-      // wait all works down
-      FSafeStopSign.WaitFor(INFINITE);
-
-      FSafeStopSign.Free;
-      FSafeStopSign := nil;
-    end;
-
-    FWorkerList.Clear;
-    FActive := false;
-  end; 
+  FWorkerList.Clear;
+  FActive := false;
 end;
 
 procedure TIocpEngine.setMaxWorkerCount(AWorkerCount: Word);
@@ -859,7 +871,7 @@ end;
 
 procedure TIocpEngine.setWorkerCount(AWorkerCount: Integer);
 begin
-  if FActive then safeStop;
+  if FActive then SafeStop;
   if AWorkerCount <= 0 then
     FWorkerCount := (getCPUCount shl 2) -1
   else
@@ -897,7 +909,68 @@ begin
   FActive := true;
 end;
 
-function TIocpEngine.workersIsAlive: Boolean;
+function TIocpEngine.StopWorkers(pvTimeOut: Cardinal): Boolean;
+var
+  l:Cardinal;
+  i:Integer;
+begin
+  Result := False;
+  if not FActive then
+  begin
+    Result := true;
+    exit;
+  end;
+
+  if WorkersIsAlive then
+  begin
+    for i := 0 to FWorkerList.Count -1 do
+    begin
+      if not FIocpCore.postIOExitRequest then
+      begin
+        RaiseLastOSError;
+      end;
+    end;
+  end else
+  begin
+    // all worker thread is dead
+
+    FWorkerList.Clear;
+    {$IFDEF DEBUG_ON}
+    workerCounter := 0;
+    {$ENDIF}
+    if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
+  end;
+
+  if FSafeStopSign <> nil then
+  begin
+    l := GetTickCount;
+    while True do
+    begin
+      {$IFDEF MSWINDOWS}
+      SwitchToThread;
+      {$ELSE}
+      TThread.Yield;
+      {$ENDIF}
+
+      // wait all works down
+      if FSafeStopSign.WaitFor(1000)=wrSignaled then
+      begin
+        FSafeStopSign.Free;
+        FSafeStopSign := nil;
+        Result := true;
+        Break;
+      end;
+
+      if tick_diff(l, GetTickCount) > pvTimeOut then
+      begin
+        Result := false;
+        Break;
+      end;
+    end;
+  end;  
+end;
+
+function TIocpEngine.WorkersIsAlive: Boolean;
 var
   i: Integer;
   lvCode:Cardinal;
@@ -917,7 +990,7 @@ begin
 
 end;
 
-procedure TIocpEngine.writeStateINfo(const pvStrings:TStrings);
+procedure TIocpEngine.WriteStateINfo(const pvStrings:TStrings);
 var
   i:Integer;
 begin
@@ -928,7 +1001,7 @@ begin
     for i := 0 to FWorkerList.Count - 1 do
     begin
       pvStrings.Add(Format(strDebug_WorkerTitle, [i + 1]));
-      TIocpWorker(FWorkerList[i]).writeStateINfo(pvStrings);
+      TIocpWorker(FWorkerList[i]).WriteStateINfo(pvStrings);
     end;
   finally
     self.FWorkerLocker.Leave;
@@ -1144,6 +1217,7 @@ initialization
 {$IFDEF DEBUG_ON}
   workerCounter := 0;
 {$ENDIF}
+  __ProcessIDStr := IntToStr(GetCurrentProcessId);
 
 
 finalization

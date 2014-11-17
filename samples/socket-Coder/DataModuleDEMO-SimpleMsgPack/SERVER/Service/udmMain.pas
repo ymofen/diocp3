@@ -91,6 +91,7 @@ begin
 //        end;
 
         qryMain.Close;
+        conMain.Close;
         Result := true;
       end;
     2:

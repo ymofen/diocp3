@@ -62,3 +62,12 @@ DIOCP 3.5.03
 
 5.同步iocpBaseSocket.TIocpSendRequest的发送流程和IocpTcpServer.TIocpSendRequest一致
   2014-11-12 23:05:17
+  
+6.优化关闭过程，触发完所有的事件后，然后再移除在线列表，然后归还到连接上下文池。
+  2014-11-17 23:51:43
+ 
+7.停止TcpServer如果超时后，记录当前信息统计信息到文件, 以便查看日志进行分析。
+  2014-11-17 23:52:42
+  
+8.优化DataModuleDB DEMO，关闭窗体时，停止Iocp服务并断开所有客户端, 如果在主窗体释放时停止Iocp服务，在断开客户端连接释放TMyClientContext实例FdmMain.Free时卡死
+  2014-11-17 23:56:39

@@ -25,8 +25,6 @@ var
   __startTime:TDateTime;
 
 
-
-
 class function TRunTimeINfoTools.getRunTimeINfo: String;
 var
   lvMSec, lvRemain:Int64;

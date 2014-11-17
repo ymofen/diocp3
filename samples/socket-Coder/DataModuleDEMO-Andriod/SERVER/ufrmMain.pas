@@ -22,6 +22,7 @@ type
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
     procedure Button1Click(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
     { Private declarations }
     FTcpServer: TIOCPConsole;
@@ -109,6 +110,11 @@ begin
     lvStream2.Free;
   end;
 
+end;
+
+procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  FTcpServer.SafeStop;
 end;
 
 end.

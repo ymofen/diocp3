@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
-  ComObj, ComCtrls, uMyClientContext, System.Actions;
+  ComObj, ComCtrls, uMyClientContext;
 
 type
   TfrmMain = class(TForm)
@@ -20,6 +20,7 @@ type
     pnlMonitor: TPanel;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
     { Private declarations }
     FTcpServer: TIOCPConsole;
@@ -83,6 +84,11 @@ procedure TfrmMain.actStopExecute(Sender: TObject);
 begin
   FTcpServer.safeStop;
   refreshState;
+end;
+
+procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  FTcpServer.SafeStop;
 end;
 
 end.

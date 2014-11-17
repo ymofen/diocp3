@@ -766,13 +766,18 @@ type
     /// <summary>
     ///   stop and wait all workers down
     /// </summary>
-    procedure safeStop();
+    procedure SafeStop;
 
     property Active: Boolean read FActive write SetActive;
 
     procedure open();
 
     procedure close;
+    
+    /// <summary>
+    ///   
+    /// </summary>
+    function GetStateInfo: String;
 
 
 
@@ -850,8 +855,76 @@ type
 
 implementation
 
+uses
+  DateUtils;
 
 
+var
+  __startTime:TDateTime;
+
+const
+  BytePerKB = 1024;
+  BytePerMB = BytePerKB * 1024;
+  BytePerGB = BytePerMB * 1024;
+
+function GetRunTimeINfo: String;
+var
+  lvMSec, lvRemain:Int64;
+  lvDay, lvHour, lvMin, lvSec:Integer;
+begin
+  lvMSec := MilliSecondsBetween(Now(), __startTime);
+  lvDay := Trunc(lvMSec / MSecsPerDay);
+  lvRemain := lvMSec mod MSecsPerDay;
+
+  lvHour := Trunc(lvRemain / (MSecsPerSec * 60 * 60));
+  lvRemain := lvRemain mod (MSecsPerSec * 60 * 60);
+
+  lvMin := Trunc(lvRemain / (MSecsPerSec * 60));
+  lvRemain := lvRemain mod (MSecsPerSec * 60);
+
+  lvSec := Trunc(lvRemain / (MSecsPerSec));
+
+  if lvDay > 0 then
+    Result := Result + IntToStr(lvDay) + ' d ';
+
+  if lvHour > 0 then
+    Result := Result + IntToStr(lvHour) + ' h ';
+
+  if lvMin > 0 then
+    Result := Result + IntToStr(lvMin) + ' m ';
+
+  if lvSec > 0 then
+    Result := Result + IntToStr(lvSec) + ' s ';
+end;
+
+
+///TRunTimeINfoTools
+function TransByteSize(pvByte: Int64): String;
+var
+  lvTB, lvGB, lvMB, lvKB:Word;
+  lvRemain:Int64;
+begin
+  lvRemain := pvByte;
+
+  lvTB := Trunc(lvRemain/BytePerGB/1024);
+  //lvRemain := pvByte - (lvTB * BytePerGB * 1024);
+  
+  lvGB := Trunc(lvRemain/BytePerGB);
+
+  lvGB := lvGB mod 1024;      // trunc TB
+
+  lvRemain := lvRemain mod BytePerGB;
+
+  lvMB := Trunc(lvRemain/BytePerMB);
+  lvRemain := lvRemain mod BytePerMB;
+
+  lvKB := Trunc(lvRemain/BytePerKB);
+  lvRemain := lvRemain mod BytePerKB;
+  Result := Format('%d TB, %d GB, %d MB, %d KB, %d B', [lvTB, lvGB, lvMB, lvKB, lvRemain]);
+end;
+
+
+  
 
 /// compare target, cmp_val same set target = new_val
 /// return old value
@@ -896,7 +969,7 @@ begin
 
     checkReleaseRes;
 
-    FOwner.RemoveFromOnOnlineList(Self);
+
     try
       if Assigned(FOwner.FOnClientContextDisconnected) then
       begin
@@ -906,6 +979,7 @@ begin
     except
     end;
   finally
+    FOwner.RemoveFromOnOnlineList(Self);
     FOwner.releaseClientContext(Self);
   end;
 
@@ -1090,6 +1164,13 @@ begin
   lvCloseContext := false;
 
   FContextLocker.lock('decReferenceCounter');
+
+{$IFDEF DEBUG_ON}
+  if FOwner.logCanWrite then
+    FOwner.FSafeLogger.logMessage('%d_RequestDisconnect:%s', [SocketHandle,pvDebugInfo],
+      'RequestDisconnectDEBUG');
+{$ENDIF}
+
   FRequestDisconnect := true;
   Dec(FReferenceCounter);
   FDebugStrings.Add(Format('-(%d):%d,%s', [FReferenceCounter, IntPtr(pvObj), pvDebugInfo]));
@@ -1131,7 +1212,14 @@ procedure TIocpClientContext.RequestDisconnect(pvDebugInfo: string = ''; pvObj:
 var
   lvCloseContext:Boolean;
 begin
-  if not FActive then exit;    
+  if not FActive then exit;
+
+{$IFDEF DEBUG_ON}
+  if FOwner.logCanWrite then
+    FOwner.FSafeLogger.logMessage('%d_RequestDisconnect:%s', [SocketHandle,pvDebugInfo],
+      'RequestDisconnectDEBUG');
+{$ENDIF}
+
   FContextLocker.lock('RequestDisconnect');
   if pvDebugInfo <> '' then
   begin
@@ -1575,7 +1663,7 @@ begin
 
   FIsDestroying := true;
 
-  safeStop;
+  SafeStop;
 
   if FDataMoniter <> nil then FDataMoniter.Free;
 
@@ -1976,7 +2064,7 @@ begin
 
 end;
 
-procedure TIocpTcpServer.safeStop;
+procedure TIocpTcpServer.SafeStop;
 begin
   if FActive then
   begin
@@ -1992,10 +2080,18 @@ begin
       Sleep(10);
     end;
     Sleep(10);
-    // engine stop
-    FIocpEngine.safeStop;
 
-    //Assert(self.) 
+    if not FIocpEngine.StopWorkers(1000) then
+    begin        // record info
+      SafeWriteFileMsg('EngineWorkerInfo:' +
+         sLineBreak + FIocpEngine.GetStateINfo + sLineBreak +
+         '================================================' + sLineBreak +
+         'TcpServerInfo:' +
+         sLineBreak + GetStateINfo, Self.Name + '_SafeStopTimeOut');
+    end;
+    
+    // engine stop
+    FIocpEngine.SafeStop;
   end; 
 end;
 
@@ -2037,8 +2133,8 @@ begin
       FActive := True;
     end else
     begin
-      safeStop;
-    end; 
+      SafeStop;
+    end;
   end;
 end;
 
@@ -2144,6 +2240,109 @@ begin
   if (FDataMoniter <> nil) then
   begin
     InterlockedIncrement(FDataMoniter.FSendRequestOutCounter);
+  end;
+end;
+
+function TIocpTcpServer.GetStateInfo: String;
+var
+  lvStrings:TStrings;
+begin
+  Result := '';
+  if FDataMoniter = nil then exit;
+  lvStrings := TStringList.Create;
+  try
+    if Active then
+    begin
+      lvStrings.Add('running');
+    end else
+    begin
+      lvStrings.Add('stop');
+    end;
+
+
+    lvStrings.Add(Format('RecvInfo: post:%d, response:%d, remain:%d',
+       [
+         DataMoniter.PostWSARecvCounter,
+         DataMoniter.ResponseWSARecvCounter,
+         DataMoniter.PostWSARecvCounter -
+         DataMoniter.ResponseWSARecvCounter
+       ]
+      ));
+
+    lvStrings.Add('Recv size:' +
+       TransByteSize(DataMoniter.RecvSize));
+
+
+    //  Format('post:%d, response:%d, recvd:%d',
+    //     [
+    //       FIocpTcpServer.DataMoniter.PostWSARecvCounter,
+    //       FIocpTcpServer.DataMoniter.ResponseWSARecvCounter,
+    //       FIocpTcpServer.DataMoniter.RecvSize
+    //     ]
+    //    );
+
+    lvStrings.Add(Format('SendInfo: post:%d, response:%d, remain:%d',
+       [
+         DataMoniter.PostWSASendCounter,
+         DataMoniter.ResponseWSASendCounter,
+         DataMoniter.PostWSASendCounter -
+         DataMoniter.ResponseWSASendCounter
+       ]
+      ));
+
+    lvStrings.Add(Format('SendRequest: create:%d, out:%d, return:%d',
+       [
+         DataMoniter.SendRequestCreateCounter,
+         DataMoniter.SendRequestOutCounter,
+         DataMoniter.SendRequestReturnCounter
+       ]
+      ));
+
+    lvStrings.Add(Format('SendQueue: push/pop/complted/abort:%d, %d, %d, %d',
+       [
+         DataMoniter.PushSendQueueCounter,
+         DataMoniter.PostSendObjectCounter,
+         DataMoniter.ResponseSendObjectCounter,
+         DataMoniter.SendRequestAbortCounter
+       ]
+      ));
+      
+    lvStrings.Add('Send Size:' +
+       transByteSize(DataMoniter.SentSize));
+
+
+    lvStrings.Add(Format('AcceptExInfo: post:%d, response:%d',
+       [
+         DataMoniter.PostWSAAcceptExCounter,
+         DataMoniter.ResponseWSAAcceptExCounter
+       ]
+      ));
+
+    lvStrings.Add(Format('SocketHandleInfo: create:%d, destroy:%d',
+       [
+         DataMoniter.HandleCreateCounter,
+         DataMoniter.HandleDestroyCounter
+       ]
+      ));
+
+    lvStrings.Add(Format('contextInfo: create:%d, out:%d, return:%d',
+       [
+         DataMoniter.ContextCreateCounter,
+         DataMoniter.ContextOutCounter,
+         DataMoniter.ContextReturnCounter
+       ]
+      ));
+
+    lvStrings.Add(Format('online count: %d', [ClientCount]));
+  
+    lvStrings.Add(Format('worker count: %d', [WorkerCount]));
+
+    lvStrings.Add('run info:' + GetRunTimeINfo);
+
+    Result := lvStrings.Text;
+  finally
+    lvStrings.Free;
+
   end;
 end;
 
@@ -3216,5 +3415,11 @@ begin
     end;
   end;
 end;
+
+
+initialization
+  __startTime :=  Now();
+
+
 
 end.

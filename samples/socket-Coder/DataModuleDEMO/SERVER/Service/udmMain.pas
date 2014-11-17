@@ -8,7 +8,7 @@ unit udmMain;
 interface
 
 uses
-  SysUtils, Classes, DB, ADODB, Provider, IniFiles, Datasnap.DBClient;
+  SysUtils, Classes, DB, ADODB, Provider, IniFiles, DBClient;
 
 type
   TdmMain = class(TDataModule)

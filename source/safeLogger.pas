@@ -195,12 +195,12 @@ type
 
 var
   sfLogger:TSafeLogger;
-
+  __ProcessIDStr :String;
   __GetThreadStackFunc: TThreadStackFunc;
 
+procedure SafeWriteFileMsg(pvMsg:String; pvFilePre:string);
+
 implementation
-
-
 
 
 var
@@ -257,6 +257,31 @@ asm
   mov rax, rcx
   lock cmpxchg [r8], dl
 {$endif}
+end;
+
+procedure SafeWriteFileMsg(pvMsg:String; pvFilePre:string);
+var
+  lvFileName, lvBasePath:String;
+  lvLogFile: TextFile;
+begin
+  try
+    lvBasePath :=ExtractFilePath(ParamStr(0)) + 'log';
+    ForceDirectories(lvBasePath);
+    lvFileName :=lvBasePath + '\' + __ProcessIDStr+ '_' + pvFilePre +
+     FormatDateTime('mmddhhnn', Now()) + '.log';
+
+    AssignFile(lvLogFile, lvFileName);
+    if (FileExists(lvFileName)) then
+      append(lvLogFile)
+    else
+      rewrite(lvLogFile);
+
+    writeln(lvLogFile, pvMsg);
+    flush(lvLogFile);
+    CloseFile(lvLogFile);
+  except
+    ;
+  end;
 end;
 
 procedure TSafeLogger.checkForWorker;
@@ -800,6 +825,7 @@ begin
 end;
 
 initialization
+  __ProcessIDStr := IntToStr(GetCurrentProcessId);
   __GetThreadStackFunc := nil;
   __dataObjectPool := TBaseQueue.Create;
   __dataObjectPool.Name := 'safeLoggerDataPool';
