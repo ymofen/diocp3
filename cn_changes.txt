@@ -71,3 +71,6 @@ DIOCP 3.5.03
   
 8.优化DataModuleDB DEMO，关闭窗体时，停止Iocp服务并断开所有客户端, 如果在主窗体释放时停止Iocp服务，在断开客户端连接释放TMyClientContext实例FdmMain.Free时卡死
   2014-11-17 23:56:39
+
+9.修复DTcpClient在Posix下Socket错误时返回0，导致RecvBuffer死循环(感谢[广州]cyw反馈bug)
+  2014-11-18 10:39:22
