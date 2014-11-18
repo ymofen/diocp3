@@ -1,3 +1,11 @@
+(*
+   unit owner: d10.天地弦
+   a cross platform unit
+
+   2014-11-18 10:36:01
+     fix Recv bug in Posix( return zero when fail)
+     thanks for 广州-cyw   
+*)
 unit DTcpClient;
 
 interface
@@ -15,7 +23,8 @@ type
     FRawSocket: TDRawSocket;
     FReadTimeOut: Integer;
     procedure SetActive(const Value: Boolean);
-
+    
+    procedure CheckSocketResult(pvSocketResult:Integer);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -50,6 +59,16 @@ destructor TDTcpClient.Destroy;
 begin
   FRawSocket.Free;
   inherited Destroy;
+end;
+
+procedure TDTcpClient.CheckSocketResult(pvSocketResult: Integer);
+begin
+  ///  Posix, fail return 0
+  ///  ms_windows, fail return -1
+  if (pvSocketResult = -1) or (pvSocketResult = 0) then
+  begin
+    RaiseLastOSError;
+  end;
 end;
 
 procedure TDTcpClient.Connect;
@@ -92,33 +111,24 @@ begin
   while lvReadL < len do
   begin
     lvTempL := FRawSocket.RecvBuf(lvPBuf^, len - lvReadL);
-    if lvTempL = -1 then
-    begin
-      RaiseLastOSError;
-    end else
-    begin
-      lvPBuf := Pointer(IntPtr(lvPBuf) + Cardinal(lvTempL));
-      lvReadL := lvReadL + Cardinal(lvTempL);
-    end;
+    
+    CheckSocketResult(lvTempL);
+    
+    lvPBuf := Pointer(IntPtr(lvPBuf) + Cardinal(lvTempL));
+    lvReadL := lvReadL + Cardinal(lvTempL);
   end;
 end;
 
 function TDTcpClient.RecvBuffer(buf: Pointer; len: cardinal): Integer;
 begin
   Result := FRawSocket.RecvBuf(buf^, len);
-  if Result = SOCKET_ERROR then
-  begin
-    RaiseLastOSError;
-  end;
+  CheckSocketResult(Result);
 end;
 
 function TDTcpClient.sendBuffer(buf: Pointer; len: cardinal): Integer;
 begin
   Result := FRawSocket.SendBuf(buf^, len);
-  if Result = SOCKET_ERROR then
-  begin
-    RaiseLastOSError;
-  end;
+  CheckSocketResult(Result);
 end;
 
 procedure TDTcpClient.SetActive(const Value: Boolean);
