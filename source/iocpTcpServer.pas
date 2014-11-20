@@ -2102,7 +2102,7 @@ begin
     end;
 
     // engine stop
-    FIocpEngine.SafeStop(1000);
+    FIocpEngine.SafeStop();
   end; 
 end;
 

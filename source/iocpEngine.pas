@@ -327,7 +327,6 @@ type
     /// </summary>
     procedure SafeStop(pvTimeOut: Integer = 120000);
 
-
     /// <summary>
     ///   check active, start
     /// </summary>
@@ -857,8 +856,10 @@ end;
 
 procedure TIocpEngine.SafeStop(pvTimeOut: Integer = 120000);
 begin
-  // 30's
-  StopWorkers(pvTimeOut);
+  if FActiveWorkerCount > 0 then
+  begin
+    StopWorkers(pvTimeOut);
+  end;
 
   FWorkerList.Clear;
   FActive := false;
@@ -934,11 +935,7 @@ begin
   end else
   begin
     // all worker thread is dead
-
     FWorkerList.Clear;
-    {$IFDEF DEBUG_ON}
-    workerCounter := 0;
-    {$ENDIF}
     if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
   end;
 
@@ -1226,7 +1223,7 @@ initialization
 finalization
 {$IFDEF DEBUG_ON}
   if IsDebugMode then
-    Assert(workerCounter = 0, ('iocpEngine workerCounter :' + IntToStr(workerCounter)));
+    Assert(workerCounter = 0, ('iocpEngine workerCounter, has dead thread? ' + IntToStr(workerCounter)));
 {$ENDIF}
 
 end.
