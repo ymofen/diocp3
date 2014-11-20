@@ -74,3 +74,6 @@ DIOCP 3.5.03
 
 9.修复DTcpClient在Posix下Socket错误时返回0，导致RecvBuffer死循环(感谢[广州]cyw反馈bug)
   2014-11-18 10:39:22
+
+10. 修复关闭TcpServer时两次执行IocpEngine的SafeStop，后一次执行时认为线程全部被杀死。导致最后清理单元检测时出现失误。
+  2014-11-20 12:33:52
