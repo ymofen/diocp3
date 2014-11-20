@@ -322,9 +322,10 @@ type
 
 
     /// <summary>
-    ///   stop and wait worker thread
+    ///    stop and wait worker thread
+    ///    default 120's
     /// </summary>
-    procedure SafeStop(pvTimeOut: Integer = 1000);
+    procedure SafeStop(pvTimeOut: Integer = 120000);
 
 
     /// <summary>
@@ -854,7 +855,7 @@ begin
   InterlockedIncrement(FActiveWorkerCount);
 end;
 
-procedure TIocpEngine.SafeStop(pvTimeOut: Integer = 1000);
+procedure TIocpEngine.SafeStop(pvTimeOut: Integer = 120000);
 begin
   // 30's
   StopWorkers(pvTimeOut);
@@ -951,6 +952,8 @@ begin
       {$ELSE}
       TThread.Yield;
       {$ENDIF}
+
+      Sleep(10);
 
       // wait all works down
       if FSafeStopSign.WaitFor(1000)=wrSignaled then

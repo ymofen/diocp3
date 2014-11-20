@@ -2075,23 +2075,34 @@ begin
 
     DisconnectAll;
 
-    if not WaitForContext(30000) then
-    begin
+    if not WaitForContext(120000) then
+    begin  // wait time out
       Sleep(10);
-    end;
-    Sleep(10);
 
-    if not FIocpEngine.StopWorkers(1000) then
-    begin        // record info
-      SafeWriteFileMsg('EngineWorkerInfo:' +
-         sLineBreak + FIocpEngine.GetStateINfo + sLineBreak +
-         '================================================' + sLineBreak +
-         'TcpServerInfo:' +
-         sLineBreak + GetStateINfo, Self.Name + '_SafeStopTimeOut');
+      // stop workers 10's
+      if not FIocpEngine.StopWorkers(10000) then
+      begin        // record info
+        SafeWriteFileMsg('EngineWorkerInfo:' +
+           sLineBreak + FIocpEngine.GetStateINfo + sLineBreak +
+           '================================================' + sLineBreak +
+           'TcpServerInfo:' +
+           sLineBreak + GetStateINfo, Self.Name + '_SafeStopTimeOut');
+      end;
+
+    end else
+    begin    // all context is give back to pool
+      if not FIocpEngine.StopWorkers(120000) then
+      begin        // record info
+        SafeWriteFileMsg('EngineWorkerInfo:' +
+           sLineBreak + FIocpEngine.GetStateINfo + sLineBreak +
+           '================================================' + sLineBreak +
+           'TcpServerInfo:' +
+           sLineBreak + GetStateINfo, Self.Name + '_SafeStopTimeOut');
+      end;
     end;
-    
+
     // engine stop
-    FIocpEngine.SafeStop;
+    FIocpEngine.SafeStop(1000);
   end; 
 end;
 

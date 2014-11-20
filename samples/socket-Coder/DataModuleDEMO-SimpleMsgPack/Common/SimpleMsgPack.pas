@@ -1,4 +1,4 @@
-(*
+﻿(*
    unit Owner: D10.Mofen, qdac.swish
       welcome to report bug: 185511468(qq), 185511468@qq.com
    Web site   : https://github.com/ymofen/msgpack-delphi
@@ -14,6 +14,22 @@
 
    + add andriod support
      2014-09-08 00:45:27
+	
+   * fixed int32, int64 parse bug< integer, int64 parse zero>
+     2014-11-09 22:35:27
+
+   + add EncodeToFile/DecodeFromFile
+     2014-11-13 12:30:58
+
+   * fix  asVariant = null (thanks for cyw(26890954))
+     2014-11-14 09:05:52
+
+   * fix AsInteger = -1 bug (thanks for cyw(26890954))
+     2014-11-14 12:15:52
+
+   * fix AsInteger = -127 bug
+     check int64/integer/cardinal/word/shortint/smallint/byte assign, encode,decode, read
+     2014-11-14 12:30:38
 
 
    samples:
@@ -151,6 +167,9 @@ type
     procedure SetAsSingle(const Value: Single);
     function GetAsSingle: Single;
 
+    procedure SetAsBytes(const Value: TBytes);
+    function GetAsBytes: TBytes;
+    
     procedure checkObjectDataType(ANewType: TMsgPackType = mptMap);
 
     function findObj(pvName:string): TSimpleMsgPack;
@@ -160,8 +179,13 @@ type
 
 
   private
-  
 
+
+    /// <summary>
+    ///   find object index by a path 
+    /// </summary>
+    function InnerFindPathObject(pvPath: string; var vParent: TSimpleMsgPack; var
+        vIndex: Integer): TSimpleMsgPack;
 
     function GetO(pvPath: String): TSimpleMsgPack;
     procedure SetO(pvPath: String; const Value: TSimpleMsgPack);
@@ -180,6 +204,7 @@ type
 
     function GetItems(AIndex: Integer): TSimpleMsgPack;
 
+
   public
     constructor Create;
     destructor Destroy; override;
@@ -195,7 +220,11 @@ type
     procedure SaveBinaryToFile(pvFileName:String);
 
     procedure EncodeToStream(pvStream:TStream);
+    procedure EncodeToFile(pvFileName:string);
+
+
     procedure DecodeFromStream(pvStream:TStream);
+    procedure DecodeFromFile(pvFileName:string);
 
     function EncodeToBytes: TBytes;
     procedure DecodeFromBytes(pvBytes:TBytes); 
@@ -208,6 +237,12 @@ type
 
     function ForcePathObject(pvPath:string): TSimpleMsgPack;
 
+    /// <summary>
+    ///  remove and free object
+    ///    false : object is not found!
+    /// </summary>
+    function DeleteObject(pvPath:String):Boolean;
+
     property AsInteger:Int64 read getAsInteger write setAsInteger;
     property AsString:string read getAsString write setAsString;
     property AsBoolean: Boolean read GetAsBoolean write SetAsBoolean;
@@ -215,6 +250,8 @@ type
     property AsSingle: Single read GetAsSingle write SetAsSingle;
     property AsDateTime: TDateTime read GetAsDateTime write SetAsDateTime;
     property AsVariant: Variant read GetAsVariant write SetAsVariant;
+
+    property AsBytes: TBytes read GetAsBytes write SetAsBytes;
 
     property O[pvPath: String]: TSimpleMsgPack read GetO write SetO;
     property S[pvPath: String]: string read GetS write SetS;
@@ -784,9 +821,37 @@ begin
 
 end;
 
+procedure TSimpleMsgPack.DecodeFromFile(pvFileName: string);
+var
+  lvFileStream:TFileStream;
+begin
+  if FileExists(pvFileName) then
+  begin
+    lvFileStream := TFileStream.Create(pvFileName, fmOpenRead);
+    try
+      DecodeFromStream(lvFileStream);
+    finally
+      lvFileStream.Free;
+    end;
+  end;
+end;
+
 procedure TSimpleMsgPack.DecodeFromStream(pvStream: TStream);
 begin
   InnerParseFromStream(pvStream);
+end;
+
+function TSimpleMsgPack.DeleteObject(pvPath: String): Boolean;
+var
+  lvParent, lvObj:TSimpleMsgPack;
+  j:Integer;
+begin
+  lvObj := InnerFindPathObject(pvPath, lvParent, j);
+  Result := lvObj <> nil;
+  if Result then
+  begin
+    lvParent.FChildren.Delete(j);
+  end;
 end;
 
 destructor TSimpleMsgPack.Destroy;
@@ -861,6 +926,22 @@ begin
   end;
 end;
 
+procedure TSimpleMsgPack.EncodeToFile(pvFileName: string);
+var
+  lvFileStream:TFileStream;
+begin
+  if FileExists(pvFileName) then
+    lvFileStream := TFileStream.Create(pvFileName, fmOpenWrite)
+  else
+    lvFileStream := TFileStream.Create(pvFileName, fmCreate);
+  try
+    lvFileStream.Size := 0;
+    EncodeToStream(lvFileStream);
+  finally
+    lvFileStream.Free;
+  end;
+end;
+
 procedure TSimpleMsgPack.EncodeToStream(pvStream: TStream);
 begin
   InnerEncodeToStream(pvStream);
@@ -888,6 +969,7 @@ var
   lvTempObj, lvParent:TSimpleMsgPack;
   j:Integer;
 begin
+  Result := nil;
   s := pvPath;
 
   lvParent := Self;
@@ -941,6 +1023,11 @@ begin
   else
     Result := False;
 
+end;
+
+function TSimpleMsgPack.GetAsBytes: TBytes;
+begin
+  Result := FValue;
 end;
 
 function TSimpleMsgPack.GetAsDateTime: TDateTime;
@@ -1070,6 +1157,8 @@ var
 
 begin
   case FDataType of
+    mptNull:
+      Result := null;
     mptString:
       Result := AsString;
     mptInteger:
@@ -1149,38 +1238,10 @@ end;
 
 function TSimpleMsgPack.GetO(pvPath: String): TSimpleMsgPack;
 var
-  lvName:String;
-  s:String;
-  sPtr:PChar;
-  lvTempObj:TSimpleMsgPack;
+  lvParent:TSimpleMsgPack;
+  j:Integer;
 begin
-  s := pvPath;
-
-  Result := nil;
-  lvTempObj := Self; 
-  sPtr := PChar(s);
-  while sPtr^ <> #0 do
-  begin
-    lvName := getFirst(sPtr, ['.', '/','\']);
-    if lvName = '' then
-    begin
-      Break;
-    end else
-    begin
-      // find childrean
-      lvTempObj := lvTempObj.findObj(lvName);
-
-      if lvTempObj = nil then
-      begin
-        Break;
-      end else
-      begin
-        Result := lvTempObj;
-      end;                  
-    end;
-    if sPtr^ = #0 then Break;
-    Inc(sPtr);
-  end;
+  Result := InnerFindPathObject(pvPath, lvParent, j);
 end;
 
 function TSimpleMsgPack.GetS(pvPath: String): string;
@@ -1270,9 +1331,62 @@ begin
     mptString: writeString(Self.getAsString, pvStream);
     mptInteger: WriteInt(self.getAsInteger, pvStream);
     mptBoolean: WriteBoolean(self.GetAsBoolean, pvStream);
-    mptFloat: WriteFloat(GetAsFloat, pvStream);
+    mptDateTime, mptFloat: WriteFloat(GetAsFloat, pvStream);
     mptSingle: WriteSingle(GetAsSingle, pvStream);
     mptBinary: WriteBinary(PByte(@FValue[0]), Length(FValue), pvStream);
+  end;
+end;
+
+function TSimpleMsgPack.InnerFindPathObject(pvPath: string; var vParent:
+    TSimpleMsgPack; var vIndex: Integer): TSimpleMsgPack;
+var
+  lvName:string;
+  s:string;
+  sPtr:PChar;
+  lvTempObj, lvParent:TSimpleMsgPack;
+  j:Integer;
+begin
+  s := pvPath;
+  
+  Result := nil;
+  
+  lvParent := Self;
+  sPtr := PChar(s);
+  while sPtr^ <> #0 do
+  begin
+    lvName := getFirst(sPtr, ['.', '/','\']);
+    if lvName = '' then
+    begin
+      Break;
+    end else
+    begin
+      if sPtr^ = #0 then
+      begin           // end
+        j := lvParent.indexOf(lvName);
+        if j <> -1 then
+        begin
+          Result := TSimpleMsgPack(lvParent.FChildren[j]);
+          vIndex := j;
+          vParent := lvParent;
+        end else
+        begin
+          Break;
+        end;
+      end else
+      begin
+        // find childrean
+        lvTempObj := lvParent.findObj(lvName);
+        if lvTempObj = nil then
+        begin
+          Break;
+        end else
+        begin
+          lvParent := lvTempObj;
+        end;
+      end;
+    end;
+    if sPtr^ = #0 then Break;
+    Inc(sPtr);
   end;
 end;
 
@@ -1281,48 +1395,54 @@ var
   lvByte:Byte;
   lvBData: array[0..15] of Byte;
   lvAnsiStr:{$IFDEF UNICODE}TBytes{$ELSE}AnsiString{$ENDIF};
-  lvBytes:TBytes;
   l, i:Cardinal;
   i64:Int64;
   lvObj:TSimpleMsgPack;
 begin
   pvStream.Read(lvByte, 1);
-  if lvByte <=$7F then   //positive fixint	0xxxxxxx	0x00 - 0x7f
+  if lvByte in [$00 .. $7F] then   //positive fixint	0xxxxxxx	0x00 - 0x7f
   begin
+    //  +--------+
+    //  |0XXXXXXX|
+    //  +--------+
     setAsInteger(lvByte);
-  end else if lvByte <= $8f then //fixmap	1000xxxx	0x80 - 0x8f
+  end else if lvByte in [$80 .. $8F] then //fixmap	1000xxxx	0x80 - 0x8f
   begin
     FDataType := mptMap;
     SetLength(FValue, 0);
     FChildren.Clear;
     l := lvByte - $80;
-
-    for I := 0 to l - 1 do
+    if l > 0 then  // check is empty ele
     begin
-      lvObj := InnerAdd;
+      for I := 0 to l - 1 do
+      begin
+        lvObj := InnerAdd;
 
-      // map key
-      lvObj.InnerParseFromStream(pvStream);
-      lvObj.setName(lvObj.getAsString);
+        // map key
+        lvObj.InnerParseFromStream(pvStream);
+        lvObj.setName(lvObj.getAsString);
 
-        // value
-      lvObj.InnerParseFromStream(pvStream);
+          // value
+        lvObj.InnerParseFromStream(pvStream);
+      end;
     end;
-  end else if lvByte <= $9f then //fixarray	1001xxxx	0x90 - 0x9f
+  end else if lvByte in [$90 .. $9F] then //fixarray	1001xxxx	0x90 - 0x9f
   begin
     FDataType := mptArray;
     SetLength(FValue, 0);
     FChildren.Clear;
 
     l := lvByte - $90;
-
-    for I := 0 to l - 1 do
+    if l > 0 then  // check is empty ele
     begin
-      lvObj := InnerAdd;
-      // value
-      lvObj.InnerParseFromStream(pvStream);
+      for I := 0 to l - 1 do
+      begin
+        lvObj := InnerAdd;
+        // value
+        lvObj.InnerParseFromStream(pvStream);
+      end;
     end;
-  end else if lvByte <= $bf then //fixstr	101xxxxx	0xa0 - 0xbf
+  end else if lvByte in [$A0 .. $BF] then //fixstr	101xxxxx	0xa0 - 0xbf
   begin
     l := lvByte - $A0;   // str len
     if l > 0 then
@@ -1340,22 +1460,31 @@ begin
     begin
       setAsString('');
     end;
+  end else if lvByte in [$E0 .. $FF] then
+  begin
+    //  negative fixnum stores 5-bit negative integer
+    //  +--------+
+    //  |111YYYYY|
+    //  +--------+
+    setAsInteger(Shortint(lvByte));
   end else
   begin
     case lvByte of
       $C0: // null
-      begin
-        FDataType := mptNull;
-        SetLength(FValue, 0);
-      end;
+        begin
+          FDataType := mptNull;
+          SetLength(FValue, 0);
+        end;
+      $C1: // (never used)
+        raise Exception.Create('(never used) type $c1');
       $C2: // False
-      begin
-        SetAsBoolean(False);
-      end;
+        begin
+          SetAsBoolean(False);
+        end;
       $C3: // True
-      begin
-        SetAsBoolean(True);
-      end;
+        begin
+          SetAsBoolean(True);
+        end;
       $C4: // 短二进制，最长255字节
       begin
         FDataType := mptBinary;
@@ -1388,6 +1517,10 @@ begin
           SetLength(FValue, l);
           pvStream.Read(FValue[0], l);
         end;
+      $c7,$c8,$c9:      //ext 8	11000111	0xc7, ext 16	11001000	0xc8, ext 32	11001001	0xc9
+        begin
+          raise Exception.Create('(ext8,ext16,ex32) type $c7,$c8,$c9');
+        end;
       $ca: // float 32
         begin
           pvStream.Read(lvBData[0], 4);
@@ -1396,7 +1529,50 @@ begin
       $cb: // Float 64
         begin
           pvStream.Read(lvBData[0], 8);
-          AsSingle := swap(PDouble(@lvBData[0])^);
+          AsFloat := swap(PDouble(@lvBData[0])^);
+        end;
+      $cc: // UInt8
+        begin
+          //      uint 8 stores a 8-bit unsigned integer
+          //      +--------+--------+
+          //      |  0xcc  |ZZZZZZZZ|
+          //      +--------+--------+
+          l := 0;
+          pvStream.Read(l, 1);
+          setAsInteger(l);
+        end;
+      $cd:
+        begin
+          //    uint 16 stores a 16-bit big-endian unsigned integer
+          //    +--------+--------+--------+
+          //    |  0xcd  |ZZZZZZZZ|ZZZZZZZZ|
+          //    +--------+--------+--------+
+          l := 0;
+          pvStream.Read(l, 2);
+          l := swap16(l);
+          SetAsInteger(Word(l));
+        end;
+      $ce:
+        begin
+          //  uint 32 stores a 32-bit big-endian unsigned integer
+          //  +--------+--------+--------+--------+--------+
+          //  |  0xce  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ
+          //  +--------+--------+--------+--------+--------+
+          l := 0;
+          pvStream.Read(l, 4);
+          l := swap32(l);
+          setAsInteger(Cardinal(l));
+        end;
+      $cf:
+        begin
+          //  uint 64 stores a 64-bit big-endian unsigned integer
+          //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+          //  |  0xcf  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|
+          //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+          i64 := 0;
+          pvStream.Read(i64, 8);
+          i64 := swap64(i64);
+          setAsInteger(i64);
         end;
       $dc: // array 16
         begin
@@ -1412,12 +1588,14 @@ begin
           pvStream.Read(l, 2);
 
           l := swap16(l);
-
-          for I := 0 to l - 1 do
+          if l > 0 then  // check is empty ele
           begin
-            lvObj := InnerAdd;
-            // value
-            lvObj.InnerParseFromStream(pvStream);
+            for I := 0 to l - 1 do
+            begin
+              lvObj := InnerAdd;
+              // value
+              lvObj.InnerParseFromStream(pvStream);
+            end;
           end;
         end;
       $dd: // Array 32
@@ -1434,12 +1612,14 @@ begin
           pvStream.Read(l, 4);
 
           l := swap32(l);
-
-          for I := 0 to l - 1 do
+          if l > 0 then  // check is empty ele
           begin
-            lvObj := InnerAdd;
-            // value
-            lvObj.InnerParseFromStream(pvStream);
+            for I := 0 to l - 1 do
+            begin
+              lvObj := InnerAdd;
+              // value
+              lvObj.InnerParseFromStream(pvStream);
+            end;
           end;
         end;
       $d9:   //str 8 , 255
@@ -1450,11 +1630,15 @@ begin
           //  +--------+--------+========+
           l := 0;
           pvStream.Read(l, 1);
-
-          SetLength(lvAnsiStr, l);
-          pvStream.Read(PByte(lvAnsiStr)^, l);
-          setAsString(UTF8DecodeEx(lvAnsiStr, l));
-
+          if l > 0 then  // check is empty ele
+          begin
+            SetLength(lvAnsiStr, l);
+            pvStream.Read(PByte(lvAnsiStr)^, l);
+            setAsString(UTF8DecodeEx(lvAnsiStr, l));
+          end else
+          begin
+            setAsString('');
+          end;
   //        SetLength(lvBytes, l + 1);
   //        lvBytes[l] := 0;
   //        pvStream.Read(lvBytes[0], l);
@@ -1473,16 +1657,18 @@ begin
           l := 0; // fill zero
           pvStream.Read(l, 2);
           l := swap16(l);
-
-          for I := 0 to l - 1 do
+          if l > 0 then  // check is empty ele
           begin
-            lvObj := InnerAdd;
-            // map key
-            lvObj.InnerParseFromStream(pvStream);
-            lvObj.setName(lvObj.getAsString);
+            for I := 0 to l - 1 do
+            begin
+              lvObj := InnerAdd;
+              // map key
+              lvObj.InnerParseFromStream(pvStream);
+              lvObj.setName(lvObj.getAsString);
 
-            // value
-            lvObj.InnerParseFromStream(pvStream);
+              // value
+              lvObj.InnerParseFromStream(pvStream);
+            end;
           end;
         end;
       $DF: //Object map 32
@@ -1499,17 +1685,19 @@ begin
           pvStream.Read(l, 4);
 
           l := swap32(l);
-
-          for I := 0 to l - 1 do
+          if l > 0 then  // check is empty ele
           begin
-            lvObj := InnerAdd;
-            
-            // map key
-            lvObj.InnerParseFromStream(pvStream);
-            lvObj.setName(lvObj.getAsString);
+            for I := 0 to l - 1 do
+            begin
+              lvObj := InnerAdd;
 
-            // value
-            lvObj.InnerParseFromStream(pvStream);
+              // map key
+              lvObj.InnerParseFromStream(pvStream);
+              lvObj.setName(lvObj.getAsString);
+
+              // value
+              lvObj.InnerParseFromStream(pvStream);
+            end;
           end;
         end;
       $da:    // str 16
@@ -1522,10 +1710,15 @@ begin
           l := 0; // fill zero
           pvStream.Read(l, 2);
           l := swap16(l);
-
-          SetLength(lvAnsiStr, l);
-          pvStream.Read(PByte(lvAnsiStr)^, l);
-          setAsString(UTF8DecodeEx(lvAnsiStr, l));
+          if l > 0 then  // check is empty ele
+          begin
+            SetLength(lvAnsiStr, l);
+            pvStream.Read(PByte(lvAnsiStr)^, l);
+            setAsString(UTF8DecodeEx(lvAnsiStr, l));
+          end else
+          begin
+            setAsString('');
+          end;
 
   //        SetLength(lvBytes, l + 1);
   //        lvBytes[l] := 0;
@@ -1542,10 +1735,15 @@ begin
           l := 0; // fill zero
           pvStream.Read(l, 4);
           l := swap32(l);
-
-          SetLength(lvAnsiStr, l);
-          pvStream.Read(PByte(lvAnsiStr)^, l);
-          setAsString(UTF8DecodeEx(lvAnsiStr, l));
+          if l > 0 then  // check is empty ele
+          begin
+            SetLength(lvAnsiStr, l);
+            pvStream.Read(PByte(lvAnsiStr)^, l);
+            setAsString(UTF8DecodeEx(lvAnsiStr, l));
+          end else
+          begin
+            setAsString('');
+          end;
 
 
   //        SetLength(lvBytes, l + 1);
@@ -1553,38 +1751,52 @@ begin
   //        pvStream.Read(lvBytes[0], l);
   //        setAsString(UTF8Decode(PAnsiChar(@lvBytes[0])));
         end;
-      $cc, $d0:   //uint 8, int 8
-      begin
-        //      uint 8 stores a 8-bit unsigned integer
-        //      +--------+--------+
-        //      |  0xcc  |ZZZZZZZZ|
-        //      +--------+--------+
-        //      int 8 stores a 8-bit signed integer
-        //      +--------+--------+
-        //      |  0xd0  |ZZZZZZZZ|
-        //      +--------+--------+
+      $d0:   //int 8
+        begin
+          //      int 8 stores a 8-bit signed integer
+          //      +--------+--------+
+          //      |  0xd0  |ZZZZZZZZ|
+          //      +--------+--------+
 
-        l := 0;
-        pvStream.Read(l, 1);
-        setAsInteger(l);
-      end;
-      $cd, $d1:
-      begin
-        //    uint 16 stores a 16-bit big-endian unsigned integer
-        //    +--------+--------+--------+
-        //    |  0xcd  |ZZZZZZZZ|ZZZZZZZZ|
-        //    +--------+--------+--------+
-        //
-        //    int 16 stores a 16-bit big-endian signed integer
-        //    +--------+--------+--------+
-        //    |  0xd1  |ZZZZZZZZ|ZZZZZZZZ|
-        //    +--------+--------+--------+
+          l := 0;
+          pvStream.Read(l, 1);
+          SetAsInteger(ShortInt(l));
+        end;
+      $d1:
+        begin
+          //    int 16 stores a 16-bit big-endian signed integer
+          //    +--------+--------+--------+
+          //    |  0xd1  |ZZZZZZZZ|ZZZZZZZZ|
+          //    +--------+--------+--------+
 
-        l := 0;
-        pvStream.Read(l, 2);
-        l := swap16(l);
-        setAsInteger(l);
-      end;
+          l := 0;
+          pvStream.Read(l, 2);
+          l := swap16(l);
+          SetAsInteger(SmallInt(l));
+        end;
+
+      $d2:
+        begin
+          //  int 32 stores a 32-bit big-endian signed integer
+          //  +--------+--------+--------+--------+--------+
+          //  |  0xd2  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|
+          //  +--------+--------+--------+--------+--------+
+          l := 0;
+          pvStream.Read(l, 4);
+          l := swap32(l);
+          setAsInteger(Integer(l));
+        end;
+      $d3:
+      begin
+        //  int 64 stores a 64-bit big-endian signed integer
+        //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        //  |  0xd3  |ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|ZZZZZZZZ|
+        //  +--------+--------+--------+--------+--------+--------+--------+--------+--------+
+        i64 := 0;
+        pvStream.Read(i64, 8);
+        i64 := swap64(i64);
+        setAsInteger(Int64(i64));
+      end;   
     end;
   end;
 end;
@@ -1601,7 +1813,7 @@ begin
     finally
       lvFileStream.Free;
     end;
-  end;                                   
+  end;
 end;
 
 procedure TSimpleMsgPack.LoadBinaryFromStream(pvStream: TStream; pvLen:
@@ -1649,6 +1861,12 @@ begin
   PBoolean(@FValue[0])^ := Value;
 end;
 
+procedure TSimpleMsgPack.SetAsBytes(const Value: TBytes);
+begin
+  FDataType := mptBinary;
+  FValue := Value;
+end;
+
 procedure TSimpleMsgPack.SetAsDateTime(const Value: TDateTime);
 begin
   FDataType := mptDateTime;
@@ -1672,7 +1890,9 @@ end;
 
 procedure TSimpleMsgPack.SetAsSingle(const Value: Single);
 begin
-
+  FDataType := mptSingle;
+  SetLength(FValue, SizeOf(Single));
+  PSingle(FValue)^ := Value;
 end;
 
 procedure TSimpleMsgPack.setAsString(pvValue: string);
@@ -1737,12 +1957,18 @@ begin
         AsString := Value;
       varBoolean:
         AsBoolean := Value;
+      varNull,varEmpty,varUnknown:
+        begin
+          FDataType:=mptNull;
+          SetLength(FValue, 0);
+        end;
       {$IF RtlVersion>=26}
       varUInt64:
         AsInteger := Value;
       {$IFEND}
     else
-      raise Exception.Create(SVariantConvertNotSupport);
+      // null
+      ;//raise Exception.Create(SVariantConvertNotSupport);
     end;
   end;
 end;
