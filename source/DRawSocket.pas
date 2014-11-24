@@ -14,7 +14,10 @@ uses
   SysUtils
 {$IFDEF POSIX}
     , Posix.Base, Posix.SysSocket, Posix.arpainet, Posix.NetinetIn, Posix.UniStd
-    , Posix.NetDB 
+    , Posix.NetDB
+    , Posix.Fcntl
+    , Posix.SysSelect
+    , Posix.SysTime
 {$ELSE}
     , Windows, winsock
 {$ENDIF};
@@ -52,10 +55,39 @@ type
     function Connect(const pvAddr: string; pvPort: Integer): Boolean;
 
     /// <summary>
+    ///   can send?
+    ///  unit 's
+    /// </summary>
+    function Writeable(pvTimeOut:Integer): Integer;
+
+    /// <summary>
+    ///   check can recv
+    ///  unit 's
+    /// </summary>
+    function Readable(pvTimeOut:Integer): Integer;
+
+    /// <summary>
+    ///   set NonBlock mode
+    /// </summary>
+    function SetNonBlock(pvBlock:Boolean): Integer;
+
+    /// <summary>
+    ///  resove host
     /// </summary>
     function GetIpAddrByName(const pvHost: string): string;
 
+    /// <summary>
+    ///   set recv time out
+    ///    unit is ms
+    /// </summary>
     function SetReadTimeOut(const pvTimeOut: Cardinal): Integer;
+
+
+    /// <summary>
+    ///   set send time out
+    ///    unit is ms
+    /// </summary>
+    function SetSendTimeOut(const pvTimeOut: Cardinal): Integer;
 
     procedure Close;
   public
@@ -221,6 +253,35 @@ begin
   FSocketHandle := socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 end;
 
+function TDRawSocket.Readable(pvTimeOut: Integer): Integer;
+{$IFDEF POSIX}
+var
+  lvFDSet:fd_set;
+  lvTime_val: timeval;
+{$ELSE}
+var
+  lvFDSet:TFDSet;
+  lvTime_val: TTimeval;
+{$ENDIF}
+begin
+{$IFDEF POSIX}
+  // not test
+  FD_ZERO(lvFDSet);
+  _FD_SET(FSocketHandle, lvFDSet);
+
+  lvTime_val.tv_sec := pvTimeOut;
+  lvTime_val.tv_usec := 0;
+  Result := select(0, @lvFDSet, nil, nil, @lvTime_val);
+{$ELSE}
+  FD_ZERO(lvFDSet);
+  FD_SET(FSocketHandle, lvFDSet);
+
+  lvTime_val.tv_sec := pvTimeOut;
+  lvTime_val.tv_usec := 0;
+  Result := select(0, @lvFDSet, nil, nil, @lvTime_val);
+{$ENDIF}
+end;
+
 function TDRawSocket.RecvBuf(var data; const len: Cardinal): Integer;
 begin
   Result := recv(FSocketHandle, data, len, 0);
@@ -243,13 +304,57 @@ end;
 function TDRawSocket.SetReadTimeOut(const pvTimeOut: Cardinal): Integer;
 begin
 {$IFDEF POSIX}
-  
+  // not test
+  Result := setsockopt(FSocketHandle,
+   SOL_SOCKET, SO_RCVTIMEO, pvTimeOut, SizeOf(Cardinal));
 {$ELSE} 
   Result := setsockopt(FSocketHandle,
    SOL_SOCKET, SO_RCVTIMEO, PAnsiChar(@pvTimeOut), SizeOf(Cardinal));
 {$ENDIF}
 end;
 
+
+function TDRawSocket.SetSendTimeOut(const pvTimeOut: Cardinal): Integer;
+begin
+{$IFDEF POSIX}
+  // not test
+  Result := setsockopt(FSocketHandle,
+   SOL_SOCKET, SO_SNDTIMEO, pvTimeOut, SizeOf(Cardinal));
+{$ELSE}
+  Result := setsockopt(FSocketHandle,
+   SOL_SOCKET, SO_SNDTIMEO, PAnsiChar(@pvTimeOut), SizeOf(Cardinal));
+{$ENDIF}
+end;
+
+function TDRawSocket.Writeable(pvTimeOut:Integer): Integer;
+{$IFDEF POSIX}
+var
+  lvFDSet:fd_set;
+  lvTime_val: timeval;
+{$ELSE}
+var
+  lvFDSet:TFDSet;
+  lvTime_val: TTimeval;
+{$ENDIF}
+begin
+{$IFDEF POSIX}
+  // not test
+  FD_ZERO(lvFDSet);
+  _FD_SET(FSocketHandle, lvFDSet);
+
+  lvTime_val.tv_sec := pvTimeOut;
+  lvTime_val.tv_usec := 0;
+  Result := select(0, nil, @lvFDSet, nil, @lvTime_val);
+{$ELSE}
+  FD_ZERO(lvFDSet);
+  FD_SET(FSocketHandle, lvFDSet);
+
+  lvTime_val.tv_sec := pvTimeOut;
+  lvTime_val.tv_usec := 0;
+  Result := select(0, nil, @lvFDSet, nil, @lvTime_val);
+{$ENDIF}
+
+end;
 
 function TDRawSocket.GetIpAddrByName(const pvHost: string): string;
 {$IFDEF POSIX}
@@ -267,6 +372,29 @@ begin
 
   Result := inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^);
 {$ENDIF}
+end;
+
+function TDRawSocket.SetNonBlock(pvBlock:Boolean): Integer;
+{$IFDEF POSIX}
+{$ELSE}
+var
+  lvFlag : Integer;
+{$ENDIF}
+begin
+{$IFDEF POSIX}
+  // not test
+  if pvBlock then
+  begin
+    Result := fcntl(FSocketHandle, F_SETFL, O_SYNC);
+  end else
+  begin
+    Result := fcntl(FSocketHandle, F_SETFL, O_NONBLOCK);
+  end;
+{$ELSE}
+  if pvBlock then lvFlag := 0 else lvFlag := 1;
+  Result := ioctlsocket(SocketHandle, FIONBIO, lvFlag);
+{$ENDIF}
+
 end;
 
 
