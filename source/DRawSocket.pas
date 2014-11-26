@@ -42,6 +42,8 @@ const
 {$ENDIF}
 
 type
+  TDSocketState = (ssDisconnected, ssConnected, ssConnecting, ssListening, ssAccepting);
+
   TDRawSocket = class(TObject)
   private
     FSockaddr: sockaddr_in;
@@ -90,6 +92,8 @@ type
     function SetSendTimeOut(const pvTimeOut: Cardinal): Integer;
 
     procedure Close;
+
+    function IsValidSocketHandle: Boolean;
   public
     property SocketHandle: THandle read FSocketHandle;
   end;
@@ -372,6 +376,11 @@ begin
 
   Result := inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^);
 {$ENDIF}
+end;
+
+function TDRawSocket.IsValidSocketHandle: Boolean;
+begin
+   Result := FSocketHandle <> INVALID_HANDLE_VALUE;
 end;
 
 function TDRawSocket.SetNonBlock(pvBlock:Boolean): Integer;
