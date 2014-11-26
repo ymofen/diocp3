@@ -1223,7 +1223,7 @@ initialization
 finalization
 {$IFDEF DEBUG_ON}
   if IsDebugMode then
-    Assert(workerCounter > 0, ('iocpEngine workerCounter, has dead thread? current worker Counter:' + IntToStr(workerCounter)));
+    Assert(workerCounter <= 0, ('iocpEngine workerCounter, has dead thread? current worker Counter:' + IntToStr(workerCounter)));
 {$ENDIF}
 
 end.
