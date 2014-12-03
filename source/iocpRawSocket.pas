@@ -44,6 +44,9 @@ type
     /// </summary>
     procedure createTcpOverlappedSocket;
 
+
+    procedure createUdpOverlappedSocket;
+
     function bind(const pvAddr: string; pvPort: Integer): Boolean;
     function listen(const backlog: Integer = 0): Boolean;
 
@@ -152,6 +155,15 @@ end;
 procedure TRawSocket.createTcpSocket;
 begin
   FSocketHandle := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (FSocketHandle = 0) or (FSocketHandle = INVALID_SOCKET) then
+  begin
+    RaiseLastOSError;
+  end;
+end;
+
+procedure TRawSocket.createUdpOverlappedSocket;
+begin
+  FSocketHandle := WSASocket(AF_INET,SOCK_DGRAM, IPPROTO_UDP, Nil, 0, WSA_FLAG_OVERLAPPED);
   if (FSocketHandle = 0) or (FSocketHandle = INVALID_SOCKET) then
   begin
     RaiseLastOSError;
