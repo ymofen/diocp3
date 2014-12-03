@@ -1449,12 +1449,7 @@ end;
 
 procedure TIocpClientContext.postNextSendRequest;
 begin
-  self.lock;
-  try
-    checkNextSendRequest;
-  finally
-    self.unLock;
-  end;
+  checkNextSendRequest;
 end;
 
 function TIocpClientContext.InnerPostSendRequestAndCheckStart(

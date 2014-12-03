@@ -14,8 +14,8 @@ type
     edtHost: TEdit;
     edtPort: TEdit;
     btnSendBuf: TButton;
-    edtData: TEdit;
     btnOnlySend: TButton;
+    mmoData: TMemo;
     procedure btnConnectClick(Sender: TObject);
     procedure btnOnlySendClick(Sender: TObject);
     procedure btnSendBufClick(Sender: TObject);
@@ -67,7 +67,7 @@ var
   rcvs, s:AnsiString;
 begin
   try
-    s := edtData.Text;
+    s := mmoData.Lines.Text;
     FTcpClient.sendBuffer(@s[1],Length(s));
   except
     FTcpClient.Disconnect;

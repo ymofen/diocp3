@@ -16,6 +16,9 @@ uses
   ;
 
 type
+  TIOCPCoderSendRequest = class(TIocpSendRequest)
+  
+  end;
 
   TIOCPCoderClientContext = class(iocpTcpServer.TIOCPClientContext)
   private

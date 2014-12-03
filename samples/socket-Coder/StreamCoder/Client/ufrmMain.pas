@@ -16,6 +16,7 @@ type
     btnSendObject: TButton;
     btnGetFile: TButton;
     edtFileID: TEdit;
+    mmoData: TMemo;
     procedure btnConnectClick(Sender: TObject);
     procedure btnGetFileClick(Sender: TObject);
     procedure btnSendObjectClick(Sender: TObject);
@@ -112,7 +113,7 @@ begin
   lvStream := TMemoryStream.Create;
   try
    // lvStream.LoadFromFile('C:\1.txt');
-    s := 'this message will send to server';
+    s := mmoData.Lines.Text;
     lvStream.Write(s[1], Length(s));
 
     lvStream.Position := 0;
