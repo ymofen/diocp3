@@ -1,8 +1,21 @@
 ﻿设置环境变量
 DIOCP3_HOME=E:\workspace\diocp3
 
-工程搜索路径
+搜索路径
 $(DIOCP3_HOME)\Source
+
+编码器和解码器路径,如果使用DEMO中的解码器和编码器，可以加入到搜索路径
+$(DIOCP3_HOME)\samples\socket-Coder\diocpCoders
+
+目录说明:
+  samples                        下面是各种DEMO
+  samples\socket-Coder           是编码器的使用DEMO
+  source                         目录下面是源代码
+  
+可以先从下面的DEMO中了解diocp的工作原理
+  samples\ECHO
+  samples\simple 
+
 
 =======================================================
 关于文档帮助
