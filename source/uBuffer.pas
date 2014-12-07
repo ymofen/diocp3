@@ -19,7 +19,7 @@ uses
   Windows, SyncObjs, SysUtils, Classes;
 
 type
-  TDxMemBlockType = (MB_Small,MB_Normal,MB_Big,MB_SpBig,MB_Large,MB_SPLarge); //内存块模式
+  TDxMemBlockType = (MB_Small,MB_Normal,MB_Big,MB_SpBig,MB_Large,MB_SPLarge,MB_Max); //内存块模式
   PMemoryBlock = ^TMemoryBlock;
   TMemoryBlock = record
     Memory: Pointer;
@@ -28,7 +28,7 @@ type
     NextEx: PMemoryBlock;
     PrevEx: PMemoryBlock;
     BlockType: TDxMemBlockType;
-    DataLen: Word;
+    DataLen: Integer;
   end;
 
   //内存池
@@ -137,6 +137,8 @@ type
     procedure clearHaveReadBuffer;
 
     function validCount: Integer;
+    function GetCurBlock: PMemoryBlock;
+    procedure RemoveBlock(Block: PMemoryBlock;const FreeBlock: Boolean = False);
   end;
 
   TDxObjectPool = class
@@ -201,7 +203,7 @@ type
   end;
 
 
-
+procedure FreeMemBlock(Block: PMemoryBlock);
 implementation
 
 
@@ -212,6 +214,7 @@ var
   SuperBigMPool: TDxMemoryPool = nil; //超级大内存块内存池
   LargeMPool: TDxMemoryPool = nil;
   SPLargeMPool: TDxMemoryPool = nil;
+  MaxMPool: TDxMemoryPool = nil;
 
 
 function SuperMemoryPool: TDxMemoryPool;
@@ -219,6 +222,13 @@ begin
   if SuperBigMPool = nil then
     SuperBigMPool := TDxMemoryPool.Create(2048,30,MB_SpBig,100);
   Result := SuperBigMPool;
+end;
+
+function MaxMemoryPool: TDxMemoryPool;
+begin
+  if MaxMPool = nil then
+   MaxMPool := TDxMemoryPool.Create(1024 * 128,30,MB_Max,100);
+  Result := MaxMPool;
 end;
 
 function LargeMemoryPool: TDxMemoryPool;
@@ -561,6 +571,7 @@ begin
     MB_SpBig: Result := SuperMemoryPool.FBlockSize;
     MB_Large: Result := LargeMemoryPool.FBlockSize;
     MB_SPLarge: Result := SuperLargeMemoryPool.FBlockSize;
+    MB_Max: Result := MaxMemoryPool.FBlockSize;
   else Result := 0;
   end;
 end;
@@ -592,6 +603,7 @@ begin
     MB_SpBig: BSize := SuperMemoryPool.FBlockSize;
     MB_Large: BSize := LargeMemoryPool.FBlockSize;
     MB_SPLarge: BSize := SuperLargeMemoryPool.FBlockSize;
+    MB_Max: BSize := MaxMemoryPool.FBlockSize;
     else BSize := BigMemoryPool.FBlockSize;
     end;
     while tmp <> FLast do
@@ -630,6 +642,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     tmpBlock := FHead;
@@ -676,6 +689,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     tmpBlock := FHead;
@@ -710,6 +724,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     if FPosition + Count > FSize then
@@ -797,6 +812,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     if FPosition + Len > FSize then
@@ -884,6 +900,7 @@ begin
     MB_SpBig: MPool := SuperMemoryPool;
     MB_Large: MPool := LargeMemoryPool;
     MB_SPLarge: MPool := SuperLargeMemoryPool;
+    MB_Max: MPool := MaxMemoryPool;
     else MPool := BigMemoryPool;
     end;
     tmp := FHead;
@@ -911,6 +928,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     case TSeekOrigin(Origin) of
@@ -1046,6 +1064,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     CurCount := FCapacity div MPool.FBlockSize;
@@ -1165,6 +1184,7 @@ begin
     MB_SpBig: MPool := SuperMemoryPool;
     MB_Large: MPool := LargeMemoryPool;
     MB_SPLarge: MPool := SuperLargeMemoryPool;
+    MB_Max: MPool := MaxMemoryPool;
     else MPool := BigMemoryPool;
   end;
   if FCurBlock = nil then
@@ -1254,6 +1274,7 @@ begin
     MB_SpBig: MPool := SuperMemoryPool;
     MB_Large: MPool := LargeMemoryPool;
     MB_SPLarge: MPool := SuperLargeMemoryPool;
+    MB_Max: MPool := MaxMemoryPool;
     else MPool := BigMemoryPool;
   end;
   if FCurBlock = nil then
@@ -1261,7 +1282,12 @@ begin
   else if FCurBlock = FLast then
   begin
     if FCurBlockPos + Len > MPool.FBlockSize then
-      SetSize(MPool.FBlockSize - FCurBlockPos - Len + FSize)
+    begin
+      {if MPool.FBlockSize - FCurBlockPos - Len + FSize > 0 then
+        SetSize(MPool.FBlockSize - FCurBlockPos - Len + FSize)
+      else}
+        SetSize(Len+FSize);
+    end
     else if FPosition + Len > FSize then
       Inc(FSize,Len);
   end;
@@ -1335,6 +1361,7 @@ begin
     MB_SpBig: BlockSize := SuperMemoryPool.FBlockSize;
     MB_Large: BlockSize := LargeMemoryPool.FBlockSize;
     MB_SPLarge: BlockSize := SuperLargeMemoryPool.FBlockSize;
+    MB_Max: BlockSize := MaxMemoryPool.FBlockSize;
     else BlockSize := BigMemoryPool.FBlockSize;
     end;
     if FLast^.DataLen <> BlockSize then
@@ -1496,6 +1523,13 @@ begin
   inherited;
 end;
 
+function TBufferLink.GetCurBlock: PMemoryBlock;
+begin
+  Result := FRead;
+  if Result = nil then
+    Result := FHead;
+end;
+
 function TBufferLink.InnerReadBuf(const pvBufRecord: PMemoryBlock;
   pvStartPostion: Cardinal; buf: PAnsiChar; len: Cardinal): Cardinal;
 var
@@ -1572,6 +1606,20 @@ begin
     Result := lvReadCount;
   end
   else Result := 0;
+end;
+
+procedure TBufferLink.RemoveBlock(Block: PMemoryBlock;const FreeBlock: Boolean = False);
+begin
+  if Block^.NextEx <> nil then
+    Block^.NextEx^.PrevEx := Block^.PrevEx;
+  if Block^.PrevEx <> nil then
+    Block^.PrevEx^.NextEx := Block^.NextEx;
+  if Block = FHead then
+    FHead := Block^.NextEx;
+  if Block = FLast then
+    FLast := Block^.PrevEx;
+  if FreeBlock then
+    FreeMemBlock(Block);
 end;
 
 procedure TBufferLink.restoreReaderIndex;
@@ -1739,6 +1787,8 @@ begin
     LargeMPool.Free;
   if SPLargeMPool <> nil then
     SPLargeMPool.Free;
+  if MaxMPool <> nil then
+    MaxMPool.Free;
 end;
 
 { TDxRingStream }
@@ -2161,6 +2211,7 @@ begin
       MB_SpBig: MPool := SuperMemoryPool;
       MB_Large: MPool := LargeMemoryPool;
       MB_SPLarge: MPool := SuperLargeMemoryPool;
+      MB_Max: MPool := MaxMemoryPool;
       else MPool := BigMemoryPool;
     end;
     CurCount := FCapacity div MPool.FBlockSize;
@@ -2317,6 +2368,20 @@ end;
 procedure TDxRingStream.WriteBuffer(const Buffer; Count: Integer);
 begin
   Write(Buffer,Count)
+end;
+
+
+procedure FreeMemBlock(Block: PMemoryBlock);
+begin
+   case Block^.BlockType of
+    MB_Small: SmallMemoryPool.FreeMemoryBlock(Block);
+    MB_Normal: MemoryPool.FreeMemoryBlock(Block);
+    MB_SpBig: SuperMemoryPool.FreeMemoryBlock(Block);
+    MB_Large: LargeMemoryPool.FreeMemoryBlock(Block);
+    MB_SPLarge: SuperLargeMemoryPool.FreeMemoryBlock(Block);
+    MB_Max: MaxMemoryPool.FreeMemoryBlock(Block);
+    else BigMemoryPool.FreeMemoryBlock(Block);
+    end;
 end;
 
 initialization

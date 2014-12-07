@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, uIOCPCentre, iocpTcpServer, ExtCtrls,
+  Dialogs, StdCtrls, ActnList, diocpCoderTcpServer, iocpTcpServer, ExtCtrls,
   ComObj, FileTransProtocol, iocpLogger, ComCtrls;
 
 type
@@ -25,6 +25,8 @@ type
     pnlTop: TPanel;
     btnDisconnectAll: TButton;
     actDisconnectAll: TAction;
+    tsTest: TTabSheet;
+    btnBufferTester: TButton;
     procedure actDisconnectAllExecute(Sender: TObject);
     procedure actOpenExecute(Sender: TObject);
     procedure actPushMsgExecute(Sender: TObject);

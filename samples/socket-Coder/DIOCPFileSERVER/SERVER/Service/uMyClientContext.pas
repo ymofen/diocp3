@@ -3,7 +3,7 @@ unit uMyClientContext;
 interface
 
 uses
-  uIOCPCentre, Classes,  SysUtils, uZipTools, SimpleMsgPack;
+  diocpCoderTcpServer, Classes,  SysUtils, uZipTools, SimpleMsgPack;
 
 type
   TMyClientContext = class(TIOCPCoderClientContext)
@@ -34,19 +34,14 @@ uses
 
 procedure TMyClientContext.dataReceived(const pvDataObject: TObject);
 var
-  lvMsgPack, lvMsgPack2:TSimpleMsgPack;
+  lvMsgPack:TSimpleMsgPack;
   lvStream :TStream;
-  lvStream2:TMemoryStream;
-  vData:OleVariant;
-  lvResult:Boolean;
-  vMsg:String;
 begin
+  lvStream := TStream(pvDataObject);
   lvMsgPack := TSimpleMsgPack.Create;
   try
     try
-      lvStream := TStream(pvDataObject);
       lvStream.Position := 0;
-
       // unpack
       lvMsgPack.DecodeFromStream(lvStream);
 

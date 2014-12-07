@@ -3,7 +3,7 @@ unit uMyClientContext;
 interface
 
 uses
-  uIOCPCentre, iocpLogger, FileTransProtocol, SysUtils, Classes, Windows, Math;
+  diocpCoderTcpServer, iocpLogger, FileTransProtocol, SysUtils, Classes, Windows, Math;
 
 
 type
