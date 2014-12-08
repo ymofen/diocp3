@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, uIOCPCentre, ExtCtrls,
+  Dialogs, StdCtrls, ActnList, diocpCoderTcpServer, ExtCtrls,
   ComObj, ComCtrls, uMyClientContext;
 
 type

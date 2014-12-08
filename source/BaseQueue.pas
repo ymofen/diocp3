@@ -130,6 +130,7 @@ type
   end;
 
 
+function IsDebugMode: Boolean;
 
 implementation
 

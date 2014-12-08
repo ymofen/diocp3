@@ -15,6 +15,7 @@ type
     edtPort: TEdit;
     btnSendObject: TButton;
     btnReConnect: TButton;
+    mmoData: TMemo;
     procedure btnReConnectClick(Sender: TObject);
     procedure btnConnectClick(Sender: TObject);
     procedure btnSendObjectClick(Sender: TObject);
@@ -89,13 +90,7 @@ begin
   lvStream := TMemoryStream.Create;
   try
     //lvStream.LoadFromFile('C:\1.txt');
-    s := 'this message will send to server' + sLineBreak;
-    lvStream.Write(s[1], Length(s));
-    s := '========1024 * 6 char=======' + sLineBreak;
-    lvStream.Write(s[1], Length(s));
-
-    SetLength(s, 1024 * 6);
-    FillChar(s[1], 1024 * 6, Ord('a'));
+    s := mmoData.Lines.Text;
     lvStream.Write(s[1], Length(s));
 
     lvStream.Position := 0;

@@ -1,3 +1,18 @@
+(*
+ *	 Unit owner: D10.Mofen
+ *         homePage: http://www.diocp.org
+ *	       blog: http://www.cnblogs.com/dksoft
+ *
+ *   2014-12-06 12:02:18
+ *      编码层的0Copy发送数据
+          1.压入 TBufferLink队列
+          2.检测是否真正发送，如果没有进入开始发送
+          3.提取一块进行PostWSASendBuffer。提取失败标志发送标志为False。退出
+          4.在发送完成事件中，重复到第三步
+ *      结合不得闲意见进行整合修改
+ *
+ *
+ *)
 unit uIOCPCentre;
 
 interface
@@ -5,9 +20,13 @@ interface
 // call dataReceived procedure with qworker
 {.$DEFINE QDAC_QWorker}
 
+{$IFDEF DEBUG}
+  {$DEFINE DEBUG_ON}
+{$ENDIF}
+
 uses
   iocpTcpServer, uBuffer, SysUtils, Classes,
-  uIocpCoder
+  uIocpCoder, BaseQueue, iocpLocker
   {$IFDEF QDAC_QWorker}
     , qworker
   {$ELSE}
@@ -16,9 +35,24 @@ uses
   ;
 
 type
+  TIOCPCoderSendRequest = class(TIocpSendRequest)
+  private
+    FMemBlock:PMemoryBlock;
+  protected
+    procedure ResponseDone; override;
+
+    procedure CancelRequest;override;
+
+  end;
 
   TIOCPCoderClientContext = class(iocpTcpServer.TIOCPClientContext)
   private
+    ///  正在发送的BufferLink
+    FCurrentSendBufferLink: TBufferLink;
+
+    // 待发送队列<TBufferLink队列>
+    FSendingQueue: TSimpleQueue;
+
     FrecvBuffers: TBufferLink;
     FStateINfo: String;
     function GetStateINfo: String;
@@ -36,8 +70,19 @@ type
 
     procedure DoCleanUp;override;
   protected
+    /// <summary>
+    ///   从发送队列中取出一个要发送的对象进行发送
+    /// </summary>
+    procedure CheckStartPostSendBufferLink;
+
+    /// <summary>
+    ///   投递完成后，继续投递下一个请求,
+    ///     只在HandleResponse中调用
+    /// </summary>
+    procedure PostNextSendRequest; override;
   public
     constructor Create;override;
+
     destructor Destroy; override;
 
     /// <summary>
@@ -126,26 +171,116 @@ uses
 constructor TIOCPCoderClientContext.Create;
 begin
   inherited Create;
+  FSendingQueue := TSimpleQueue.Create();
   FrecvBuffers := TBufferLink.Create();
 end;
 
 destructor TIOCPCoderClientContext.Destroy;
 begin
+  if IsDebugMode then
+  begin
+    Assert(FSendingQueue.size = 0);
+  end;
+
+  FSendingQueue.Free;
   FrecvBuffers.Free;
   inherited Destroy;
 end;
 
 procedure TIOCPCoderClientContext.DoCleanUp;
 begin
-  inherited;
-  // clear cache buffer
+  /// 清理当前发送队列
+  if FCurrentSendBufferLink <> nil then
+  begin
+    FCurrentSendBufferLink.Free;
+  end;
+
+  // 清理释放待发送队列的BufferLink实例 
+  FSendingQueue.FreeDataObject;                    
+
+  // 清理已经接收缓存数据
   FrecvBuffers.clearBuffer;
+  inherited;
 end;
 
 procedure TIOCPCoderClientContext.add2Buffer(buf: PAnsiChar; len: Cardinal);
 begin
   //add to context receivedBuffer
   FrecvBuffers.AddBuffer(buf, len);
+end;
+
+procedure TIOCPCoderClientContext.CheckStartPostSendBufferLink;
+var
+  lvMemBlock:PMemoryBlock;
+  lvValidCount, lvDataLen: Integer;
+  lvSendRequest:TIOCPCoderSendRequest;
+begin
+  lvDataLen := 0;
+  lock();
+  try
+    // 如果当前发送Buffer为nil 则退出
+    if FCurrentSendBufferLink = nil then Exit;
+
+    // 获取第一块
+    lvMemBlock := FCurrentSendBufferLink.FirstBlock;
+
+    lvValidCount := FCurrentSendBufferLink.validCount;
+    if (lvValidCount = 0) or (lvMemBlock = nil) then
+    begin
+      // 释放当前发送数据对象
+      FCurrentSendBufferLink.Free;
+            
+      // 如果当前块 没有任何数据, 则获取下一个要发送的BufferLink
+      FCurrentSendBufferLink := TBufferLink(FSendingQueue.Pop);
+      // 如果当前发送Buffer为nil 则退出
+      if FCurrentSendBufferLink = nil then Exit;
+
+      // 获取需要发送的一块数据
+      lvMemBlock := FCurrentSendBufferLink.FirstBlock;
+      
+      lvValidCount := FCurrentSendBufferLink.validCount;
+      if (lvValidCount = 0) or (lvMemBlock = nil) then
+      begin  // 没有需要发送的数据了
+        FCurrentSendBufferLink := nil;  // 没有数据了, 下次压入时执行释放
+        exit;      
+      end; 
+    end;
+    if lvValidCount > lvMemBlock.DataLen then
+    begin
+      lvDataLen := lvMemBlock.DataLen;
+    end else
+    begin
+      lvDataLen := lvValidCount;
+    end;
+
+
+  finally
+    unLock();
+  end;
+
+  if lvDataLen > 0 then
+  begin
+    // 从当前BufferLink中移除内存块
+    FCurrentSendBufferLink.RemoveBlock(lvMemBlock);
+
+    lvSendRequest := TIOCPCoderSendRequest(GetSendRequest);
+    lvSendRequest.FMemBlock := lvMemBlock;
+    lvSendRequest.SetBuffer(lvMemBlock.Memory, lvDataLen, dtNone);
+    if InnerPostSendRequestAndCheckStart(lvSendRequest) then
+    begin
+      // 投递成功 内存块的释放在HandleResponse中
+    end else
+    begin
+      lvSendRequest.UnBindingSendBuffer;
+      lvSendRequest.FMemBlock := nil;
+      lvSendRequest.CancelRequest;
+
+      /// 释放掉内存块
+      FreeMemBlock(lvMemBlock);
+      
+      TIOCPConsole(FOwner).ReleaseSendRequest(lvSendRequest);
+    end;
+  end;          
 end;
 
 procedure TIOCPCoderClientContext.clearRecvedBuffer;
@@ -180,6 +315,12 @@ procedure TIOCPCoderClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal;
   ErrCode: WORD);
 begin
   recvBuffer(buf, len);
+end;
+
+procedure TIOCPCoderClientContext.PostNextSendRequest;
+begin
+  inherited;
+  CheckStartPostSendBufferLink;
 end;
 
 {$IFDEF QDAC_QWorker}
@@ -278,36 +419,41 @@ end;
 
 procedure TIOCPCoderClientContext.writeObject(const pvDataObject:TObject);
 var
-  lvOutBuffer:TBufferLink;
-  lvBuf:Pointer;
-  len:Cardinal;
+  lvOutBuffer:TBufferLink; 
+  lvStart:Boolean;
 begin
+  lvStart := false;
   if not Active then Exit;
+
   if self.LockContext('writeObject', Self) then
   try
     lvOutBuffer := TBufferLink.Create;
     try
       TIocpConsole(Owner).FEncoder.Encode(pvDataObject, lvOutBuffer);
-      len := lvOutBuffer.validCount;
-      GetMem(lvBuf, len);
-      lvOutBuffer.readBuffer(lvBuf, len);
-                      
-      if PostWSASendRequest(lvBuf, len, dtFreeMem) then
-      begin
-        Self.StateINfo := 'TIOCPCoderClientContext.writeObject,Post Succ';
-      end else
-      begin
-        // post fail
-        FreeMem(lvBuf);
-        {$IFDEF DEBUG_ON}
-        if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, current Queue size:%d',
-           [GetSendQueueSize]);
-        {$ENDIF}
+      lock();
+      try
+        if FSendingQueue.size >= TIocpConsole(Owner).MaxSendingQueueSize then
+        begin
+          raise Exception.Create('Out of MaxSendingQueueSize!!!');
+        end;
+        FSendingQueue.Push(lvOutBuffer);
+        if FCurrentSendBufferLink = nil then
+        begin
+          FCurrentSendBufferLink := TBufferLink(FSendingQueue.Pop);
+          lvStart := true;
+        end;
+      finally
+        unLock;
       end;
-    finally
+    except
       lvOutBuffer.Free;
-    end; 
+      raise;           
+    end;
+    
+    if lvStart then
+    begin
+      CheckStartPostSendBufferLink;    
+    end;
   finally
     self.unLockContext('writeObject', Self);
   end;    
@@ -317,6 +463,8 @@ constructor TIOCPConsole.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FClientContextClass := TIOCPCoderClientContext;
+  
+  FIocpSendRequestClass := TIOCPCoderSendRequest;
 end;
 
 destructor TIOCPConsole.Destroy;
@@ -358,5 +506,27 @@ begin
 end;
 
 
+
+{ TIOCPCoderSendRequest }
+
+procedure TIOCPCoderSendRequest.CancelRequest;
+begin
+  if FMemBlock <> nil then
+  begin
+    FreeMemBlock(FMemBlock);
+    FMemBlock := nil;
+  end;
+  inherited;  
+end;
+
+procedure TIOCPCoderSendRequest.ResponseDone;
+begin
+  if FMemBlock <> nil then
+  begin
+    FreeMemBlock(FMemBlock);
+    FMemBlock := nil;
+  end;
+  inherited;
+end;
 
 end.

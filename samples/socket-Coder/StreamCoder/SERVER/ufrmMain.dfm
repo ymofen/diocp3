@@ -23,14 +23,8 @@ object frmMain: TfrmMain
     ActivePage = TabSheet1
     Align = alClient
     TabOrder = 0
-    ExplicitLeft = 8
-    ExplicitTop = 35
-    ExplicitWidth = 566
-    ExplicitHeight = 313
     object TabSheet1: TTabSheet
       Caption = 'TabSheet1'
-      ExplicitWidth = 558
-      ExplicitHeight = 285
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -40,15 +34,15 @@ object frmMain: TfrmMain
         BevelKind = bkTile
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitWidth = 558
-        ExplicitHeight = 285
       end
     end
     object TabSheet2: TTabSheet
       Caption = 'log'
       ImageIndex = 1
-      ExplicitWidth = 558
-      ExplicitHeight = 285
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object mmoLog: TMemo
         Left = 0
         Top = 0
@@ -56,8 +50,22 @@ object frmMain: TfrmMain
         Height = 298
         Align = alClient
         TabOrder = 0
-        ExplicitWidth = 558
-        ExplicitHeight = 285
+      end
+    end
+    object tsTest: TTabSheet
+      Caption = 'tsTest'
+      ImageIndex = 2
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
+      object btnBufferTester: TButton
+        Left = 24
+        Top = 24
+        Width = 121
+        Height = 25
+        Caption = 'btnBufferTester'
+        TabOrder = 0
       end
     end
   end

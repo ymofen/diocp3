@@ -15,9 +15,9 @@ object frmMain: TfrmMain
   TextHeight = 13
   object mmoRecvMessage: TMemo
     Left = 8
-    Top = 40
+    Top = 160
     Width = 606
-    Height = 257
+    Height = 137
     Lines.Strings = (
       'iocp tcp client demo')
     TabOrder = 0
@@ -64,5 +64,14 @@ object frmMain: TfrmMain
     Caption = 'btnReConnect'
     TabOrder = 5
     OnClick = btnReConnectClick
+  end
+  object mmoData: TMemo
+    Left = 8
+    Top = 49
+    Width = 606
+    Height = 89
+    Lines.Strings = (
+      'this message will send to server')
+    TabOrder = 6
   end
 end

@@ -15,9 +15,9 @@ object frmMain: TfrmMain
   TextHeight = 13
   object mmoRecvMessage: TMemo
     Left = 8
-    Top = 80
+    Top = 184
     Width = 521
-    Height = 217
+    Height = 113
     Lines.Strings = (
       'iocp tcp client demo')
     TabOrder = 0
@@ -56,21 +56,22 @@ object frmMain: TfrmMain
     TabOrder = 4
     OnClick = btnSendBufClick
   end
-  object edtData: TEdit
-    Left = 8
-    Top = 53
-    Width = 121
-    Height = 21
-    TabOrder = 5
-    Text = 'edtData'
-  end
   object btnOnlySend: TButton
-    Left = 156
-    Top = 49
+    Left = 454
+    Top = 135
     Width = 75
     Height = 25
     Caption = 'btnOnlySend'
-    TabOrder = 6
+    TabOrder = 5
     OnClick = btnOnlySendClick
+  end
+  object mmoData: TMemo
+    Left = 8
+    Top = 40
+    Width = 521
+    Height = 89
+    Lines.Strings = (
+      'mmoData')
+    TabOrder = 6
   end
 end

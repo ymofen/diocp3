@@ -25,6 +25,8 @@ type
     pnlTop: TPanel;
     btnDisconnectAll: TButton;
     actDisconnectAll: TAction;
+    tsTest: TTabSheet;
+    btnBufferTester: TButton;
     procedure actDisconnectAllExecute(Sender: TObject);
     procedure actOpenExecute(Sender: TObject);
     procedure actPushMsgExecute(Sender: TObject);

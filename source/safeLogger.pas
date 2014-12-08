@@ -376,7 +376,6 @@ end;
 procedure TSafeLogger.DoWork;
 var
   lvPData:TLogDataObject;
-  lvWaitResult:TWaitResult;
 begin
   while self.FEnable do
   begin 
