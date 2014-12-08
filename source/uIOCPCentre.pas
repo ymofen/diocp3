@@ -2,8 +2,6 @@
  *	 Unit owner: D10.Mofen
  *         homePage: http://www.diocp.org
  *	       blog: http://www.cnblogs.com/dksoft
- *   2014-12-07 11:20:34
-         1.uIOCPCentre 改名为diocpCoderTcpServer
  *
  *   2014-12-06 12:02:18
  *      编码层的0Copy发送数据
@@ -15,7 +13,7 @@
  *
  *
  *)
-unit diocpCoderTcpServer;
+unit uIOCPCentre;
 
 interface
 
@@ -192,7 +190,7 @@ end;
 procedure TIOCPCoderClientContext.DoCleanUp;
 begin
   /// 清理当前发送队列
-  if FCurrentSendBufferLink = nil then
+  if FCurrentSendBufferLink <> nil then
   begin
     FCurrentSendBufferLink.Free;
   end;
@@ -203,7 +201,6 @@ begin
   // 清理已经接收缓存数据
   FrecvBuffers.clearBuffer;
   inherited;
-
 end;
 
 procedure TIOCPCoderClientContext.add2Buffer(buf: PAnsiChar; len: Cardinal);
@@ -224,7 +221,9 @@ begin
     // 如果当前发送Buffer为nil 则退出
     if FCurrentSendBufferLink = nil then Exit;
 
-    lvMemBlock := FCurrentSendBufferLink.GetCurBlock;
+    // 获取第一块
+    lvMemBlock := FCurrentSendBufferLink.FirstBlock;
+
     lvValidCount := FCurrentSendBufferLink.validCount;
     if (lvValidCount = 0) or (lvMemBlock = nil) then
     begin
@@ -235,8 +234,10 @@ begin
       FCurrentSendBufferLink := TBufferLink(FSendingQueue.Pop);
       // 如果当前发送Buffer为nil 则退出
       if FCurrentSendBufferLink = nil then Exit;
+
       // 获取需要发送的一块数据
-      lvMemBlock := FCurrentSendBufferLink.GetCurBlock;
+      lvMemBlock := FCurrentSendBufferLink.FirstBlock;
+      
       lvValidCount := FCurrentSendBufferLink.validCount;
       if (lvValidCount = 0) or (lvMemBlock = nil) then
       begin  // 没有需要发送的数据了
