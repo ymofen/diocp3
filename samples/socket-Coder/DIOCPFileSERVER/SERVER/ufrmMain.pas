@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, diocpCoderTcpServer, ExtCtrls,
+  Dialogs, StdCtrls, ActnList, uIOCPCentre, uDIOCPDxStreamCoder, ExtCtrls,
   ComObj, ComCtrls, uMyClientContext;
 
 type
@@ -36,7 +36,7 @@ var
 implementation
 
 uses
-  uFMMonitor, uDIOCPStreamCoder, uRunTimeINfoTools, iocpTask;
+  uFMMonitor, uRunTimeINfoTools, iocpTask;
 
 {$R *.dfm}
 
