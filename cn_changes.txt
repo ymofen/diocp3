@@ -83,11 +83,9 @@ DIOCP 3.5.03
 
 DIOCP 3.5.04
 2014-12-07 21:54:11
-    2014-12-07 11:20:34
-         1.uIOCPCentre 改名为diocpCoderTcpServer
- 
+
+1.编码层的0Copy发送数据，改造
     2014-12-06 12:02:18
-       编码层的0Copy发送数据
           1.压入 TBufferLink队列
           2.检测是否真正发送，如果没有进入开始发送
           3.提取一块进行PostWSASendBuffer。提取失败标志发送标志为False。退出

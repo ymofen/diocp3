@@ -138,6 +138,7 @@ type
 
     function validCount: Integer;
     function GetCurBlock: PMemoryBlock;
+    function FirstBlock: PMemoryBlock;
     procedure RemoveBlock(Block: PMemoryBlock;const FreeBlock: Boolean = False);
   end;
 
@@ -1282,12 +1283,7 @@ begin
   else if FCurBlock = FLast then
   begin
     if FCurBlockPos + Len > MPool.FBlockSize then
-    begin
-      {if MPool.FBlockSize - FCurBlockPos - Len + FSize > 0 then
-        SetSize(MPool.FBlockSize - FCurBlockPos - Len + FSize)
-      else}
-        SetSize(Len+FSize);
-    end
+      SetSize(Len+FSize)
     else if FPosition + Len > FSize then
       Inc(FSize,Len);
   end;
@@ -1521,6 +1517,11 @@ destructor TBufferLink.Destroy;
 begin
   clearBuffer;
   inherited;
+end;
+
+function TBufferLink.FirstBlock: PMemoryBlock;
+begin
+  Result := FHead;
 end;
 
 function TBufferLink.GetCurBlock: PMemoryBlock;
