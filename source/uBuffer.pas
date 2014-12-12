@@ -96,6 +96,7 @@ type
     procedure SaveCurBlock;
     procedure RestoreCurBlock;
     procedure LinkToBufferList(BufList: TBufferLink);
+    procedure SwapBufferBlock(Stream: TDxMemoryStream); //交换内部连接
     procedure LoadFromBufferList(BufList: TBufferLink;const DataLen: Integer);
     procedure WriteStream(Stream: TStream;Len: Integer);
     procedure ReadStream(Stream: TStream;len: Integer);
@@ -205,6 +206,7 @@ type
 
 
 procedure FreeMemBlock(Block: PMemoryBlock);
+function CalcMemType(MemSize: Integer): TDxMemBlockType;
 implementation
 
 
@@ -217,6 +219,21 @@ var
   SPLargeMPool: TDxMemoryPool = nil;
   MaxMPool: TDxMemoryPool = nil;
 
+
+function CalcMemType(MemSize: Integer): TDxMemBlockType;
+begin
+  if MemSize > 1024 * 128 then
+    Result := MB_Max
+  else if MemSize > 4096*4  then
+    Result := MB_SPLarge
+  else if MemSize > 2048 then
+    Result := MB_Large
+  else if MemSize > 640 then
+    Result := MB_Big
+  else if MemSize > 256 then
+    Result := MB_Normal
+  else Result := MB_Small;
+end;
 
 function SuperMemoryPool: TDxMemoryPool;
 begin
@@ -1126,6 +1143,11 @@ begin
   end;
 end;
 
+
+procedure TDxMemoryStream.SwapBufferBlock(Stream: TDxMemoryStream);
+begin
+
+end;
 
 procedure TDxMemoryStream.SwapStreamLink(Stream: TDxMemoryStream);
 var
