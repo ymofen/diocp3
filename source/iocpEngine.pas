@@ -133,6 +133,7 @@ type
     function Push(pvRequest:TIocpRequest): Boolean;
     function Pop:TIocpRequest;
     property Count: Integer read FCount;
+    property MaxSize: Integer read FMaxSize;
   end;
 
   /// <summary>
