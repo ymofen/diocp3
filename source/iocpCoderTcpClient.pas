@@ -2,6 +2,7 @@
  *	 Unit owner: d10.天地弦
  *	       blog: http://www.cnblogs.com/dksoft
  *
+ *   建议用iocpCoderClient中的单元替换
  *	 v0.1
  *     + first release
  *   v0.2

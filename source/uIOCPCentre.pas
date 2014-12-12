@@ -40,9 +40,7 @@ type
     FMemBlock:PMemoryBlock;
   protected
     procedure ResponseDone; override;
-
     procedure CancelRequest;override;
-
   end;
 
   TIOCPCoderClientContext = class(iocpTcpServer.TIOCPClientContext)
@@ -319,7 +317,7 @@ end;
 
 procedure TIOCPCoderClientContext.PostNextSendRequest;
 begin
-  inherited;
+  inherited PostNextSendRequest;
   CheckStartPostSendBufferLink;
 end;
 

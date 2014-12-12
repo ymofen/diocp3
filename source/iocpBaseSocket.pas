@@ -216,7 +216,7 @@ type
 
     procedure unLock();
 
-
+    procedure PostNextSendRequest; virtual;
   public
     /// <summary>
     ///   lock context avoid disconnect,
@@ -231,7 +231,9 @@ type
     constructor Create; virtual;
 
     destructor Destroy; override;
-    procedure postNextSendRequest;
+
+
+    
     /// <summary>
     ///  post send request to iocp queue, if post successful return true.
     ///    if request is completed, will call DoSendRequestCompleted procedure
@@ -1973,7 +1975,7 @@ begin
 
       lvContext.DoSendRequestCompleted(Self);
 
-      lvContext.postNextSendRequest;
+      lvContext.PostNextSendRequest;
     end;
   finally
     // maybe release context

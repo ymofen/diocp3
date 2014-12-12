@@ -1472,7 +1472,7 @@ begin
   
 end;
 
-procedure TIocpClientContext.postNextSendRequest;
+procedure TIocpClientContext.PostNextSendRequest;
 begin
   checkNextSendRequest;
 end;
