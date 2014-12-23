@@ -13,6 +13,10 @@ unit iocpClientSocket;
 
 interface
 
+{$IFDEF DEBUG}
+  {$DEFINE DEBUG_ON}
+{$ENDIF}
+
 uses
   iocpBaseSocket, SysUtils, iocpSocketUtils
   {$IFDEF UNICODE}, Generics.Collections{$ELSE}, Contnrs {$ENDIF}
@@ -91,6 +95,7 @@ uses
 
 resourcestring
   strCannotConnect = '当前状态下不能进行连接...';
+  strConnectError  = '建立连接失败, 错误代码:%d';
 
 
 
@@ -147,6 +152,9 @@ begin
     DoConnected;
   end else
   begin
+    {$IFDEF DEBUG_ON}
+    Owner.FSafeLogger.logMessage(strConnectError,  [TIocpConnectExRequest(pvObject).ErrorCode]);
+    {$ENDIF}
 
     DoError(TIocpConnectExRequest(pvObject).ErrorCode);
 

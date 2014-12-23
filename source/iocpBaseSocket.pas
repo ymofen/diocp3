@@ -641,6 +641,7 @@ type
     ///   occur on create instance
     /// </summary>
     procedure OnCreateContext(const context: TIocpBaseContext); virtual;
+    procedure SetName(const NewName: TComponentName); override;
   private
 
     function GetOnlineContextCount: Integer;
@@ -682,6 +683,7 @@ type
     ///   get online client list
     /// </summary>
     procedure getOnlineContextList(pvList:TList);
+
     /// <summary>
     ///   wait for all conntext is off
     /// </summary>
@@ -696,6 +698,10 @@ type
 
     property IocpEngine: TIocpEngine read FIocpEngine;
 
+    procedure LogMessage(pvMsg: string; pvMsgType: string = ''; pvLevel: TLogLevel
+        = lgvMessage); overload;
+    procedure logMessage(pvMsg: string; const args: array of const; pvMsgType:
+        string = ''; pvLevel: TLogLevel = lgvMessage); overload;
   published
 
     /// <summary>
@@ -1367,12 +1373,11 @@ begin
   Result := FIsDestroying or (csDestroying in self.ComponentState);
 end;
 
-{$IFDEF DEBUG_ON}
+
 function TIocpBaseSocket.logCanWrite: Boolean;
 begin
   Result := (not isDestroying) and FSafeLogger.Enable;
 end;
-{$ENDIF}
 
 
 procedure TIocpBaseSocket.Open;
@@ -1542,9 +1547,41 @@ begin
   {$ENDIF}
 end;
 
+procedure TIocpBaseSocket.LogMessage(pvMsg: string; pvMsgType: string = '';
+    pvLevel: TLogLevel = lgvMessage);
+begin
+  if logCanWrite then
+  begin
+    FSafeLogger.logMessage(pvMsg, pvMsgType, pvLevel);
+  end;
+end;
+
+procedure TIocpBaseSocket.logMessage(pvMsg: string; const args: array of const;
+    pvMsgType: string; pvLevel: TLogLevel);
+begin
+  if logCanWrite then
+  begin
+    FSafeLogger.logMessage(pvMsg, args, pvMsgType, pvLevel);
+  end;  
+end;
+
 procedure TIocpBaseSocket.OnCreateContext(const context: TIocpBaseContext);
 begin
 
+end;
+
+procedure TIocpBaseSocket.SetName(const NewName: TComponentName);
+begin
+  inherited;
+{$IFDEF DEBUG_ON}
+  if FSafeLogger.Appender is TLogFileAppender then
+  begin
+    if NewName <> '' then
+    begin
+      TLogFileAppender(FSafeLogger.Appender).FilePreFix := NewName + '_';
+    end;
+  end;
+{$ENDIF}
 end;
 
 procedure TIocpBaseSocket.SetWSARecvBufferSize(const Value: Cardinal);
