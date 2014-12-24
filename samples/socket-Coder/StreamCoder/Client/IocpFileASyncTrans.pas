@@ -3,7 +3,7 @@ unit IocpFileASyncTrans;
 interface
 
 uses
-  iocpCoderTcpClient, FileTransProtocol, Classes, SysUtils;
+  iocpCoderClient, FileTransProtocol, Classes, SysUtils;
 
 type
   TIocpFileASyncTrans = class(TObject)
@@ -17,7 +17,7 @@ type
     FFileSize: Int64;
     FFileStream: TFileStream;
 
-    FIocpTcpCoderTcpClient: TiocpCoderTcpClient;
+    FIocpTcpCoderTcpClient: TIocpCoderRemoteContext;
     FRootPath: String;
 
     procedure checkCreateFileStream();
@@ -64,7 +64,8 @@ type
 
 
 
-    property IocpTcpCoderTcpClient: TiocpCoderTcpClient read FIocpTcpCoderTcpClient write FIocpTcpCoderTcpClient;
+    property IocpClient: TIocpCoderRemoteContext read FIocpTcpCoderTcpClient write
+        FIocpTcpCoderTcpClient;
     property RootPath: String read FRootPath write FRootPath;
   end;
 

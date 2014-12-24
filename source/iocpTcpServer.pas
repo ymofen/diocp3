@@ -908,6 +908,24 @@ const
   BytePerMB = BytePerKB * 1024;
   BytePerGB = BytePerMB * 1024;
 
+resourcestring
+  strRecvZero      = '[%d]接收到0字节的数据,该连接将断开!';
+  strRecvError     = '[%d]响应接收请求时出现了错误。错误代码:%d!';
+  strRecvEngineOff = '[%d]响应接收请求时发现IOCP服务关闭';
+
+  strSendEngineOff = '[%d]响应发送数据请求时发现IOCP服务关闭';
+  strSendErr       = '[%d]响应发送数据请求时出现了错误。错误代码:%d!';
+  strSendPostError = '[%d]投递发送数据请求时出现了错误。错误代码:%d';
+
+  strBindingIocpError = '[%d]绑定到IOCP句柄时出现了异常, 错误代码:%d, (%s)';
+
+  strPushFail      = '[%d]压入到待发送队列失败, 队列信息: %d/%d';
+
+
+
+
+
+
 function GetRunTimeINfo: String;
 var
   lvMSec, lvRemain:Int64;
@@ -1488,7 +1506,7 @@ begin
   
 end;
 
-procedure TIocpClientContext.postNextSendRequest;
+procedure TIocpClientContext.PostNextSendRequest;
 begin
   checkNextSendRequest;
 end;
@@ -1517,8 +1535,8 @@ begin
   {$IFDEF DEBUG_ON}
   if not Result then
   begin
-    FOwner.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-       [FSendRequestLink.Count]);
+    FOwner.logMessage(
+      strPushFail, [FSocketHandle, FSendRequestLink.Count, FSendRequestLink.MaxSize]);
   end;
   {$ENDIF}
 
@@ -2640,10 +2658,10 @@ begin
     if lvRetCode = 0 then
     begin     // binding error
       lvErrCode := GetLastError;
-      if FOwner.logCanWrite then
-       FOwner.FSafeLogger.logMessage(
-        'bind2IOCPHandle(%d) in TIocpAcceptExRequest.PostRequest(SOCKET_REUSE) occur Error :%d',
-        [FClientContext.FRawSocket.SocketHandle, lvErrCode], CORE_LOG_FILE);
+      FOwner.logMessage(
+         Format(strBindingIocpError,
+           [FClientContext.FRawSocket.SocketHandle, lvErrCode, 'TIocpAcceptExRequest.PostRequest(SOCKET_REUSE)'])
+         , CORE_LOG_FILE);
 
       FClientContext.FRawSocket.close;
       if (FOwner.FDataMoniter <> nil) then
@@ -2673,11 +2691,11 @@ begin
     lvErrCode := WSAGetLastError;
     Result := lvErrCode = WSA_IO_PENDING;
     if not Result then
-    begin
-       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('IocpAcceptEx(%d, %d) in TIocpAcceptExRequest.PostRequest occur Error:%d',
-          [FOwner.FListenSocket.SocketHandle, FClientContext.FRawSocket.SocketHandle,
-          lvErrCode], CORE_LOG_FILE);
+    begin 
+      FOwner.logMessage(
+         Format(strBindingIocpError,
+           [FClientContext.FRawSocket.SocketHandle, lvErrCode, 'TIocpAcceptExRequest.PostRequest'])
+         , CORE_LOG_FILE);
 
       FOwner.DoClientContextError(FClientContext, lvErrCode);
 
@@ -2746,23 +2764,32 @@ begin
     begin
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('IocpRecvRequest response server enginee is off');
+        FOwner.FSafeLogger.logMessage(
+          Format(strRecvEngineOff, [FClientContext.FSocketHandle])
+        );
       {$ENDIF}
       // avoid postWSARecv
-      FClientContext.RequestDisconnect('IocpRecvRequest response server enginee is off', Self);
+      FClientContext.RequestDisconnect(
+        Format(strRecvEngineOff, [FClientContext.FSocketHandle])
+        , Self);
     end else if FErrorCode <> 0 then
     begin
       {$IFDEF DEBUG_ON}
-      FOwner.FSafeLogger.logMessage('IocpRecvRequest response ErrorCode:%d',  [FErrorCode]);
+      FOwner.FSafeLogger.logMessage(
+        Format(strRecvError, [FClientContext.FSocketHandle, FErrorCode])
+        );
       {$ENDIF}
       FOwner.DoClientContextError(FClientContext, FErrorCode);
-      FClientContext.RequestDisconnect('IocpRecvRequest response Error',  Self);
+      FClientContext.RequestDisconnect(
+        Format(strRecvError, [FClientContext.FSocketHandle, FErrorCode])
+        ,  Self);
     end else if (FBytesTransferred = 0) then
     begin      // no data recvd, socket is break
       {$IFDEF DEBUG_ON}
-      FOwner.logMessage('IocpRecvRequest response FBytesTransferred is zero',  []);
+      FOwner.logMessage(strRecvZero,  [FClientContext.FSocketHandle]);
       {$ENDIF}
-      FClientContext.RequestDisconnect('IocpRecvRequest response FBytesTransferred is zero',  Self);
+      FClientContext.RequestDisconnect(
+        Format(strRecvZero,  [FClientContext.FSocketHandle]),  Self);
     end else
     begin
       FClientContext.DoReceiveData;
@@ -2941,19 +2968,27 @@ begin
       FReponseState := 4;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse server enginee is off');
+        FOwner.FSafeLogger.logMessage(
+          Format(strSendEngineOff, [FClientContext.FSocketHandle])
+          );
       {$ENDIF}
       // avoid postWSARecv
-      FClientContext.RequestDisconnect('TIocpSendRequest.HandleResponse server enginee is off', Self);
+      FClientContext.RequestDisconnect(
+        Format(strSendEngineOff, [FClientContext.FSocketHandle])
+        , Self);
     end else if FErrorCode <> 0 then
     begin
       FReponseState := 3;
       {$IFDEF DEBUG_ON}
        if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]);
+        FOwner.FSafeLogger.logMessage(
+          Format(strSendEngineOff, [FClientContext.FSocketHandle, FErrorCode])
+          );
       {$ENDIF}
       FOwner.DoClientContextError(FClientContext, FErrorCode);
-      FClientContext.RequestDisconnect(Format('TIocpSendRequest.HandleResponse FErrorCode:%d',  [FErrorCode]), Self);
+      FClientContext.RequestDisconnect(
+         Format(strSendEngineOff, [FClientContext.FSocketHandle, FErrorCode])
+          , Self);
     end else
     begin
       FReponseState := 2;
@@ -3019,23 +3054,16 @@ begin
       Result := lvErrorCode = WSA_IO_PENDING;
       if not Result then
       begin
-        try
-           FIsBusying := False;
-        {$IFDEF DEBUG_ON}
-           if lvOwner.logCanWrite then
-             lvOwner.FSafeLogger.logMessage('TIocpSendRequest.WSASendRequest Error:%d',  [lvErrorCode]);
-        {$ENDIF}
-        except  
-          on e:Exception do
-          begin    
-            {$IFDEF DEBUG_ON}
-               if lvOwner.logCanWrite then
-                 lvOwner.FSafeLogger.logMessage('TIocpSendRequest.InnerPostRequest Exception:' + E.Message, '', lgvError);
-            {$ENDIF}
-          end;
-        end;
+       FIsBusying := False;
+       {$IFDEF DEBUG_ON}
+       lvOwner.logMessage(
+         Format(strSendPostError, [lvContext.FSocketHandle, lvErrorCode])
+         );
+       {$ENDIF}
         /// request kick out
-        lvContext.RequestDisconnect('TIocpSendRequest.InnerPostRequest.fail', Self);
+       lvContext.RequestDisconnect(
+          Format(strSendPostError, [lvContext.FSocketHandle, lvErrorCode])
+          , Self);
       end else
       begin      // maybe on HandleResonse and release self
         if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then

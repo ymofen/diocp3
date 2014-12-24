@@ -4,8 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
-  Controls, Forms, Dialogs, StdCtrls, iocpCoderTcpClient,
-  iocpLogger, uDIOCPStreamCoder, IocpFileASyncTrans, iocpTask;
+  Controls, Forms, Dialogs, StdCtrls, iocpCoderClient,
+  iocpLogger, uDIOCPDxStreamCoder, IocpFileASyncTrans, iocpTask, iocpBaseSocket;
 
 type
   TfrmMain = class(TForm)
@@ -22,14 +22,15 @@ type
     procedure btnSendObjectClick(Sender: TObject);
   private
     { Private declarations }
-    FiocpCoderTcpClient:TiocpCoderTcpClient;
+    FIocpClient:TIocpCoderRemoteContext;
+    FiocpCoderTcpClient:TIocpCoderClient;
 
     //
     FFileAsyncTrans: TIocpFileASyncTrans;
 
     procedure OnRecvObject(pvObject:TObject);
 
-    procedure OnDisconnected(pvObject:TObject);
+    procedure OnDisconnected(pvContext: TIocpBaseContext);
   public
     { Public declarations }
 
@@ -59,18 +60,20 @@ begin
   uiLogger.setLogLines(mmoRecvMessage.Lines);
 
   FFileAsyncTrans := TIocpFileASyncTrans.Create;
-  FiocpCoderTcpClient := TiocpCoderTcpClient.Create(Self);
-  FiocpCoderTcpClient.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
-  FiocpCoderTcpClient.OnDataObjectReceived := OnRecvObject;
-  FiocpCoderTcpClient.OnDisconnected := OnDisconnected;
-  FFileAsyncTrans.IocpTcpCoderTcpClient := FiocpCoderTcpClient;
+  FiocpCoderTcpClient := TIocpCoderClient.Create(Self);
+  FIocpClient :=TIocpCoderRemoteContext(FiocpCoderTcpClient.Add);
+
+  FIocpClient.registerCoderClass(TIOCPStreamDecoder, TIOCPStreamEncoder);
+  FIocpClient.OnDataObjectReceived := OnRecvObject;
+  FiocpCoderTcpClient.OnContextDisconnected := OnDisconnected;
+  FFileAsyncTrans.IocpClient := FIocpClient;
 
 
 end;
 
 destructor TfrmMain.Destroy;
 begin
-  FiocpCoderTcpClient.Disconnect;
+  FiocpCoderTcpClient.DisconnectAll;
   FiocpCoderTcpClient.Free;
   FFileAsyncTrans.Free;
   inherited Destroy;
@@ -78,14 +81,16 @@ end;
 
 procedure TfrmMain.btnConnectClick(Sender: TObject);
 begin
-  if FiocpCoderTcpClient.isActive then
+  FiocpCoderTcpClient.open;
+  
+  if FIocpClient.Active then
   begin
     uiLogger.logMessage('already connected...');
     Exit;
   end;
-  FiocpCoderTcpClient.Host := edtHost.Text;
-  FiocpCoderTcpClient.Port := StrToInt(edtPort.Text);
-  FiocpCoderTcpClient.Connect;
+  FIocpClient.Host := edtHost.Text;
+  FIocpClient.Port := StrToInt(edtPort.Text);
+  FIocpClient.Connect;
 
   mmoRecvMessage.Clear;
 
@@ -94,7 +99,7 @@ end;
 
 procedure TfrmMain.btnGetFileClick(Sender: TObject);
 begin
-  if not FiocpCoderTcpClient.isActive then
+  if not FIocpClient.Active then
   begin
     uiLogger.logMessage('please do connect');
     exit;
@@ -119,14 +124,14 @@ begin
     lvStream.Position := 0;
 
     //send stream object
-    FiocpCoderTcpClient.writeObject(lvStream);
+    FIocpClient.writeObject(lvStream);
   finally
     lvStream.Free;
   end;
 
 end;
 
-procedure TfrmMain.OnDisconnected(pvObject: TObject);
+procedure TfrmMain.OnDisconnected(pvContext: TIocpBaseContext);
 begin
   if csDestroying in ComponentState then
   begin

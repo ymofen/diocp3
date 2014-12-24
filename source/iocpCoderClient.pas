@@ -3,6 +3,8 @@
  *	       blog: http://www.cnblogs.com/dksoft
  *     homePage: www.diocp.org
  *
+ *   2014-12-12 17:00:28
+ *     同步与服务端uiocpCentre中的处理方式
  *
  *)
 
@@ -13,46 +15,29 @@ unit iocpCoderClient;
 interface
 
 uses
-  iocpClientSocket, iocpBaseSocket, uIocpCoder, uBuffer, SysUtils, Classes;
+  iocpClientSocket, iocpBaseSocket, uIocpCoder,
+  uBuffer, SysUtils, Classes, BaseQueue;
 
 type
   TOnDataObjectReceived = procedure(pvObject:TObject) of object;
 
-
-  TIocpCoderSendRequest = class(TIocpSendRequest)
+  TIOCPCoderSendRequest = class(TIocpSendRequest)
   private
-    FBufferLink: TBufferLink;
-
-    FBuf:Pointer;
-    FBlockSize: Integer;
-
+    FMemBlock:PMemoryBlock;
   protected
-    /// <summary>
-    ///   is all buf send completed?
-    /// </summary>
-    function isCompleted: Boolean; override;
-
-    /// <summary>
-    ///  on request successful
-    /// </summary>
-    procedure onSendRequestSucc; override;
-
-    /// <summary>
-    ///   post send a block
-    /// </summary>
-    function checkSendNextBlock: Boolean; override;
-
-
-    procedure DoCleanUp;override;
-  public
-    constructor Create; override;
-    destructor Destroy; override;
-    procedure setBufferLink(pvBufferLink:TBufferLink);
+    procedure ResponseDone; override; 
+    procedure CancelRequest;override;
   end;
 
 
   TIocpCoderRemoteContext = class(TIocpRemoteContext)
   private
+    ///  正在发送的BufferLink
+    FCurrentSendBufferLink: TBufferLink;
+
+    // 待发送队列<TBufferLink队列>
+    FSendingQueue: TSimpleQueue;
+
     FRecvBufferLink: TBufferLink;
 
     FInnerEncoder: TIOCPEncoder;
@@ -63,11 +48,19 @@ type
     FOnDataObjectReceived: TOnDataObjectReceived;
   protected
     /// <summary>
+    ///   从发送队列中取出一个要发送的对象进行发送
+    /// </summary>
+    procedure CheckStartPostSendBufferLink;
+    /// <summary>
     ///   on recved data, run in iocp worker thread
     /// </summary>
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; errCode: WORD); override;
 
-    //procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); virtual;
+    /// <summary>
+    ///   投递完成后，继续投递下一个请求,
+    ///     只在HandleResponse中调用
+    /// </summary>
+    procedure PostNextSendRequest; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -112,6 +105,7 @@ type
 
 
 
+
 implementation
 
 uses
@@ -122,14 +116,94 @@ constructor TIocpCoderRemoteContext.Create;
 begin
   inherited Create;
   FRecvBufferLink := TBufferLink.Create();
+
+  FSendingQueue := TSimpleQueue.Create();
 end;
 
 destructor TIocpCoderRemoteContext.Destroy;
 begin
+  if IsDebugMode then
+  begin
+    Assert(FSendingQueue.size = 0);
+  end;  
+  FSendingQueue.Free;
+
   FreeAndNil(FRecvBufferLink);
   if FInnerDecoder <> nil then FInnerDecoder.Free;
   if FInnerEncoder <> nil then FInnerEncoder.Free;
   inherited Destroy;
+end;
+
+procedure TIocpCoderRemoteContext.CheckStartPostSendBufferLink;
+var
+  lvMemBlock:PMemoryBlock;
+  lvValidCount, lvDataLen: Integer;
+  lvSendRequest:TIOCPCoderSendRequest;
+begin
+  lock();
+  try
+    // 如果当前发送Buffer为nil 则退出
+    if FCurrentSendBufferLink = nil then Exit;
+
+    // 获取第一块
+    lvMemBlock := FCurrentSendBufferLink.FirstBlock;
+
+    lvValidCount := FCurrentSendBufferLink.validCount;
+    if (lvValidCount = 0) or (lvMemBlock = nil) then
+    begin
+      // 释放当前发送数据对象
+      FCurrentSendBufferLink.Free;
+            
+      // 如果当前块 没有任何数据, 则获取下一个要发送的BufferLink
+      FCurrentSendBufferLink := TBufferLink(FSendingQueue.Pop);
+      // 如果当前发送Buffer为nil 则退出
+      if FCurrentSendBufferLink = nil then Exit;
+
+      // 获取需要发送的一块数据
+      lvMemBlock := FCurrentSendBufferLink.FirstBlock;
+      
+      lvValidCount := FCurrentSendBufferLink.validCount;
+      if (lvValidCount = 0) or (lvMemBlock = nil) then
+      begin  // 没有需要发送的数据了
+        FCurrentSendBufferLink := nil;  // 没有数据了, 下次压入时执行释放
+        exit;      
+      end; 
+    end;
+    if lvValidCount > lvMemBlock.DataLen then
+    begin
+      lvDataLen := lvMemBlock.DataLen;
+    end else
+    begin
+      lvDataLen := lvValidCount;
+    end;  
+
+  finally
+    unLock();
+  end;
+
+  if lvDataLen > 0 then
+  begin
+    // 从当前BufferLink中移除内存块
+    FCurrentSendBufferLink.RemoveBlock(lvMemBlock);
+
+    lvSendRequest := TIOCPCoderSendRequest(GetSendRequest);
+    lvSendRequest.FMemBlock := lvMemBlock;
+    lvSendRequest.SetBuffer(lvMemBlock.Memory, lvDataLen, dtNone);
+    if InnerPostSendRequestAndCheckStart(lvSendRequest) then
+    begin
+      // 投递成功 内存块的释放在HandleResponse中
+    end else
+    begin
+      lvSendRequest.UnBindingSendBuffer;
+      lvSendRequest.FMemBlock := nil;
+      lvSendRequest.CancelRequest;
+
+      /// 释放掉内存块
+      FreeMemBlock(lvMemBlock);
+      
+      TIocpCoderClient(Owner).ReleaseSendRequest(lvSendRequest);
+    end;
+  end;          
 end;
 
 procedure TIocpCoderRemoteContext.OnRecvBuffer(buf: Pointer; len: Cardinal;
@@ -180,6 +254,12 @@ begin
   end;
 end;
 
+procedure TIocpCoderRemoteContext.PostNextSendRequest;
+begin
+  inherited PostNextSendRequest;
+  CheckStartPostSendBufferLink;
+end;
+
 procedure TIocpCoderRemoteContext.registerCoderClass(pvDecoderClass: TIOCPDecoderClass;
     pvEncoderClass: TIOCPEncoderClass);
 begin
@@ -214,100 +294,40 @@ end;
 
 procedure TIocpCoderRemoteContext.writeObject(pvObject: TObject);
 var
-  lvOutBuffer:TBufferLink;
-  lvRequest:TIocpCoderSendRequest;
+  lvOutBuffer:TBufferLink; 
+  lvStart:Boolean;
 begin
-  if not self.Active then Exit;
-  
-  lvOutBuffer := TBufferLink.Create;
+  lvStart := false;
+  if not Active then Exit;
+
+  if self.LockContext('writeObject', Self) then
   try
-    FEncoder.Encode(pvObject, lvOutBuffer);
-  except
-    lvOutBuffer.Free;
-    raise;
-  end;
-
-  lvRequest := TIocpCoderSendRequest(getSendRequest);
-  lvRequest.setBufferLink(lvOutBuffer);
-  postSendRequest(lvRequest);
-end;
-
-constructor TIocpCoderSendRequest.Create;
-begin
-  inherited Create;
-  FBlockSize := 0;
-  FBufferLink := nil;
-end;
-
-destructor TIocpCoderSendRequest.Destroy;
-begin
-  if FBlockSize <> 0 then
-  begin
-    FreeMem(FBuf);
-    FBlockSize := 0;
-  end;
-
-  if FBufferLink <> nil then
-  begin
-    FBufferLink.clearBuffer;
-    FBufferLink.Free;
-    FBufferLink := nil;
-  end;
-  inherited Destroy;
-end;
-
-procedure TIocpCoderSendRequest.DoCleanUp;
-begin
-  inherited;
-
-  if FBlockSize <> 0 then
-  begin
-    FreeMem(FBuf);
-    FBlockSize := 0;
-  end;
-
-  if FBufferLink <> nil then
-  begin
-    FBufferLink.clearBuffer;
-    FBufferLink.Free;
-    FBufferLink := nil;
-  end;
-end;
-
-{ TIocpCoderSendRequest }
-
-function TIocpCoderSendRequest.checkSendNextBlock: Boolean;
-var
-  l:Cardinal;
-begin
-  if FBlockSize = 0 then
-  begin
-    FBlockSize := Owner.WSASendBufferSize;
-    GetMem(FBuf, FBlockSize);
-  end;
-
-  l := FBufferLink.readBuffer(FBuf, FBlockSize);
-  Result := InnerPostRequest(FBuf, l);
-end;
-
-function TIocpCoderSendRequest.isCompleted: Boolean;
-begin
-  Result := FBufferLink.validCount = 0;
-
-  if Result  then
-  begin  // release Buffer
-    FBufferLink.clearBuffer;
-  end;
-end;
-
-procedure TIocpCoderSendRequest.onSendRequestSucc;
-begin
-  ;
-end;
-
-procedure TIocpCoderSendRequest.setBufferLink(pvBufferLink: TBufferLink);
-begin
-  FBufferLink := pvBufferLink;
+    lvOutBuffer := TBufferLink.Create;
+    try
+      FEncoder.Encode(pvObject, lvOutBuffer);
+      lock();
+      try
+        FSendingQueue.Push(lvOutBuffer);
+        if FCurrentSendBufferLink = nil then
+        begin
+          FCurrentSendBufferLink := TBufferLink(FSendingQueue.Pop);
+          lvStart := true;
+        end;
+      finally
+        unLock;
+      end;
+    except
+      lvOutBuffer.Free;
+      raise;           
+    end;
+    
+    if lvStart then
+    begin
+      CheckStartPostSendBufferLink;    
+    end;
+  finally
+    self.unLockContext('writeObject', Self);
+  end;   
 end;
 
 { TIocpCoderClient }
@@ -316,7 +336,29 @@ constructor TIocpCoderClient.Create(AOwner: TComponent);
 begin
   inherited;
   registerContextClass(TIocpCoderRemoteContext);
-  FIocpSendRequestClass := TIocpCoderSendRequest; 
+  FIocpSendRequestClass := TIocpCoderSendRequest;
+end;
+
+{ TIOCPCoderSendRequest }
+
+procedure TIOCPCoderSendRequest.CancelRequest;
+begin
+  if FMemBlock <> nil then
+  begin
+    FreeMemBlock(FMemBlock);
+    FMemBlock := nil;
+  end;
+  inherited;  
+end;
+
+procedure TIOCPCoderSendRequest.ResponseDone;
+begin
+  if FMemBlock <> nil then
+  begin
+    FreeMemBlock(FMemBlock);
+    FMemBlock := nil;
+  end;
+  inherited;
 end;
 
 end.
