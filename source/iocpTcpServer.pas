@@ -435,7 +435,8 @@ type
 
   TIocpDisconnectExRequest = class(TIocpRequest)
   private
-    // FOwner:TIocpTcpServer;
+    FOwner:TIocpTcpServer;
+
     FContext:TIocpClientContext;
 
   protected
@@ -3512,8 +3513,7 @@ begin
         // do normal close;
         FContext.RawSocket.close;
         {$IFDEF DEBUG_ON}
-           if FOwner.logCanWrite then
-             FOwner.FSafeLogger.logMessage('TIocpDisconnectExRequest.PostRequest Error:%d',  [lvErrorCode]);
+        FOwner.logMessage('TIocpDisconnectExRequest.PostRequest Error:%d',  [lvErrorCode]);
         {$ENDIF}
 
         // context may return to pool
