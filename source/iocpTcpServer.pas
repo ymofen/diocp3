@@ -155,6 +155,7 @@ type
     FcurrSendRequest:TIocpSendRequest;
     
     FData: Pointer;
+    FContextDNA: Integer;
 
     /// sendRequest link
     FSendRequestLink: TIocpRequestSingleLink;
@@ -235,14 +236,6 @@ type
     procedure lock();{$IFDEF HAVE_INLINE} inline;{$ENDIF}
     procedure unLock();{$IFDEF HAVE_INLINE} inline;{$ENDIF}
   protected
-    /// <summary>
-    ///   lock context avoid disconnect,
-    ///     lock succ return false else return false( context request disconnect)
-    /// </summary>
-    function LockContext(pvDebugInfo: string; pvObj: TObject): Boolean;
-
-    procedure unLockContext(pvDebugInfo: string; pvObj: TObject);
-
     procedure DoConnected;
 
     procedure DoCleanUp;virtual;
@@ -263,6 +256,11 @@ type
     destructor Destroy; override;
 
     procedure DoDisconnect;
+    /// <summary>
+    ///   lock context avoid disconnect,
+    ///     lock succ return false else return false( context request disconnect)
+    /// </summary>
+    function LockContext(pvDebugInfo: string; pvObj: TObject): Boolean;
 
     procedure RequestDisconnect(pvDebugInfo: string = ''; pvObj: TObject = nil);
 
@@ -279,6 +277,7 @@ type
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvBufReleaseType:
         TDataReleaseType): Boolean; overload;
+    procedure unLockContext(pvDebugInfo: string; pvObj: TObject);
 
 
     property Active: Boolean read FActive;
@@ -286,6 +285,11 @@ type
     property Data: Pointer read FData write FData;
 
     property DebugINfo: string read FDebugINfo write SetDebugINfo;
+
+    /// <summary>
+    ///  连接时进行 +1
+    /// </summary>
+    property ContextDNA: Integer read FContextDNA;
 
     property Owner: TIocpTcpServer read FOwner write SetOwner;
 
@@ -296,7 +300,6 @@ type
     property RemotePort: Integer read FRemotePort;
     property SocketHandle: TSocket read FSocketHandle;
     property SocketState: TSocketState read FSocketState;
-
   end;
 
 
@@ -432,7 +435,7 @@ type
 
   TIocpDisconnectExRequest = class(TIocpRequest)
   private
-    FOwner:TIocpTcpServer;
+    // FOwner:TIocpTcpServer;
     FContext:TIocpClientContext;
 
   protected
@@ -486,6 +489,10 @@ type
   TIocpAcceptorMgr = class(TObject)
   private
     FOwner: TIocpTcpServer;
+    
+    // sendRequest pool
+    FAcceptExRequestPool: TBaseQueue;
+
     FList:TList;
     FListenSocket: TRawSocket;
     FLocker: TIocpLocker;
@@ -498,11 +505,13 @@ type
 
     destructor Destroy; override;
 
-    procedure releaseRequestObject(pvRequest:TIocpAcceptExRequest);
+    function GetRequestObject: TIocpAcceptExRequest;
 
-    procedure removeRequestObject(pvRequest:TIocpAcceptExRequest);
+    procedure ReleaseRequestObject(pvRequest:TIocpAcceptExRequest);
 
-    procedure checkPostRequest;
+    procedure RemoveRequestObject(pvRequest:TIocpAcceptExRequest);
+
+    procedure CheckPostRequest;
 
     property ListenSocket: TRawSocket read FListenSocket;
 
@@ -625,6 +634,8 @@ type
   {$IFEND}
   TIocpTcpServer = class(TComponent)
   private
+    FContextDNA : Integer;
+    
     FSafeLogger:TSafeLogger;
 
     FLocker:TIocpLocker;
@@ -637,6 +648,9 @@ type
 
     function isDestroying:Boolean;
     function logCanWrite:Boolean;
+    
+    function RequestContextDNA:Integer;
+    
   protected
     FClientContextClass:TIocpClientContextClass;
 
@@ -646,6 +660,7 @@ type
   private
     // clientContext pool
     FContextPool: TBaseQueue;
+
 
 
     // sendRequest pool
@@ -749,7 +764,7 @@ type
 
     constructor Create(AOwner: TComponent); override;
 
-    procedure setMaxSendingQueueSize(pvSize:Integer);
+    procedure SetMaxSendingQueueSize(pvSize:Integer);
 
     destructor Destroy; override;
 
@@ -1361,6 +1376,7 @@ begin
       {$ENDIF}
     end else
     begin
+      FContextDNA := FOwner.RequestContextDNA;
       FActive := true;
       FOwner.AddToOnlineList(Self);
 
@@ -1652,6 +1668,7 @@ end;
 constructor TIocpTcpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FContextDNA := 0;
   FLocker := TIocpLocker.Create('iocpTcpServer');
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
@@ -2104,6 +2121,11 @@ begin
 
 end;
 
+function TIocpTcpServer.RequestContextDNA: Integer;
+begin
+  Result := InterlockedIncrement(FContextDNA);
+end;
+
 procedure TIocpTcpServer.SafeStop;
 begin
   if FActive then
@@ -2189,7 +2211,7 @@ begin
   end;
 end;
 
-procedure TIocpTcpServer.setMaxSendingQueueSize(pvSize: Integer);
+procedure TIocpTcpServer.SetMaxSendingQueueSize(pvSize:Integer);
 begin
   if pvSize <= 0 then
   begin
@@ -2267,6 +2289,10 @@ function TIocpTcpServer.GetSendRequest: TIocpSendRequest;
 begin
   if Self = nil then
   begin
+    if IsDebugMode then
+    begin
+      Assert(Self <> nil)
+    end;
     Result := nil;
     Exit;
   end;
@@ -2435,7 +2461,7 @@ begin
   Result := FOnlineContextList.Count = 0;  
 end;
 
-procedure TIocpAcceptorMgr.checkPostRequest;
+procedure TIocpAcceptorMgr.CheckPostRequest;
 var
   lvRequest:TIocpAcceptExRequest;
   i:Integer;
@@ -2449,7 +2475,7 @@ begin
     // post request
     while FList.Count < FMaxRequest do
     begin
-      lvRequest := TIocpAcceptExRequest.Create(FOwner);
+      lvRequest := GetRequestObject;
       lvRequest.FClientContext := FOwner.getClientContext;
       lvRequest.FAcceptorMgr := self;
       if lvRequest.PostRequest then
@@ -2481,7 +2507,7 @@ begin
       if i > 100 then
       begin
          if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('TIocpAcceptorMgr.checkPostRequest errCounter:%d', [i], CORE_LOG_FILE);
+          FOwner.FSafeLogger.logMessage('TIocpAcceptorMgr.CheckPostRequest errCounter:%d', [i], CORE_LOG_FILE);
          Break;
       end;
     end;
@@ -2501,22 +2527,34 @@ begin
   FList := TList.Create;
   FOwner := AOwner;
   FListenSocket := AListenSocket;
+
+  FAcceptExRequestPool := TBaseQueue.Create;
 end;
 
 destructor TIocpAcceptorMgr.Destroy;
 begin
+  FAcceptExRequestPool.FreeDataObject;
   FList.Free;
   FLocker.Free;
+  FAcceptExRequestPool.Free;
   inherited Destroy;
 end;
 
-procedure TIocpAcceptorMgr.releaseRequestObject(
-  pvRequest: TIocpAcceptExRequest);
+function TIocpAcceptorMgr.GetRequestObject: TIocpAcceptExRequest;
 begin
-  pvRequest.Free; 
+  Result := TIocpAcceptExRequest(FAcceptExRequestPool.Pop);
+  if Result = nil then
+  begin
+    Result := TIocpAcceptExRequest.Create(FOwner);
+  end;
 end;
 
-procedure TIocpAcceptorMgr.removeRequestObject(pvRequest: TIocpAcceptExRequest);
+procedure TIocpAcceptorMgr.ReleaseRequestObject(pvRequest:TIocpAcceptExRequest);
+begin
+  FAcceptExRequestPool.Push(pvRequest);
+end;
+
+procedure TIocpAcceptorMgr.RemoveRequestObject(pvRequest:TIocpAcceptExRequest);
 begin
   FLocker.lock;
   try

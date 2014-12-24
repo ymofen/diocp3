@@ -80,7 +80,7 @@ type
     procedure InnerDoTask;
   protected
     procedure HandleResponse; override;
-    function getStateINfo():String; override;
+    function GetStateINfo: String; override;
   public
     constructor Create;
     destructor Destroy; override;
@@ -545,6 +545,7 @@ var
   lvRequest:TIocpTaskRequest;
   lvTaskWork: TOnTaskWork;
 begin
+  lvTaskWork := nil;
   if not FEnable then
   begin
     checkFreeData(pvTaskData, pvDataFreeType);
@@ -624,7 +625,7 @@ begin
   FFreeType := ftNone;
 end;
 
-function TIocpTaskRequest.getStateINfo: String;
+function TIocpTaskRequest.GetStateINfo: String;
 var
   lvEndTime:Cardinal;
 begin
