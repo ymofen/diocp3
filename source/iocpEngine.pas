@@ -170,26 +170,26 @@ type
     // <summary>
     //   create IOCP handle
     // </summary>
-    function createIOCPHandle: Boolean;
+    function CreateIOCPHandle: Boolean;
 
   public
 
     /// <summary>
     ///   binding a Handle to IOCPHandle
     /// </summary>
-    function bind2IOCPHandle(pvHandle: THandle; pvCompletionKey: ULONG_PTR):
+    function Bind2IOCPHandle(pvHandle: THandle; pvCompletionKey: ULONG_PTR):
         THandle;
 
     /// <summary>
     ///   initialize engine
     ///     create iocp handle
     /// </summary>
-    procedure doInitialize;
+    procedure DoInitialize;
 
     /// <summary>
     ///   finalize engine
     /// </summary>
-    procedure doFinalize;
+    procedure DoFinalize;
 
     /// <summary>
     ///   handle io exception
@@ -200,9 +200,9 @@ type
     /// <summary>
     ///   post EXIT request into iocp queue
     /// </summary>
-    function postIOExitRequest: Boolean;
+    function PostIOExitRequest: Boolean;
 
-    function postRequest(dwCompletionKey: DWORD; lpOverlapped: POverlapped):
+    function PostRequest(dwCompletionKey: DWORD; lpOverlapped: POverlapped):
         Boolean;
   end;
 
@@ -216,7 +216,9 @@ type
     FFlags: Integer;
 
     FIocpEngine: TIocpEngine;
+    
     FIocpCore: TIocpCore;
+
     FCoInitialized:Boolean;
 
     FLastRequest:TIocpRequest;
@@ -225,18 +227,18 @@ type
     
     procedure Execute; override;
 
-    procedure writeStateINfo(const pvStrings: TStrings);
+    procedure WriteStateINfo(const pvStrings: TStrings);
 
-    procedure setFlag(pvFlag:Integer);{$IFDEF INLINE} inline; {$ENDIF}
+    procedure SetFlag(pvFlag:Integer);{$IFDEF INLINE} inline; {$ENDIF}
 
-    procedure removeFlag(pvFlag:Integer);{$IFDEF INLINE} inline; {$ENDIF}
+    procedure RemoveFlag(pvFlag:Integer);
 
-    function checkFlag(pvFlag:Integer):Boolean;{$IFDEF INLINE} inline; {$ENDIF}
+    function CheckFlag(pvFlag:Integer): Boolean;
 
     /// <summary>
     ///   current worker invoke
     /// </summary>
-    procedure checkCoInitializeEx(pvReserved: Pointer = nil; coInit: Longint = 0);
+    procedure CheckCoInitializeEx(pvReserved: Pointer = nil; coInit: Longint = 0);
 
     /// <summary>
     ///   the last handle respond iocp request
@@ -277,49 +279,50 @@ type
     /// </summary>
     function WorkersIsAlive: Boolean;
 
-    procedure incAliveWorker;
-    procedure decAliveWorker(const pvWorker: TIocpWorker);
+    procedure IncAliveWorker;
+    procedure DecAliveWorker(const pvWorker: TIocpWorker);
+  public
+    constructor Create;
+
+    destructor Destroy; override;
   public
     procedure WriteStateINfo(const pvStrings:TStrings);
 
-    function getStateINfo: String;
+    function GetStateINfo: String;
 
     /// <summary>
     ///   get worker handle response
     /// </summary>
-    function getWorkerStateInfo(pvTimeOut: Cardinal = 3000): string;
+    function GetWorkerStateInfo(pvTimeOut: Cardinal = 3000): string;
 
     /// <summary>
     ///   get thread call stack
     /// </summary>
-    function getWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc; pvTimeOut:
+    function GetWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc; pvTimeOut:
         Cardinal = 3000): string;
 
-    constructor Create;
-
-    destructor Destroy; override;
 
     /// <summary>
     ///   set worker count, will clear and stop all workers
     /// </summary>
-    procedure setWorkerCount(AWorkerCount: Integer);
+    procedure SetWorkerCount(AWorkerCount: Integer);
 
     /// <summary>
     ///   set max worker count.
     /// </summary>
-    procedure setMaxWorkerCount(AWorkerCount: Word);
+    procedure SetMaxWorkerCount(AWorkerCount: Word);
 
 
     /// <summary>
     ///   check create a worker
     ///     true: create a worker
     /// </summary>
-    function checkCreateWorker(pvIsTempWorker: Boolean): Boolean;
+    function CheckCreateWorker(pvIsTempWorker: Boolean): Boolean;
 
     /// <summary>
-    ///   create worker thread and start worker
+    ///   create worker thread and Start worker
     /// </summary>
-    procedure start;
+    procedure Start;
 
 
     /// <summary>
@@ -329,9 +332,9 @@ type
     procedure SafeStop(pvTimeOut: Integer = 120000);
 
     /// <summary>
-    ///   check active, start
+    ///   check active, Start
     /// </summary>
-    procedure checkStart;
+    procedure CheckStart;
 
     /// <summary>
     ///  Stop workers
@@ -450,13 +453,13 @@ begin
   {$ENDIF !MSWINDOWS}
 end;
 
-function TIocpCore.bind2IOCPHandle(pvHandle: THandle; pvCompletionKey:
+function TIocpCore.Bind2IOCPHandle(pvHandle: THandle; pvCompletionKey:
     ULONG_PTR): THandle;
 begin
    Result := CreateIoCompletionPort(pvHandle, FIOCPHandle, pvCompletionKey, 0);
 end;
 
-function TIocpCore.createIOCPHandle: Boolean;
+function TIocpCore.CreateIOCPHandle: Boolean;
 begin
   FIOCPHandle := CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
   Result := (FIOCPHandle <> 0) and (FIOCPHandle <> INVALID_HANDLE_VALUE);
@@ -466,14 +469,14 @@ begin
   end;
 end;
 
-procedure TIocpCore.doFinalize;
+procedure TIocpCore.DoFinalize;
 begin
   if FIOCPHandle <> 0 then CloseHandle(FIOCPHandle);
 end;
 
-procedure TIocpCore.doInitialize;
+procedure TIocpCore.DoInitialize;
 begin
-  if FIOCPHandle = 0 then createIOCPHandle;
+  if FIOCPHandle = 0 then CreateIOCPHandle;
 end;
 
 procedure TIocpCore.HandleException(E:Exception);
@@ -481,18 +484,18 @@ begin
   ;
 end;
 
-function TIocpCore.postIOExitRequest: Boolean;
+function TIocpCore.PostIOExitRequest: Boolean;
 begin
   Result := PostQueuedCompletionStatus(FIOCPHandle, 0, 0, nil);
 end;
 
-function TIocpCore.postRequest(dwCompletionKey: DWORD; lpOverlapped:
+function TIocpCore.PostRequest(dwCompletionKey: DWORD; lpOverlapped:
     POverlapped): Boolean;
 begin
   Result := PostQueuedCompletionStatus(FIOCPHandle, 0, dwCompletionKey, lpOverlapped);  
 end;
 
-procedure TIocpWorker.checkCoInitializeEx(pvReserved: Pointer = nil; coInit:
+procedure TIocpWorker.CheckCoInitializeEx(pvReserved: Pointer = nil; coInit:
     Longint = 0);
 begin
   if not FCoInitialized then
@@ -502,7 +505,7 @@ begin
   end;
 end;
 
-function TIocpWorker.checkFlag(pvFlag: Integer): Boolean;
+function TIocpWorker.CheckFlag(pvFlag:Integer): Boolean;
 begin
   Result := ((FFlags and pvFlag) <> 0);
 end;
@@ -538,7 +541,7 @@ begin
     try
       FFlags := (FFlags or WORKER_ISWATING) and (not WORKER_ISBUSY);
 
-      if checkFlag(WORKER_RESERVED) then
+      if CheckFlag(WORKER_RESERVED) then
       begin
         lvResultStatus := GetQueuedCompletionStatus(FIocpCore.FIOCPHandle,
           lvBytesTransferred,  lpCompletionKey,
@@ -634,31 +637,31 @@ begin
 //  end;
 end;
 
-procedure TIocpWorker.removeFlag(pvFlag: Integer);
+procedure TIocpWorker.RemoveFlag(pvFlag:Integer);
 begin
   FFlags := FFlags AND (not pvFlag);
 end;
 
-procedure TIocpWorker.setFlag(pvFlag: Integer);
+procedure TIocpWorker.SetFlag(pvFlag: Integer);
 begin
   FFlags := FFlags or pvFlag;
 end;
 
-procedure TIocpWorker.writeStateINfo(const pvStrings: TStrings);
+procedure TIocpWorker.WriteStateINfo(const pvStrings: TStrings);
 var
   s:String;
 begin
   pvStrings.Add(Format(strDebug_Worker_INfo, [self.ThreadID, FResponseCounter]));
-  if checkFlag(WORKER_OVER) then
+  if CheckFlag(WORKER_OVER) then
   begin
     pvStrings.Add('work done!!!');
   end else
   begin
     pvStrings.Add(Format(strDebug_Worker_StateINfo,
-       [boolToStr(checkFlag(WORKER_ISBUSY), true),
-        boolToStr(checkFlag(WORKER_ISWATING), true),
-        boolToStr(checkFlag(WORKER_RESERVED), true)]));
-        
+       [boolToStr(CheckFlag(WORKER_ISBUSY), true),
+        boolToStr(CheckFlag(WORKER_ISWATING), true),
+        boolToStr(CheckFlag(WORKER_RESERVED), true)]));
+
     if (FLastRequest <> nil) then
     begin
       s := FLastRequest.getStateINfo;
@@ -671,7 +674,7 @@ begin
   end;
 end;
 
-function TIocpEngine.checkCreateWorker(pvIsTempWorker: Boolean): Boolean;
+function TIocpEngine.CheckCreateWorker(pvIsTempWorker: Boolean): Boolean;
 var
   i:Integer;
   AWorker:TIocpWorker;
@@ -706,9 +709,9 @@ begin
   end;
 end;
 
-procedure TIocpEngine.checkStart;
+procedure TIocpEngine.CheckStart;
 begin
-  if not FActive then start;
+  if not FActive then Start;
 end;
 
 constructor TIocpEngine.Create;
@@ -722,7 +725,7 @@ begin
   FIocpCore.doInitialize;
 end;
 
-procedure TIocpEngine.decAliveWorker(const pvWorker: TIocpWorker);
+procedure TIocpEngine.DecAliveWorker(const pvWorker: TIocpWorker);
 begin
   FWorkerLocker.lock;
   try
@@ -752,7 +755,7 @@ begin
   inherited Destroy;
 end;
 
-function TIocpEngine.getStateINfo: String;
+function TIocpEngine.GetStateINfo: String;
 var
   lvStrings :TStrings;
 begin
@@ -765,7 +768,7 @@ begin
   end;
 end;
 
-function TIocpEngine.getWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc;
+function TIocpEngine.GetWorkerStackInfos(pvThreadStackFunc: TThreadStackFunc;
     pvTimeOut: Cardinal = 3000): string;
 var
   lvStrings :TStrings;
@@ -809,7 +812,7 @@ begin
   end;
 end;
 
-function TIocpEngine.getWorkerStateInfo(pvTimeOut: Cardinal = 3000): string;
+function TIocpEngine.GetWorkerStateInfo(pvTimeOut: Cardinal = 3000): string;
 var
   lvStrings :TStrings;
   i, j:Integer;
@@ -850,7 +853,7 @@ begin
   end;
 end;
 
-procedure TIocpEngine.incAliveWorker;
+procedure TIocpEngine.IncAliveWorker;
 begin
   InterlockedIncrement(FActiveWorkerCount);
 end;
@@ -866,13 +869,13 @@ begin
   FActive := false;
 end;
 
-procedure TIocpEngine.setMaxWorkerCount(AWorkerCount: Word);
+procedure TIocpEngine.SetMaxWorkerCount(AWorkerCount: Word);
 begin
   FMaxWorkerCount := AWorkerCount;
 
 end;
 
-procedure TIocpEngine.setWorkerCount(AWorkerCount: Integer);
+procedure TIocpEngine.SetWorkerCount(AWorkerCount: Integer);
 begin
   if FActive then SafeStop;
   if AWorkerCount <= 0 then
@@ -883,7 +886,7 @@ begin
 
 end;
 
-procedure TIocpEngine.start;
+procedure TIocpEngine.Start;
 var
   i: Integer;
   AWorker: TIocpWorker;

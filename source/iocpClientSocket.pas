@@ -153,7 +153,7 @@ begin
   end else
   begin
     {$IFDEF DEBUG_ON}
-    Owner.FSafeLogger.logMessage(strConnectError,  [TIocpConnectExRequest(pvObject).ErrorCode]);
+    Owner.logMessage(strConnectError,  [TIocpConnectExRequest(pvObject).ErrorCode]);
     {$ENDIF}
 
     DoError(TIocpConnectExRequest(pvObject).ErrorCode);

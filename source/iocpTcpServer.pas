@@ -13,20 +13,9 @@
  
 unit iocpTcpServer;
 
-interface
+{$I 'diocp.inc'}
 
-{$IFDEF DEBUG}
-  {$DEFINE DEBUG_ON}
-{$ENDIF}
-
-{.$DEFINE SOCKET_REUSE}
-
-{$DEFINE USE_HASHTABLE}
-
-{$IF defined(FPC) or defined(VER170) or defined(VER180) or defined(VER190) or defined(VER200) or defined(VER210)}
-  {$DEFINE HAVE_INLINE}
-{$IFEND}
-
+interface 
 
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
@@ -446,7 +435,6 @@ type
     ///   directly post request,
     /// </summary>
     function DirectlyPost: Boolean;
-
   end;
 
   /// <summary>
@@ -576,7 +564,7 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    procedure clear;
+    procedure Clear;
 
     property ContextCreateCounter: Integer read FContextCreateCounter;
     property ContextOutCounter: Integer read FContextOutCounter;
@@ -1452,10 +1440,6 @@ begin
   Assert(Result <> nil);
   Result.FClientContext := self;
 end;
-
-
-
-
 
 
 procedure TIocpClientContext.OnConnected;
@@ -3180,7 +3164,7 @@ begin
   end;
 end;
 
-procedure TIocpDataMonitor.clear;
+procedure TIocpDataMonitor.Clear;
 begin
   FLocker.Enter;
   try

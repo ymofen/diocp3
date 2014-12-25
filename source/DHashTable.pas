@@ -137,6 +137,8 @@ type
     /// </summary>
     procedure SetBucketSize(pvBucketSize:Integer);
 
+    procedure FreeAllDataAsObject();
+
     property Buckets[AIndex: Cardinal]: PDHashData read GetBuckets;
 
     property BucketSize: Cardinal read FBucketSize;
@@ -388,6 +390,22 @@ begin
     while lvBucket<>nil do
     begin
       pvCallback(lvBucket);
+      lvBucket:=lvBucket.Next;
+    end;
+  end;
+end;
+
+procedure TDHashTable.FreeAllDataAsObject;
+var
+  I:Integer;
+  lvBucket: PDHashData;
+begin
+  for I := 0 to High(FBuckets) do
+  begin
+    lvBucket := FBuckets[I];
+    while lvBucket<>nil do
+    begin
+      TObject(lvBucket.Data).Free;
       lvBucket:=lvBucket.Next;
     end;
   end;

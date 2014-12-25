@@ -8,9 +8,9 @@ uses
 type
   TRunTimeINfoTools = class(TObject)
   public
-    class function getRunTimeINfo: String;
+    class function GetRunTimeINfo: String;
 
-    class function transByteSize(pvByte:Int64):String;
+    class function TransByteSize(pvByte:Int64): String;
   end;
 
 const
@@ -25,7 +25,7 @@ var
   __startTime:TDateTime;
 
 
-class function TRunTimeINfoTools.getRunTimeINfo: String;
+class function TRunTimeINfoTools.GetRunTimeINfo: String;
 var
   lvMSec, lvRemain:Int64;
   lvDay, lvHour, lvMin, lvSec:Integer;
@@ -57,7 +57,7 @@ end;
 
 
 
-class function TRunTimeINfoTools.transByteSize(pvByte: Int64): String;
+class function TRunTimeINfoTools.TransByteSize(pvByte:Int64): String;
 var
   lvTB, lvGB, lvMB, lvKB:Word;
   lvRemain:Int64;

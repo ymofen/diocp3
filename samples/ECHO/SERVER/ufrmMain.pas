@@ -17,11 +17,12 @@ type
     btnDisconectAll: TButton;
     pgcMain: TPageControl;
     TabSheet1: TTabSheet;
-    TabSheet2: TTabSheet;
+    tsLog: TTabSheet;
     mmoLog: TMemo;
     pnlMonitor: TPanel;
     btnGetWorkerState: TButton;
     btnFindContext: TButton;
+    pnlTop: TPanel;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
     procedure btnDisconectAllClick(Sender: TObject);

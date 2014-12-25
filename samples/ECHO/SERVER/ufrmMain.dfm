@@ -15,86 +15,107 @@ object frmMain: TfrmMain
   Position = poScreenCenter
   PixelsPerInch = 96
   TextHeight = 13
-  object edtPort: TEdit
-    Left = 9
-    Top = 7
-    Width = 121
-    Height = 21
-    TabOrder = 0
-    Text = '9983'
-  end
-  object btnOpen: TButton
-    Left = 142
-    Top = 4
-    Width = 75
-    Height = 25
-    Action = actOpen
-    TabOrder = 1
-  end
-  object btnDisconectAll: TButton
-    Left = 232
-    Top = 4
-    Width = 113
-    Height = 25
-    Caption = 'btnDisconectAll'
-    TabOrder = 2
-    OnClick = btnDisconectAllClick
-  end
   object pgcMain: TPageControl
-    Left = 8
-    Top = 35
-    Width = 645
-    Height = 350
+    Left = 0
+    Top = 41
+    Width = 661
+    Height = 346
     ActivePage = TabSheet1
-    TabOrder = 3
+    Align = alClient
+    TabOrder = 0
+    ExplicitLeft = 8
+    ExplicitTop = 35
+    ExplicitWidth = 645
+    ExplicitHeight = 350
     object TabSheet1: TTabSheet
       Caption = 'moniter'
+      ExplicitWidth = 637
+      ExplicitHeight = 322
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
-        Width = 637
-        Height = 322
+        Width = 653
+        Height = 318
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 0
+        ExplicitWidth = 637
+        ExplicitHeight = 322
       end
     end
-    object TabSheet2: TTabSheet
+    object tsLog: TTabSheet
       Caption = 'log'
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
+      ExplicitWidth = 637
+      ExplicitHeight = 322
       object mmoLog: TMemo
         Left = 0
         Top = 0
-        Width = 637
-        Height = 322
+        Width = 653
+        Height = 318
         Align = alClient
         Lines.Strings = (
           'mmoLog')
         TabOrder = 0
+        ExplicitWidth = 637
+        ExplicitHeight = 322
       end
     end
   end
-  object btnGetWorkerState: TButton
-    Left = 360
-    Top = 4
-    Width = 121
-    Height = 25
-    Caption = 'btnGetWorkerState'
-    TabOrder = 4
-    OnClick = btnGetWorkerStateClick
-  end
-  object btnFindContext: TButton
-    Left = 492
-    Top = 4
-    Width = 94
-    Height = 25
-    Caption = 'btnFindContext'
-    TabOrder = 5
-    OnClick = btnFindContextClick
+  object pnlTop: TPanel
+    Left = 0
+    Top = 0
+    Width = 661
+    Height = 41
+    Align = alTop
+    Caption = 'pnlTop'
+    TabOrder = 1
+    ExplicitLeft = 232
+    ExplicitTop = 144
+    ExplicitWidth = 185
+    object btnDisconectAll: TButton
+      Left = 232
+      Top = 5
+      Width = 113
+      Height = 25
+      Caption = 'btnDisconectAll'
+      TabOrder = 0
+      OnClick = btnDisconectAllClick
+    end
+    object btnFindContext: TButton
+      Left = 492
+      Top = 5
+      Width = 94
+      Height = 25
+      Caption = 'btnFindContext'
+      TabOrder = 1
+      OnClick = btnFindContextClick
+    end
+    object btnGetWorkerState: TButton
+      Left = 360
+      Top = 5
+      Width = 121
+      Height = 25
+      Caption = 'btnGetWorkerState'
+      TabOrder = 2
+      OnClick = btnGetWorkerStateClick
+    end
+    object btnOpen: TButton
+      Left = 142
+      Top = 5
+      Width = 75
+      Height = 25
+      Action = actOpen
+      TabOrder = 3
+    end
+    object edtPort: TEdit
+      Left = 9
+      Top = 7
+      Width = 121
+      Height = 21
+      TabOrder = 4
+      Text = '9983'
+    end
   end
   object actlstMain: TActionList
     Left = 248

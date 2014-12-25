@@ -1,100 +1,100 @@
 object FMMonitor: TFMMonitor
   Left = 0
   Top = 0
-  Width = 497
-  Height = 314
+  Width = 515
+  Height = 315
   TabOrder = 0
-  object Label1: TLabel
+  object lblServerStateCaption: TLabel
     Left = 16
     Top = 16
-    Width = 63
+    Width = 59
     Height = 13
-    Caption = 'server state:'
+    Caption = 'server state'
   end
   object lblsvrState: TLabel
-    Left = 96
+    Left = 112
     Top = 16
     Width = 51
     Height = 13
     Caption = 'lblsvrState'
   end
-  object lblRecv: TLabel
+  object lblRecvCaption: TLabel
     Left = 16
     Top = 48
-    Width = 25
+    Width = 21
     Height = 13
     Hint = 'double click to reset'
-    Caption = 'recv:'
+    Caption = 'recv'
     ParentShowHint = False
     ShowHint = True
-    OnDblClick = lblRecvDblClick
+    OnDblClick = lblRecvCaptionDblClick
   end
   object lblPostRecvINfo: TLabel
-    Left = 96
-    Top = 48
+    Left = 112
+    Top = 38
     Width = 76
     Height = 13
     Caption = 'lblPostRecvINfo'
   end
-  object Label3: TLabel
+  object lblSendCaption: TLabel
     Left = 16
-    Top = 115
-    Width = 27
+    Top = 81
+    Width = 23
     Height = 13
-    Caption = 'send:'
+    Caption = 'send'
   end
   object lblSend: TLabel
-    Left = 96
-    Top = 115
+    Left = 112
+    Top = 81
     Width = 34
     Height = 13
     Caption = 'lblSend'
   end
-  object Label4: TLabel
+  object lblAcceptExCaption: TLabel
     Left = 16
-    Top = 192
+    Top = 189
     Width = 48
     Height = 13
     Caption = 'acceptex:'
   end
   object lblAcceptEx: TLabel
-    Left = 96
-    Top = 192
+    Left = 112
+    Top = 189
     Width = 55
     Height = 13
     Caption = 'lblAcceptEx'
   end
   object lblOnlineCounter: TLabel
-    Left = 96
-    Top = 236
+    Left = 112
+    Top = 233
     Width = 79
     Height = 13
     Caption = 'lblOnlineCounter'
   end
-  object Label5: TLabel
+  object lblOnlineCaption: TLabel
     Left = 16
-    Top = 236
+    Top = 233
     Width = 32
     Height = 13
     Caption = 'online:'
   end
   object lblRunTimeINfo: TLabel
-    Left = 96
+    Left = 112
     Top = 276
     Width = 72
     Height = 13
     Caption = 'lblRunTimeINfo'
   end
-  object Label6: TLabel
+  object lblWorkersCaption: TLabel
     Left = 16
-    Top = 255
-    Width = 42
+    Top = 254
+    Width = 38
     Height = 13
-    Caption = 'workers:'
+    Caption = 'workers'
   end
   object lblWorkerCount: TLabel
-    Left = 96
-    Top = 255
+    Left = 112
+    Top = 254
     Width = 79
     Height = 13
     Cursor = crHandPoint
@@ -108,7 +108,7 @@ object FMMonitor: TFMMonitor
     ParentFont = False
     OnClick = lblWorkerCountClick
   end
-  object Label7: TLabel
+  object lblRunTimeCaption: TLabel
     Left = 16
     Top = 276
     Width = 43
@@ -116,71 +116,71 @@ object FMMonitor: TFMMonitor
     Caption = 'run time:'
   end
   object lblRecvdSize: TLabel
-    Left = 96
-    Top = 67
+    Left = 112
+    Top = 59
     Width = 59
     Height = 13
     Caption = 'lblRecvdSize'
   end
   object lblSentSize: TLabel
-    Left = 96
-    Top = 134
+    Left = 112
+    Top = 103
     Width = 51
     Height = 13
     Caption = 'lblSentSize'
   end
   object lblSendQueue: TLabel
-    Left = 96
-    Top = 153
+    Left = 112
+    Top = 124
     Width = 66
     Height = 13
     Caption = 'lblSendQueue'
   end
-  object Label8: TLabel
+  object lblSendingQueueCaption: TLabel
     Left = 16
-    Top = 153
+    Top = 124
     Width = 70
     Height = 13
     Caption = 'sending queue'
   end
   object lblSocketHandle: TLabel
-    Left = 96
-    Top = 174
+    Left = 112
+    Top = 168
     Width = 75
     Height = 13
     Caption = 'lblSocketHandle'
   end
   object lblSocketHandleCaption: TLabel
     Left = 16
-    Top = 174
+    Top = 167
     Width = 68
     Height = 13
     Caption = 'Socket Handle'
   end
   object lblContextInfo: TLabel
-    Left = 96
-    Top = 214
+    Left = 112
+    Top = 211
     Width = 69
     Height = 13
     Caption = 'lblContextInfo'
   end
-  object Label2: TLabel
+  object lblContextInfoCaption: TLabel
     Left = 16
-    Top = 214
+    Top = 211
     Width = 62
     Height = 13
     Caption = 'context info:'
   end
   object lblSendRequest: TLabel
-    Left = 352
-    Top = 192
+    Left = 111
+    Top = 146
     Width = 74
     Height = 13
     Caption = 'lblSendRequest'
   end
-  object Label10: TLabel
-    Left = 272
-    Top = 192
+  object lblSendRequestCaption: TLabel
+    Left = 16
+    Top = 146
     Width = 63
     Height = 13
     Caption = 'sendRequest'
@@ -188,7 +188,7 @@ object FMMonitor: TFMMonitor
   object tmrReader: TTimer
     Enabled = False
     OnTimer = tmrReaderTimer
-    Left = 416
+    Left = 440
     Top = 24
   end
 end
