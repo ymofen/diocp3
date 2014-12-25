@@ -1676,7 +1676,9 @@ begin
   FSafeLogger:=TSafeLogger.Create();
   FSafeLogger.setAppender(TLogFileAppender.Create(True));
 
-  FKeepAlive := true;
+  // 默认不开启心跳选项
+  FKeepAlive := False;
+  
   FContextPool := TBaseQueue.Create;
   FSendRequestPool := TBaseQueue.Create;
     
