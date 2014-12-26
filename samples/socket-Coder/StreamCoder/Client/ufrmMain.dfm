@@ -3,7 +3,7 @@ object frmMain: TfrmMain
   Top = 0
   Caption = 'diocp3 coder client'
   ClientHeight = 314
-  ClientWidth = 771
+  ClientWidth = 565
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -15,9 +15,9 @@ object frmMain: TfrmMain
   TextHeight = 13
   object mmoRecvMessage: TMemo
     Left = 8
-    Top = 184
+    Top = 152
     Width = 521
-    Height = 113
+    Height = 145
     Lines.Strings = (
       'iocp tcp client demo')
     TabOrder = 0
@@ -48,38 +48,21 @@ object frmMain: TfrmMain
     Text = '9983'
   end
   object btnSendObject: TButton
-    Left = 544
-    Top = 87
+    Left = 431
+    Top = 38
     Width = 105
     Height = 25
     Caption = 'btnSendObject'
     TabOrder = 4
     OnClick = btnSendObjectClick
   end
-  object btnGetFile: TButton
-    Left = 508
-    Top = 6
-    Width = 100
-    Height = 25
-    Caption = 'btnGetFile'
-    TabOrder = 5
-    OnClick = btnGetFileClick
-  end
-  object edtFileID: TEdit
-    Left = 360
-    Top = 8
-    Width = 142
-    Height = 21
-    TabOrder = 6
-    Text = 'demoFile.jpg'
-  end
   object mmoData: TMemo
     Left = 8
-    Top = 89
-    Width = 521
+    Top = 40
+    Width = 417
     Height = 89
     Lines.Strings = (
       'this message will send to server')
-    TabOrder = 7
+    TabOrder = 5
   end
 end

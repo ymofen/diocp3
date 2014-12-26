@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, uIOCPCentre, iocpTcpServer, ExtCtrls,
-  ComObj, FileTransProtocol, iocpLogger, ComCtrls;
+  ComObj, iocpLogger, ComCtrls;
 
 type
   TfrmMain = class(TForm)

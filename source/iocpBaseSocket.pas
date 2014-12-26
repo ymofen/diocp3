@@ -12,26 +12,17 @@
  
 unit iocpBaseSocket;
 
+{$I 'diocp.inc'}
+
 interface
 
-{$IFDEF DEBUG}
-  {$DEFINE DEBUG_ON}
-{$ENDIF}
-
-{.$DEFINE SOCKET_REUSE}
-{$DEFINE USE_HASHTABLE}
-
-{$DEFINE CHANGE_STATE_USE_LOCKER}
 
 uses
   Classes, iocpSocketUtils, iocpEngine, iocpProtocol,
   winsock, iocpWinsock2,  DRefCounter,
 
   iocpRawSocket, SyncObjs, Windows, SysUtils,
-  {$IFDEF DEBUG_ON}
-    safeLogger,
-  {$ENDIF}
-
+  safeLogger,
   BaseQueue, iocpLocker;
 
 const
@@ -152,7 +143,7 @@ type
     /// <summary>
     ///   post next sendRequest
     /// </summary>
-    function checkNextSendRequest: Boolean;
+    function CheckNextSendRequest: Boolean;
 
     /// <example>
     ///  sendRequest to pool
@@ -323,8 +314,6 @@ type
 
     FBytesSize:Cardinal;
 
-    FCopyBuf:TWsaBuf;
-
     // send buf record
     FWSABuf:TWsaBuf;
 
@@ -339,10 +328,6 @@ type
 
     FOnDataRequestCompleted: TOnDataRequestCompleted;
     procedure CheckClearSendBuffer;
-    /// <summary>
-    ///   checkStart to post
-    /// </summary>
-    function checkStart: Boolean;
   protected
     /// <summary>
     ///   post send a block
@@ -357,7 +342,8 @@ type
     procedure ResponseDone; override;
 
     procedure DoCleanUp;virtual;
-    function getStateINfo: String; override;
+    
+    function GetStateINfo: String; override;
 
     /// <summary>
     ///   post send buffer to iocp queue
@@ -564,10 +550,8 @@ type
 
   TIocpBaseSocket = class(TComponent)
   private
-  {$IFDEF DEBUG_ON}
     FSafeLogger:TSafeLogger;
-  {$ENDIF}
-
+    
   {$IFDEF DEBUG_ON}
     FDebug_SendRequestCounter:Integer;
     FDebug_SendRequestReleaseCounter:Integer;
@@ -578,10 +562,7 @@ type
     procedure SetWSARecvBufferSize(const Value: Cardinal);
 
     function isDestroying:Boolean;
-  {$IFDEF DEBUG_ON}
     function logCanWrite:Boolean;
-  {$ENDIF}
-
 
   protected
     FContextClass:TIocpContextClass;
@@ -700,6 +681,7 @@ type
 
     procedure LogMessage(pvMsg: string; pvMsgType: string = ''; pvLevel: TLogLevel
         = lgvMessage); overload;
+        
     procedure logMessage(pvMsg: string; const args: array of const; pvMsgType:
         string = ''; pvLevel: TLogLevel = lgvMessage); overload;
   published
@@ -788,10 +770,11 @@ asm
 end;
 
 
-function TIocpBaseContext.checkNextSendRequest: Boolean;
+function TIocpBaseContext.CheckNextSendRequest: Boolean;
 var
   lvRequest:TIocpSendRequest;
 begin
+  Result := false;
   Assert(FOwner <> nil);
 
   FContextLocker.lock();
@@ -824,10 +807,10 @@ begin
 
       {$IFDEF DEBUG_ON}
       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
+        FOwner.FSafeLogger.logMessage('TIocpClientContext.CheckNextSendRequest.checkStart return false',  []);
       {$ENDIF}
       /// kick out the clientContext
-      RequestDisconnect('checkNextSendRequest::lvRequest.checkSendNextBlock Fail', lvRequest);
+      RequestDisconnect('CheckNextSendRequest::lvRequest.checkSendNextBlock Fail', lvRequest);
     
       FOwner.ReleaseSendRequest(lvRequest);
     end;
@@ -957,7 +940,6 @@ end;
 
 procedure TIocpBaseContext.DoConnected;
 begin
-{$IFDEF CHANGE_STATE_USE_LOCKER}
   FContextLocker.lock('DoConnected');
   try
     FSending := false;
@@ -988,50 +970,12 @@ begin
   finally
     FContextLocker.unLock;
   end;
-{$ELSE}
-  if lock_cmp_exchange(False, True, FActive) = False then
-  begin
-    Assert(FOwner <> nil);
 
-    FOwner.FOnlineContextList.add(Self);
-    try
-      if Assigned(FOwner.FOnContextConnected) then
-      begin
-        FOwner.FOnContextConnected(Self);
-      end;
-      OnConnected();
-    except
-    end;
-
-    SetSocketState(ssConnected);
-    PostWSARecvRequest;
-  end;
-{$ENDIF}
 end;
 
 procedure TIocpBaseContext.DoDisconnect;
 begin
-{$IFDEF CHANGE_STATE_USE_LOCKER}
   InnerCloseContext;
-{$ELSE}
-  if lock_cmp_exchange(True, False, FActive) then
-  begin
-    Assert(FOwner <> nil);
-    FOwner.FOnlineContextList.remove(self);
-
-    FRawSocket.close;
-    checkReleaseRes;
-    try
-      if Assigned(FOwner.FOnContextDisconnected) then
-      begin
-        FOwner.FOnContextDisconnected(Self);
-      end;
-      OnDisconnected;
-      SetSocketState(ssDisconnected);
-    except
-    end;
-  end;
-{$ENDIF}
 end;
 
 procedure TIocpBaseContext.DoError(pvErrorCode: Integer);
@@ -1146,7 +1090,7 @@ procedure TIocpBaseContext.postNextSendRequest;
 begin
   self.lock;
   try
-    if not checkNextSendRequest then FSending := false;
+    if not CheckNextSendRequest then FSending := false;
   finally
     self.unLock;
   end;
@@ -1173,7 +1117,7 @@ begin
           if not FSending then
           begin
             FSending := true;  // first: set true
-            if not checkNextSendRequest then
+            if not CheckNextSendRequest then
               FSending := false;
           end;
         end;
@@ -1373,11 +1317,11 @@ begin
   Result := FIsDestroying or (csDestroying in self.ComponentState);
 end;
 
-
 function TIocpBaseSocket.logCanWrite: Boolean;
 begin
   Result := (not isDestroying) and FSafeLogger.Enable;
 end;
+
 
 
 procedure TIocpBaseSocket.Open;
@@ -1399,6 +1343,7 @@ end;
 
 function TIocpBaseSocket.ReleaseSendRequest(pvObject:TIocpSendRequest): Boolean;
 begin
+  Result := false;
   if self = nil then
   begin
     Assert(False);
@@ -1430,17 +1375,6 @@ begin
       Assert(false)
     end;
   end;
-
-
-//  if lock_cmp_exchange(True, False, pvObject.FAlive) = True then
-//  begin
-//    FSendRequestPool.Push(pvObject);
-//    Result := true;
-//  end else
-//  begin
-//    Result := false;
-//    Assert(Result = true);
-//  end;
 end;
 
 procedure TIocpBaseSocket.Close;
@@ -2124,30 +2058,9 @@ begin
   begin
     SetBuffer(buf, len, dtNone);
   end;
-
-//  if pvCopyBuf then
-//  begin
-//    if FCopyBuf.len > 0 then FreeMem(FCopyBuf.buf);
-//
-//    FCopyBuf.len := len;
-//    GetMem(FCopyBuf.buf, FCopyBuf.len);
-//    Move(buf^, FCopyBuf.buf^, FCopyBuf.len);
-//    FBuf := FCopyBuf.buf;
-//    FLen := FCopyBuf.len;
-//  end else
-//  begin
-//    FBuf := buf;
-//    FLen := len;
-//  end;
-//  FPosition := 0;
 end;
 
-function TIocpSendRequest.checkStart: Boolean;
-begin
-  Result := ExecuteSend;
-end;
-
-function TIocpSendRequest.getStateINfo: String;
+function TIocpSendRequest.GetStateINfo: String;
 begin
   Result :=Format('%s %s', [Self.ClassName, self.Remark]);
   if FResponding then
@@ -2521,7 +2434,7 @@ begin
     begin
       FOwner.FDataMoniter.incPushSendQueueCounter;
     end;
-    checkNextSendRequest;
+    CheckNextSendRequest;
   end;
 end;
 

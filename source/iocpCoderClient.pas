@@ -87,7 +87,7 @@ type
     /// </summary>
     procedure writeObject(pvObject:TObject);
 
-  published
+  public
 
     /// <summary>
     ///   接收到一个对象
