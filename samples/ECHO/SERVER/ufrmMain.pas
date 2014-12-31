@@ -23,11 +23,13 @@ type
     btnGetWorkerState: TButton;
     btnFindContext: TButton;
     pnlTop: TPanel;
+    btnPostWSAClose: TButton;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
     procedure btnDisconectAllClick(Sender: TObject);
     procedure btnFindContextClick(Sender: TObject);
     procedure btnGetWorkerStateClick(Sender: TObject);
+    procedure btnPostWSACloseClick(Sender: TObject);
   private
     iCounter:Integer;
     FTcpServer: TIocpTcpServer;
@@ -119,6 +121,24 @@ end;
 procedure TfrmMain.btnGetWorkerStateClick(Sender: TObject);
 begin
   ShowMessage(FTcpServer.IocpEngine.getWorkerStateInfo(0));
+end;
+
+procedure TfrmMain.btnPostWSACloseClick(Sender: TObject);
+var
+  lvList:TList;
+  i:Integer;
+begin
+  lvList := TList.Create;
+  try
+    FTcpServer.getOnlineContextList(lvList);
+    for i:=0 to lvList.Count -1 do
+    begin
+      TIocpClientContext(lvList[i]).PostWSACloseRequest();
+    end;
+  finally
+    lvList.Free;
+  end;
+
 end;
 
 procedure TfrmMain.OnAccept(pvSocket: THandle; pvAddr: String; pvPort: Integer;

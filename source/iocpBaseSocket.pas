@@ -544,6 +544,7 @@ type
     procedure write2List(pvList:TList);
 
     property Count: Integer read FCount;
+    property Locker: TIocpLocker read FLocker;
 
   end;
 
@@ -586,7 +587,6 @@ type
 
 
     FOnContextError: TOnContextError;
-
     // online clientcontext list
     FOnlineContextList: TContextDoublyLinked;
 

@@ -33,7 +33,8 @@ type
     FHost: String;
     FPort: Integer;
     procedure PostConnectRequest;
-    procedure reCreateSocket;
+    procedure ReCreateSocket;
+    function CanAutoReConnect:Boolean;
   protected
     procedure OnConnecteExResponse(pvObject:TObject);
 
@@ -71,7 +72,10 @@ type
     function GetCount: Integer;
     function GetItems(pvIndex: Integer): TIocpRemoteContext;
   private
+    FDisableAutoConnect: Boolean;
+  private
   {$IFDEF UNICODE}
+
     FList: TObjectList<TIocpRemoteContext>;
   {$ELSE}
     FList: TObjectList;
@@ -82,9 +86,10 @@ type
   public
     function Add: TIocpRemoteContext;
     property Count: Integer read GetCount;
+
+    property DisableAutoConnect: Boolean read FDisableAutoConnect write
+        FDisableAutoConnect;
     property Items[pvIndex: Integer]: TIocpRemoteContext read GetItems; default;
-
-
 
   end;
 
@@ -114,13 +119,18 @@ begin
   inherited Destroy;
 end;
 
+function TIocpRemoteContext.CanAutoReConnect: Boolean;
+begin
+  Result := FAutoReConnect and (Owner.Active) and (not TIocpClientSocket(Owner).DisableAutoConnect);
+end;
+
 procedure TIocpRemoteContext.Connect;
 var
   lvRemoteIP:String;
 begin
   if SocketState <> ssDisconnected then raise Exception.Create(strCannotConnect);
 
-  reCreateSocket;
+  ReCreateSocket;
 
   try
     lvRemoteIP := RawSocket.GetIpAddrByName(FHost);
@@ -158,7 +168,7 @@ begin
 
     DoError(TIocpConnectExRequest(pvObject).ErrorCode);
 
-    if (FAutoReConnect) and (Owner.Active) then
+    if (CanAutoReConnect) then
     begin
       Sleep(100);
       PostConnectRequest;
@@ -180,7 +190,7 @@ begin
   begin
     if RawSocket.SocketHandle = INVALID_SOCKET then
     begin
-      reCreateSocket;
+      ReCreateSocket;
     end;
 
     if not FConnectExRequest.PostRequest(FHost, FPort) then
@@ -189,13 +199,13 @@ begin
 
       Sleep(1000);
 
-      if (FAutoReConnect) and (Owner.Active) then
+      if CanAutoReConnect then
         PostConnectRequest;
     end;
   end;
 end;
 
-procedure TIocpRemoteContext.reCreateSocket;
+procedure TIocpRemoteContext.ReCreateSocket;
 begin
   RawSocket.createTcpOverlappedSocket;
   if not RawSocket.bind('0.0.0.0', 0) then
@@ -211,7 +221,7 @@ begin
   inherited;
   if pvState = ssDisconnected then
   begin
-    if (FAutoReConnect) and (Owner.Active) then
+    if CanAutoReConnect then
     begin
       PostConnectRequest;
     end;
@@ -226,6 +236,7 @@ begin
 {$ELSE}
   FList := TObjectList.Create();
 {$ENDIF}
+  FDisableAutoConnect := false;
 end;
 
 destructor TIocpClientSocket.Destroy;

@@ -6,9 +6,15 @@
  *	 v3.0.1(2014-7-16 21:36:30)
  *     + first release
  *
+ *   2014-12-31 12:36:31
+ *     Context连接上下文添加PostWSACloseRequest函数，
+ *       请求关闭连接<等待前面的数据发送请求进行关闭后，然后进行断开操作>
+ *       <吕宏庆  171958445>提出：使用在http协议时, 发生完成数据后进行关闭
+ *
  *
  *
  *   thanks qsl's suggestion
+ *
  *)
  
 unit iocpTcpServer;
@@ -168,7 +174,7 @@ type
     ///   post next sendRequest
     ///    must single thread operator
     /// </summary>
-    procedure checkNextSendRequest;
+    procedure CheckNextSendRequest;
 
     /// <example>
     ///  sendRequest to pool
@@ -251,6 +257,14 @@ type
     /// </summary>
     function LockContext(pvDebugInfo: string; pvObj: TObject): Boolean;
 
+    procedure unLockContext(pvDebugInfo: string; pvObj: TObject);
+
+    /// <summary>
+    ///   投递关闭请求
+    ///     等待前面的数据发送请求进行关闭后，然后进行断开操作
+    /// </summary>
+    procedure PostWSACloseRequest();
+
     procedure RequestDisconnect(pvDebugInfo: string = ''; pvObj: TObject = nil);
 
     /// <summary>
@@ -261,12 +275,13 @@ type
         true): Boolean; overload;
 
     /// <summary>
-    ///  post send request to iocp queue, if post successful return true.
-    ///    if request is completed, will call DoSendRequestCompleted procedure
+    ///    post send request to iocp queue, if post successful return true.
+    ///      if request is completed, will call DoSendRequestCompleted procedure
+    ///    如果 长度为0，则在处理请求时进行关闭
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvBufReleaseType:
         TDataReleaseType): Boolean; overload;
-    procedure unLockContext(pvDebugInfo: string; pvObj: TObject);
+
 
 
     property Active: Boolean read FActive;
@@ -905,10 +920,13 @@ resourcestring
   strSendEngineOff = '[%d]响应发送数据请求时发现IOCP服务关闭';
   strSendErr       = '[%d]响应发送数据请求时出现了错误。错误代码:%d!';
   strSendPostError = '[%d]投递发送数据请求时出现了错误。错误代码:%d';
+  strSendZero      = '[%d]投递发送请求数据时遇到0长度数据。进行关闭处理'; 
 
   strBindingIocpError = '[%d]绑定到IOCP句柄时出现了异常, 错误代码:%d, (%s)';
 
   strPushFail      = '[%d]压入到待发送队列失败, 队列信息: %d/%d';
+
+
 
 
 
@@ -1054,7 +1072,7 @@ begin
 end;
 
 
-procedure TIocpClientContext.checkNextSendRequest;
+procedure TIocpClientContext.CheckNextSendRequest;
 var
   lvRequest:TIocpSendRequest;
 begin
@@ -1089,13 +1107,13 @@ begin
       lvRequest.CancelRequest;
 
       {$IFDEF DEBUG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpClientContext.checkNextSendRequest.checkStart return false',  []);
+      FOwner.logMessage('TIocpClientContext.CheckNextSendRequest:: ExecuteSend return False',
+         []);
       {$ENDIF}
       /// kick out the clientContext
-      RequestDisconnect('checkNextSendRequest::lvRequest.checkSendNextBlock Fail', lvRequest);
-    
-      FOwner.releaseSendRequest(lvRequest);
+      RequestDisconnect('CheckNextSendRequest::lvRequest.checkSendNextBlock Fail', lvRequest);
+
+      FOwner.ReleaseSendRequest(lvRequest);
     end;
   end;
 end;
@@ -1493,7 +1511,7 @@ end;
 
 procedure TIocpClientContext.PostNextSendRequest;
 begin
-  checkNextSendRequest;
+  CheckNextSendRequest;
 end;
 
 function TIocpClientContext.InnerPostSendRequestAndCheckStart(
@@ -1535,6 +1553,11 @@ begin
   end;
 end;
 
+procedure TIocpClientContext.PostWSACloseRequest;
+begin
+  PostWSASendRequest(nil, 0, dtNone);
+end;
+
 procedure TIocpClientContext.PostWSARecvRequest;
 begin
   FRecvRequest.PostRequest;
@@ -1570,7 +1593,6 @@ var
   lvRequest:TIocpSendRequest;
 begin
   Result := false;
-  if len = 0 then raise Exception.Create('PostWSASendRequest::request buf is zero!');
   if self.Active then
   begin
     if self.incReferenceCounter('PostWSASendRequest', Self) then
@@ -2897,7 +2919,19 @@ end;
 
 function TIocpSendRequest.ExecuteSend: Boolean;
 begin
-  Result := InnerPostRequest(FBuf, FLen);
+  if (FBuf = nil) or (FLen = 0) then
+  begin
+    {$IFDEF DEBUG_ON}
+     FOwner.logMessage(
+       Format(strSendZero, [FClientContext.FSocketHandle])
+       );
+    {$ENDIF}
+    Result := False;
+  end else
+  begin
+    Result := InnerPostRequest(FBuf, FLen);
+  end;
+
 end;
 
 procedure TIocpSendRequest.CheckClearSendBuffer;
