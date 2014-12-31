@@ -252,6 +252,9 @@ type
   /// </summary>
   TIocpEngine = class(TObject)
   private
+
+    FWorkerNeedCoInitialize: Boolean;
+
     FWorkerLocker: TIocpLocker;
 
     FMaxWorkerCount: Word;
@@ -366,7 +369,10 @@ type
     /// </summary>
     property Name: String read FName write FName;
 
-
+    /// <summary>
+    ///   工作线程需要进行CoInitalize初始化
+    /// </summary>
+    property WorkerNeedCoInitialize: Boolean read FWorkerNeedCoInitialize write FWorkerNeedCoInitialize;
   end;
 
 var
@@ -530,6 +536,12 @@ var
   lpCompletionKey:ULONG_PTR;
   lvTempRequest:TIocpRequest;
 begin
+
+  if FIocpEngine.FWorkerNeedCoInitialize then
+  begin
+    CheckCoInitializeEx();
+  end;
+  
   FIocpEngine.incAliveWorker;
 
 {$IFDEF DEBUG_ON}
