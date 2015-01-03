@@ -62,6 +62,8 @@ type
   /// </summary>
   TIocpBaseContext = class(TObject)
   private
+    FSocketHandle : TSocket;
+
     FSendCounter: TDRefCounter;
     FContextLocker: TIocpLocker;
     FLastErrorCode:Integer;
@@ -253,6 +255,8 @@ type
     property RawSocket: TRawSocket read FRawSocket;
 
     property SocketState: TSocketState read FSocketState;
+
+    property SocketHandle: TSocket read FSocketHandle;
 
     property OnSocketStateChanged: TNotifyEvent read FOnSocketStateChanged write
         FOnSocketStateChanged;
@@ -746,6 +750,20 @@ function lock_cmp_exchange(cmp_val, new_val: Boolean; var target: Boolean):
 
 implementation
 
+resourcestring
+  strRecvZero      = '[%d]接收到0字节的数据,该连接将断开!';
+  strRecvError     = '[%d]响应接收请求时出现了错误。错误代码:%d!';
+  strRecvEngineOff = '[%d]响应接收请求时发现IOCP服务关闭';
+
+  strSendEngineOff = '[%d]响应发送数据请求时发现IOCP服务关闭';
+  strSendErr       = '[%d]响应发送数据请求时出现了错误。错误代码:%d!';
+  strSendPostError = '[%d]投递发送数据请求时出现了错误。错误代码:%d';
+  strSendZero      = '[%d]投递发送请求数据时遇到0长度数据。进行关闭处理'; 
+
+  strBindingIocpError = '[%d]绑定到IOCP句柄时出现了异常, 错误代码:%d, (%s)';
+
+  strPushFail      = '[%d]压入到待发送队列失败, 队列信息: %d/%d';
+
 //{$IFDEF DEBUG_ON}
 //procedure logDebugMessage(pvMsg: string; const args: array of const);
 //begin
@@ -942,6 +960,7 @@ procedure TIocpBaseContext.DoConnected;
 begin
   FContextLocker.lock('DoConnected');
   try
+    FSocketHandle := FRawSocket.SocketHandle;
     FSending := false;
     FRequestDisconnect := false;
     if not FActive then
@@ -1741,29 +1760,54 @@ begin
     if not FOwner.Active then
     begin
       {$IFDEF DEBUG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpRecvRequest Owner Off', 'DEBUG_', lgvDebug);
+        FOwner.logMessage(
+          Format(strRecvEngineOff, [FContext.FSocketHandle])
+        );
       {$ENDIF}
-      FContext.RequestDisconnect('IocpRecvRequest response server enginee is off', Self);
+      // avoid postWSARecv
+      FContext.RequestDisconnect(
+        Format(strRecvEngineOff, [FContext.FSocketHandle])
+        , Self);
+//      {$IFDEF DEBUG_ON}
+//      if FOwner.logCanWrite then
+//        FOwner.FSafeLogger.logMessage('TIocpRecvRequest Owner Off', 'DEBUG_', lgvDebug);
+//      {$ENDIF}
+//      FContext.RequestDisconnect('IocpRecvRequest response server enginee is off', Self);
     end else if ErrorCode <> 0 then
     begin
-    {$IFDEF DEBUG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('TIocpRecvRequest response ErrorCode:%d',
-          [ErrorCode], 'DEBUG_', lgvDebug);
-    {$ENDIF}
-
+      {$IFDEF DEBUG_ON}
+      FOwner.FSafeLogger.logMessage(
+        Format(strRecvError, [FContext.FSocketHandle, FErrorCode])
+        );
+      {$ENDIF}
       FContext.DoError(ErrorCode);
-
-      FContext.RequestDisconnect('IocpRecvRequest response Error',  Self);
+      FContext.RequestDisconnect(
+        Format(strRecvError, [FContext.FSocketHandle, FErrorCode])
+        ,  Self);
+//
+//    {$IFDEF DEBUG_ON}
+//      if FOwner.logCanWrite then
+//        FOwner.FSafeLogger.logMessage('TIocpRecvRequest response ErrorCode:%d',
+//          [ErrorCode], 'DEBUG_', lgvDebug);
+//    {$ENDIF}
+//
+//      FContext.DoError(ErrorCode);
+//
+//      FContext.RequestDisconnect('IocpRecvRequest response Error',  Self);
     end else if (FBytesTransferred = 0) then
     begin      // no data recvd, socket is break
-    {$IFDEF DEBUG_ON}
-      if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',
-         [], 'DEBUG_', lgvDebug);
-    {$ENDIF}
-      FContext.RequestDisconnect('IocpRecvRequest response FBytesTransferred is zero',  Self);
+      {$IFDEF DEBUG_ON}
+      FOwner.logMessage(strRecvZero,  [FContext.FSocketHandle]);
+      {$ENDIF}
+      FContext.RequestDisconnect(
+        Format(strRecvZero,  [FContext.FSocketHandle]),  Self);
+
+//    {$IFDEF DEBUG_ON}
+//      if FOwner.logCanWrite then
+//        FOwner.FSafeLogger.logMessage('IocpRecvRequest response FBytesTransferred is zero',
+//         [], 'DEBUG_', lgvDebug);
+//    {$ENDIF}
+//      FContext.RequestDisconnect('IocpRecvRequest response FBytesTransferred is zero',  Self);
     end else
     begin
       FContext.DoReceiveData;

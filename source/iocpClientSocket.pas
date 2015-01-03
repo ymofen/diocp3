@@ -11,11 +11,10 @@
  *)
 unit iocpClientSocket;
 
+{$I 'diocp.inc'}
+
 interface
 
-{$IFDEF DEBUG}
-  {$DEFINE DEBUG_ON}
-{$ENDIF}
 
 uses
   iocpBaseSocket, SysUtils, iocpSocketUtils
