@@ -49,12 +49,16 @@ type
     FSockaddr: sockaddr_in;
     FSocketHandle:THandle;
   public
+    function bind(const pvAddr: string; pvPort: Integer): Boolean;
     procedure CreateTcpSocket;
     procedure CreateUdpSocket;
     function RecvBuf(var data; const len: Cardinal): Integer;
+    function PeekBuf(var data; const len: Cardinal): Integer;
     function SendBuf(const data; const len: Cardinal): Integer;
     function SendBufTo(const data; const len: Integer): Integer;
     function Connect(const pvAddr: string; pvPort: Integer): Boolean;
+
+    procedure SetConnectInfo(const pvAddr: string; pvPort: Integer);
 
     /// <summary>
     ///   can send?
@@ -64,7 +68,7 @@ type
 
     /// <summary>
     ///   check can recv
-    ///  unit 's
+    ///    unit usec
     /// </summary>
     function Readable(pvTimeOut:Integer): Integer;
 
@@ -204,6 +208,34 @@ end;
 
 {$ENDIF}
 
+{ TDRawSocket }
+
+function TDRawSocket.bind(const pvAddr: string; pvPort: Integer): Boolean;
+var
+  s :String;
+{$IFDEF POSIX}
+{$ELSE}
+{$ENDIF}
+
+begin
+  FillChar(FSockaddr, SizeOf(sockaddr_in), 0);
+  FSockaddr.sin_family := AF_INET;
+  FSockaddr.sin_port := htons(pvPort);
+  s := pvAddr;
+  if s = '' then
+  begin
+    s := '0.0.0.0';
+  end;
+{$IFDEF POSIX}
+  FSockaddr.sin_addr.s_addr :=inet_addr(MarshaledAString(UTF8Encode(s)));
+  //  unkonw 2015-01-05 22:59:10
+  //Result := Posix.SysSocket.Bind(FSocketHandle, sockaddr(FSockaddr), sizeof(sockaddr_in))  = 0;
+{$ELSE}
+  FSockaddr.sin_addr.s_addr :=inet_addr(PAnsichar(UTF8Encode(s)));
+  Result := winsock.bind(FSocketHandle, FSockaddr, sizeof(sockaddr_in))  = 0;
+{$ENDIF}
+end;
+
 procedure TDRawSocket.Close;
 var
   lvTempSocket: THandle;
@@ -273,15 +305,15 @@ begin
   FD_ZERO(lvFDSet);
   _FD_SET(FSocketHandle, lvFDSet);
 
-  lvTime_val.tv_sec := pvTimeOut;
-  lvTime_val.tv_usec := 0;
+  lvTime_val.tv_sec := pvTimeOut div 1000;
+  lvTime_val.tv_usec :=  1000 * (pvTimeOut mod 1000);
   Result := select(0, @lvFDSet, nil, nil, @lvTime_val);
 {$ELSE}
   FD_ZERO(lvFDSet);
   FD_SET(FSocketHandle, lvFDSet);
 
-  lvTime_val.tv_sec := pvTimeOut;
-  lvTime_val.tv_usec := 0;
+  lvTime_val.tv_sec := pvTimeOut div 1000;
+  lvTime_val.tv_usec :=  1000 * (pvTimeOut mod 1000);
   Result := select(0, @lvFDSet, nil, nil, @lvTime_val);
 {$ENDIF}
 end;
@@ -381,6 +413,27 @@ end;
 function TDRawSocket.IsValidSocketHandle: Boolean;
 begin
    Result := FSocketHandle <> INVALID_HANDLE_VALUE;
+end;
+
+function TDRawSocket.PeekBuf(var data; const len:Cardinal): Integer;
+begin
+  Result := recv(FSocketHandle, data, len, MSG_PEEK);
+end;
+
+procedure TDRawSocket.SetConnectInfo(const pvAddr: string; pvPort: Integer);
+{$IFDEF POSIX}
+{$ELSE}
+{$ENDIF}
+begin
+  FillChar(FSockaddr, SizeOf(sockaddr_in), 0);
+  FSockaddr.sin_family := AF_INET;
+  FSockaddr.sin_port := htons(pvPort);
+{$IFDEF POSIX}
+  FSockaddr.sin_addr.s_addr :=inet_addr(MarshaledAString(UTF8Encode(pvAddr)));
+{$ELSE}
+  FSockaddr.sin_addr.s_addr :=inet_addr(PAnsichar(AnsiString(pvAddr)));
+{$ENDIF}
+
 end;
 
 function TDRawSocket.SetNonBlock(pvBlock:Boolean): Integer;
