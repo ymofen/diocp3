@@ -1,13 +1,13 @@
-{ÄÚ´æ¹ÜÀí}
+ï»¿{å†…å­˜ç®¡ç†}
 
-//// ×÷Õß:QQ:75492895(²»µÃÏĞ)
-////   ¸ĞĞ»×÷ÕßÌá¹©µÄÄÚ´æ³Ø£¬ÓÃÓÚ½ÓÊÕÒµÎñÊı¾İµÄÄÚ´æ³Ø.
-//// Ìæ»»Ô­ÓĞuBufferµ¥Ôª  
+//// ä½œè€…:QQ:75492895(ä¸å¾—é—²)
+////   æ„Ÿè°¢ä½œè€…æä¾›çš„å†…å­˜æ± ï¼Œç”¨äºæ¥æ”¶ä¸šåŠ¡æ•°æ®çš„å†…å­˜æ± .
+//// æ›¿æ¢åŸæœ‰uBufferå•å…ƒ
 
 unit uBuffer;
 
-/// 2014Äê2ÔÂ26ÈÕ 11:33:38
-///  ÑîÃ¯·á
+/// 2014å¹´2æœˆ26æ—¥ 11:33:38
+///  æ¨èŒ‚ä¸°
 ///  inline
 {$IF defined(FPC) or defined(VER170) or defined(VER180) or defined(VER190) or defined(VER200) or defined(VER210)}
   {$DEFINE HAVE_INLINE}
@@ -19,7 +19,7 @@ uses
   Windows, SyncObjs, SysUtils, Classes;
 
 type
-  TDxMemBlockType = (MB_Small,MB_Normal,MB_Big,MB_SpBig,MB_Large,MB_SPLarge,MB_Max); //ÄÚ´æ¿éÄ£Ê½
+  TDxMemBlockType = (MB_Small,MB_Normal,MB_Big,MB_SpBig,MB_Large,MB_SPLarge,MB_Max); //å†…å­˜å—æ¨¡å¼
   PMemoryBlock = ^TMemoryBlock;
   TMemoryBlock = record
     Memory: Pointer;
@@ -28,20 +28,20 @@ type
     NextEx: PMemoryBlock;
     PrevEx: PMemoryBlock;
     BlockType: TDxMemBlockType;
-    DataLen: Integer;
+    DataLen: NativeUInt;
   end;
 
-  //ÄÚ´æ³Ø
+  //å†…å­˜æ± 
   TDxMemoryPool = class
   private
     FCs: TCriticalSection;
     FBlockSize: Integer;
     FMaxFreeBlocks: Integer;
 
-    FUseHead: PMemoryBlock; //Ê¹ÓÃµÄ½ÚµãµÄ½ÔµãÍ·
-    FUseLast: PMemoryBlock; //×îºóÒ»¸ö
+    FUseHead: PMemoryBlock; //ä½¿ç”¨çš„èŠ‚ç‚¹çš„çš†ç‚¹å¤´
+    FUseLast: PMemoryBlock; //æœ€åä¸€ä¸ª
 
-    FUnUseHead: PMemoryBlock; //Î´Ê¹ÓÃµÄ½ÔµãÍ·
+    FUnUseHead: PMemoryBlock; //æœªä½¿ç”¨çš„çš†ç‚¹å¤´
     FUnUseLast: PMemoryBlock;
 
     FUseCount: Integer;
@@ -64,7 +64,7 @@ type
 
   TBufferLink = class;
 
-  //ÒÀ¸½ÓÚÄÚ´æ³ØµÄÄÚ´æÁ÷¶ÔÏó
+  //ä¾é™„äºå†…å­˜æ± çš„å†…å­˜æµå¯¹è±¡
   TDxMemoryStream = class(TStream)
   private
     FHead: PMemoryBlock;
@@ -96,7 +96,7 @@ type
     procedure SaveCurBlock;
     procedure RestoreCurBlock;
     procedure LinkToBufferList(BufList: TBufferLink);
-    procedure SwapBufferBlock(Stream: TDxMemoryStream); //½»»»ÄÚ²¿Á¬½Ó
+    procedure SwapBufferBlock(Stream: TDxMemoryStream); //äº¤æ¢å†…éƒ¨è¿æ¥
     procedure LoadFromBufferList(BufList: TBufferLink;const DataLen: Integer);
     procedure WriteStream(Stream: TStream;Len: Integer);
     procedure ReadStream(Stream: TStream;len: Integer);
@@ -104,21 +104,21 @@ type
     property Head: PMemoryBlock read FHead;
     property Last: PMemoryBlock read FLast;
     property BlockSize: DWORD read GetBlockSize;
-    property MemBlockType: TDxMemBlockType read FMemBlockType write SetMemBlockType; //Ğ¡ÄÚ´æÁ÷
+    property MemBlockType: TDxMemBlockType read FMemBlockType write SetMemBlockType; //å°å†…å­˜æµ
   end;
 
 
   /// <summary>
-  ///   ÄÚ²¿·ÖÅäÄÚ´æÊ±ÊÇÊ¹ÓÃµÄÄÚ´æ³Ø
+  ///   å†…éƒ¨åˆ†é…å†…å­˜æ—¶æ˜¯ä½¿ç”¨çš„å†…å­˜æ± 
   /// </summary>
   TBufferLink = class
   private
-    FHead: PMemoryBlock; //Í·²¿
-    FLast: PMemoryBlock;  //×îºóÒ»¸ö¿ÉÓÃµÄÄÚ´æ¿éÎ»
-    FRead: PMemoryBlock;  //µ±Ç°¶Áµ½µÄBuffer
-    FReadPosition: Cardinal; //µ±Ç°¶Áµ½µÄBufferÎ»ÖÃ
-    FMark: PMemoryBlock; //±ê¼ÇµÄÄÚ´æ¿é
-    FMarkPosition: Cardinal; //±ê¼ÇµÄÄÚ´æ¿éÎ»ÖÃ
+    FHead: PMemoryBlock; //å¤´éƒ¨
+    FLast: PMemoryBlock;  //æœ€åä¸€ä¸ªå¯ç”¨çš„å†…å­˜å—ä½
+    FRead: PMemoryBlock;  //å½“å‰è¯»åˆ°çš„Buffer
+    FReadPosition: Cardinal; //å½“å‰è¯»åˆ°çš„Bufferä½ç½®
+    FMark: PMemoryBlock; //æ ‡è®°çš„å†…å­˜å—
+    FMarkPosition: Cardinal; //æ ‡è®°çš„å†…å­˜å—ä½ç½®
     function InnerReadBuf(const pvBufRecord: PMemoryBlock; pvStartPostion: Cardinal;
         buf: PAnsiChar; len: Cardinal): Cardinal;
   public
@@ -131,7 +131,7 @@ type
     function readBuffer(const buf: PAnsiChar; len: Cardinal): Cardinal;
 
     /// <summary>
-    ///   Ìø¹ıÒ»¶Î
+    ///   è·³è¿‡ä¸€æ®µ
     /// </summary>
     function Skip(len:Cardinal): Cardinal;
     procedure clearBuffer;
@@ -143,24 +143,28 @@ type
     procedure RemoveBlock(Block: PMemoryBlock;const FreeBlock: Boolean = False);
   end;
 
+  TDxObjectPool = class;
+  TOnCreateObject = procedure(Pool: TDxObjectPool;var Obj: TObject) of Object;
   TDxObjectPool = class
   private
     FUses,FUnUses: TList;
     FObjClass: TClass;
     FMaxObjCount: Integer;
     FLocker: TCriticalSection;
+    FOnCreateObject: TOnCreateObject;
   public
     constructor Create(AMaxCount: Integer);overload;
     constructor Create(AMaxCount: Integer;ObjClass: TClass);overload;
     destructor Destroy;override;
     function GetObject: TObject;
     procedure FreeObject(Obj: TObject);
+    property OnCreateObject: TOnCreateObject read FOnCreateObject write FOnCreateObject;
   end;
 
-  //»·ĞÎ»º³åÁ÷
+  //ç¯å½¢ç¼“å†²æµ
   TDxRingStream = class(TStream)
   private
-    FReadBlock: PMemoryBlock; //¶ÁÈ¡µÄ¿é
+    FReadBlock: PMemoryBlock; //è¯»å–çš„å—
     FReadBlockPos: Integer;
     FMemBlockType: TDxMemBlockType;
 
@@ -172,8 +176,8 @@ type
     FLast: PMemoryBlock;
     FReadPosition: Integer;
     FWritePosition: Integer;
-    FMarkRead,FMarkWrite: PMemoryBlock; //±ê¼ÇµÄÄÚ´æ¿é
-    FMarkReadPosition,FMarkWritePosition: Cardinal; //±ê¼ÇµÄÄÚ´æ¿éÎ»ÖÃ
+    FMarkRead,FMarkWrite: PMemoryBlock; //æ ‡è®°çš„å†…å­˜å—
+    FMarkReadPosition,FMarkWritePosition: Cardinal; //æ ‡è®°çš„å†…å­˜å—ä½ç½®
     procedure SetReadPosition(const Value: Integer);
     procedure SetWritePostion(const Value: Integer);
     function SeekReadWrite(Offset: Longint; Origin: TSeekOrigin;SeekRead: Boolean): Longint;
@@ -200,8 +204,8 @@ type
     procedure SetSize(NewSize: Longint); override;
     property ReadPosition: Integer read FReadPosition write SetReadPosition;
     property WritePosition: Integer read FWritePosition write SetWritePostion;
-    property CanWriteSize: Integer read GetCanWriteSize; //ÄÜĞ´ÈëµÄÊı¾İ³¤¶È
-    property DataSize: Integer read GetDataSize; //ÄÜ¶ÁÈ¡µÄÊı¾İ³¤¶È
+    property CanWriteSize: Integer read GetCanWriteSize; //èƒ½å†™å…¥çš„æ•°æ®é•¿åº¦
+    property DataSize: Integer read GetDataSize; //èƒ½è¯»å–çš„æ•°æ®é•¿åº¦
   end;
 
 
@@ -212,9 +216,9 @@ implementation
 
 var
   NormalMPool: TDxMemoryPool = nil;
-  SmallMPool: TDxMemoryPool = nil; //Ğ¡ÄÚ´æ¿éÄÚ´æ³Ø
-  BigMPool: TDxMemoryPool = nil; //´óÄÚ´æ¿éÄÚ´æ³Ø
-  SuperBigMPool: TDxMemoryPool = nil; //³¬¼¶´óÄÚ´æ¿éÄÚ´æ³Ø
+  SmallMPool: TDxMemoryPool = nil; //å°å†…å­˜å—å†…å­˜æ± 
+  BigMPool: TDxMemoryPool = nil; //å¤§å†…å­˜å—å†…å­˜æ± 
+  SuperBigMPool: TDxMemoryPool = nil; //è¶…çº§å¤§å†…å­˜å—å†…å­˜æ± 
   LargeMPool: TDxMemoryPool = nil;
   SPLargeMPool: TDxMemoryPool = nil;
   MaxMPool: TDxMemoryPool = nil;
@@ -273,14 +277,14 @@ end;
 function SmallMemoryPool: TDxMemoryPool;
 begin
   if SmallMPool = nil then
-    SmallMPool := TDxMemoryPool.Create(128,30,MB_Small,100); //Ğ¡ÄÚ´æ¿é
+    SmallMPool := TDxMemoryPool.Create(128,30,MB_Small,100); //å°å†…å­˜å—
   Result := SmallMPool;
 end;
 
 function BigMemoryPool: TDxMemoryPool;
 begin
   if BigMPool = nil then
-    BigMPool := TDxMemoryPool.Create(1024,30,MB_Big,100); //´óÄÚ´æ¿é
+    BigMPool := TDxMemoryPool.Create(1024,30,MB_Big,100); //å¤§å†…å­˜å—
   Result := BigMPool;
 end;
 
@@ -323,7 +327,7 @@ var
   p: PMemoryBlock;
 begin
   FBlockType := BlockType;
-  // ¿é´óĞ¡ÒÔ64×Ö½Ú¶ÔÆë£¬ÕâÑùµÄÖ´ĞĞĞ§ÂÊ×î¸ß
+  // å—å¤§å°ä»¥64å­—èŠ‚å¯¹é½ï¼Œè¿™æ ·çš„æ‰§è¡Œæ•ˆç‡æœ€é«˜
   if (BlockSize mod 64 = 0) then
     FBlockSize := BlockSize
   else
@@ -393,7 +397,7 @@ begin
           FUnUseLast^.Next := pBlock;
           FUnUseLast := pBlock;
         end
-        else //Ö±½ÓÊÍ·Å
+        else //ç›´æ¥é‡Šæ”¾
         begin
           FreeMem(PBlock^.Memory);
           FreeMem(pBlock);
@@ -425,10 +429,10 @@ begin
   Lock;
   try
     if p^.PrevEx <> nil then
-      p^.PrevEx^.NextEx := p^.NextEx;//Á¬½ÓÖ¸ÏòÏÂÒ»¸ö
+      p^.PrevEx^.NextEx := p^.NextEx;//è¿æ¥æŒ‡å‘ä¸‹ä¸€ä¸ª
     if p^.NextEx <> nil then
       p^.NextEx^.PrevEx := p^.PrevEx;
-    //´ÓUseÁĞ±íÖĞ¶Ï¿ª,UseÁĞ±íÖ¸ÏòPµÄ½ÚµãµÄÏÂÒ»¸ö
+    //ä»Useåˆ—è¡¨ä¸­æ–­å¼€,Useåˆ—è¡¨æŒ‡å‘Pçš„èŠ‚ç‚¹çš„ä¸‹ä¸€ä¸ª
     if p^.Prev <> nil then
       p^.Prev^.Next := p^.Next;
     if p^.Next <> nil then
@@ -481,7 +485,7 @@ begin
       GetMem(p^.Memory,FBlockSize);
       P^.BlockType := FBlockType;
     end
-    else //Ö±½Ó´ÓÁ´±íÖĞÈ¡
+    else //ç›´æ¥ä»é“¾è¡¨ä¸­å–
     begin
       p := FUnUseHead;
       FUnUseHead := FUnUseHead.Next;
@@ -519,7 +523,7 @@ begin
       GetMem(Result^.Memory,FBlockSize);
       Result^.BlockType := FBlockType;
     end
-    else //Ö±½Ó´ÓÁ´±íÖĞÈ¡
+    else //ç›´æ¥ä»é“¾è¡¨ä¸­å–
     begin
       Result := FUnUseHead;
       FUnUseHead := FUnUseHead.Next;
@@ -631,7 +635,7 @@ begin
     end;
     FLast^.DataLen := BSize - (FCapacity - FSize);
 
-    //Á¬½Óµ½Á¬½Ó»º´æÇø£¬¾ÍÏàµ±ÓÚ±¾Á÷Çå¿Õ
+    //è¿æ¥åˆ°è¿æ¥ç¼“å­˜åŒºï¼Œå°±ç›¸å½“äºæœ¬æµæ¸…ç©º
     FHead := nil;
     FLast := nil;
     FMarkBlokPos := 0;
@@ -767,9 +771,9 @@ begin
 
     Result := Count;
     p := @Buffer;
-    //ÏÈ¶ÁÈ¡µ±Ç°¿éÊ£ÏÂµÄÇøÓò
+    //å…ˆè¯»å–å½“å‰å—å‰©ä¸‹çš„åŒºåŸŸ
     pBuf := Pointer(NativeUInt(FCurBlock^.Memory) + DWORD(FCurBlockPos));
-    if Count <= MPool.FBlockSize - FCurBlockPos then //×ã¹»Ğ´ÁË
+    if Count <= MPool.FBlockSize - FCurBlockPos then //è¶³å¤Ÿå†™äº†
     begin
       Move(PBuf^,buffer,Count);
       Inc(FPosition,Count);
@@ -835,9 +839,9 @@ begin
     end;
     if FPosition + Len > FSize then
       Len := FSize - FPosition;
-    //ÏÈ¶ÁÈ¡µ±Ç°¿éÊ£ÏÂµÄÇøÓò
+    //å…ˆè¯»å–å½“å‰å—å‰©ä¸‹çš„åŒºåŸŸ
     pBuf := Pointer(NativeUInt(FCurBlock^.Memory) + DWORD(FCurBlockPos));
-    if Len <= MPool.FBlockSize - FCurBlockPos then //×ã¹»Ğ´ÁË
+    if Len <= MPool.FBlockSize - FCurBlockPos then //è¶³å¤Ÿå†™äº†
     begin
       Stream.WriteBuffer(PBuf^,Len);
       Inc(FPosition,Len);
@@ -960,7 +964,7 @@ begin
           BIndex := Offset div MPool.FBlockSize;
           FCurBlock := FHead;
           FPosition := FCurBlockPos;
-          if BIndex > 0 then          
+          if BIndex > 0 then
           repeat
             Inc(FPosition,MPool.FBlockSize);
             Dec(Bindex);
@@ -1021,7 +1025,7 @@ begin
           Offset := -offset;
         if Offset < FSize then
         begin
-          FLastSize := MPool.FBlockSize - FCapacity + FSize; //×îºóÒ»¸ö´óĞ¡
+          FLastSize := MPool.FBlockSize - FCapacity + FSize; //æœ€åä¸€ä¸ªå¤§å°
           if Offset <= FLastSize then
           begin
             FCurBlockPos := FLastSize - Offset;
@@ -1092,7 +1096,7 @@ begin
     if CurCount <> FMemBlockCount then
     begin
       while CurCount > FMemBlockCount do
-      begin //ÄÚ´æ»ØÊÕ
+      begin //å†…å­˜å›æ”¶
         mBlock := FLast;
         FLast := FLast^.PrevEx;
         MPool.FreeMemoryBlock(mBlock);
@@ -1226,9 +1230,9 @@ begin
   end;
   Result := Count;
   tmpBuf := @Buffer;
-  //ÏÈĞ´Âúµ±Ç°Î´Ğ´ÂúµÄÄÚ´æ¿é¿Õ¼ä
+  //å…ˆå†™æ»¡å½“å‰æœªå†™æ»¡çš„å†…å­˜å—ç©ºé—´
   pBuf := Pointer(NativeUInt(FCurBlock^.Memory) + DWORD(FCurBlockPos));
-  if Count <= MPool.FBlockSize - FCurBlockPos then //×ã¹»Ğ´ÁË
+  if Count <= MPool.FBlockSize - FCurBlockPos then //è¶³å¤Ÿå†™äº†
   begin
     Move(Buffer,pBuf^,Count);
     inc(FCurBlockPos,Count);
@@ -1279,7 +1283,7 @@ begin
       end;
     end;
   end;
-  if FCurBlock = nil then //Îª¿Õ£¬±íÊ¾ËùÓĞÊı¾İÈ«²¿¸Õ¸ÕĞ´Íê£¬ĞèÒªÖØĞÂ·ÖÅäÒ»¸öÄÚ´æ
+  if FCurBlock = nil then //ä¸ºç©ºï¼Œè¡¨ç¤ºæ‰€æœ‰æ•°æ®å…¨éƒ¨åˆšåˆšå†™å®Œï¼Œéœ€è¦é‡æ–°åˆ†é…ä¸€ä¸ªå†…å­˜
   begin
     FCurBlockPos := MPool.FBlockSize;
     FCurBlock := FLast;
@@ -1309,9 +1313,9 @@ begin
     else if FPosition + Len > FSize then
       Inc(FSize,Len);
   end;
-  //ÏÈĞ´Âúµ±Ç°Î´Ğ´ÂúµÄÄÚ´æ¿é¿Õ¼ä
+  //å…ˆå†™æ»¡å½“å‰æœªå†™æ»¡çš„å†…å­˜å—ç©ºé—´
   pBuf := Pointer(NativeUInt(FCurBlock^.Memory) + DWORD(FCurBlockPos));
-  if Len <= MPool.FBlockSize - FCurBlockPos then //×ã¹»Ğ´ÁË
+  if Len <= MPool.FBlockSize - FCurBlockPos then //è¶³å¤Ÿå†™äº†
   begin
     Stream.ReadBuffer(PBuf^,Len);
     inc(FCurBlockPos,Len);
@@ -1372,7 +1376,7 @@ var
 begin
   if FLast <> nil then
   begin
-    //ÏÈĞ´Èë¿Õ°×ÄÚÈİÊı¾İ
+    //å…ˆå†™å…¥ç©ºç™½å†…å®¹æ•°æ®
     case FLast^.BlockType of
     MB_Small: BlockSize := SmallMemoryPool.FBlockSize;
     MB_Normal: BlockSize := MemoryPool.FBlockSize;
@@ -1524,7 +1528,7 @@ begin
     else BigMemoryPool.FreeMemoryBlock(lvFreeBuf);
     end;
   end;
-  //Ö®Ç°¶¼±»ÇåÀí
+  //ä¹‹å‰éƒ½è¢«æ¸…ç†
   FRead.PrevEx := nil;
   FHead := FRead;
 end;
@@ -1561,12 +1565,12 @@ begin
   Result := 0;
   if pvBufRecord <> nil then
   begin
-    lvValidCount := pvBufRecord.Datalen - pvStartPostion;//±¾¿éÄÚ´æ»¹Ê£ÏÂµÄÄÚ´æÊı¾İ
+    lvValidCount := pvBufRecord.Datalen - pvStartPostion;//æœ¬å—å†…å­˜è¿˜å‰©ä¸‹çš„å†…å­˜æ•°æ®
     if lvValidCount <= 0 then
       Result := 0
     else
     begin
-      if len <= lvValidCount then //Êı¾İÈ«²¿ÔÚ±¾¿éÄÚ´æÖĞ»ñÈ¡µ½
+      if len <= lvValidCount then //æ•°æ®å…¨éƒ¨åœ¨æœ¬å—å†…å­˜ä¸­è·å–åˆ°
       begin
         CopyMemory(buf, Pointer(NativeUInt(pvBufRecord.Memory) + pvStartPostion), len);
         Result := len;
@@ -1574,7 +1578,7 @@ begin
       else
       begin
         CopyMemory(buf, Pointer(NativeUInt(pvBufRecord.Memory) + pvStartPostion), lvValidCount);
-        Result := lvValidCount; //±¾¿éÄÚ´æÖĞ»ñÈ¡µÄÄÚ´æÊı¾İ²»¹»£¬·µ»Ø±¾¿é¶ÁÈ¡µÄÊ£ÏÂµÄÊı¾İ£¬ĞèÒªµ½ÏÂÒ»¿éÄÚ´æ¼ÌĞø¶ÁÈ¡
+        Result := lvValidCount; //æœ¬å—å†…å­˜ä¸­è·å–çš„å†…å­˜æ•°æ®ä¸å¤Ÿï¼Œè¿”å›æœ¬å—è¯»å–çš„å‰©ä¸‹çš„æ•°æ®ï¼Œéœ€è¦åˆ°ä¸‹ä¸€å—å†…å­˜ç»§ç»­è¯»å–
       end;
     end;
   end;
@@ -1603,14 +1607,14 @@ begin
       l := InnerReadBuf(lvBuf, lvPosition, Pointer(NativeUInt(buf) + lvReadCount), lvRemain);
       if l = lvRemain then
       begin
-        //¶ÁÍê
+        //è¯»å®Œ
         inc(lvReadCount, l);
         Inc(lvPosition, l);
         FReadPosition := lvPosition;
         FRead := lvBuf;
         Break;
       end
-      else if l < lvRemain then  //¶ÁÈ¡µÄ±ÈĞèÒª¶ÁµÄ³¤¶ÈĞ¡
+      else if l < lvRemain then  //è¯»å–çš„æ¯”éœ€è¦è¯»çš„é•¿åº¦å°
       begin
         lvRemain := lvRemain - l;
         inc(lvReadCount, l);
@@ -1618,7 +1622,7 @@ begin
         FReadPosition := lvPosition;
         FRead := lvBuf;
         lvBuf := lvBuf.NextEx;
-        if lvBuf <> nil then   //¶ÁÏÂÒ»¸ö
+        if lvBuf <> nil then   //è¯»ä¸‹ä¸€ä¸ª
         begin
           FRead := lvBuf;
           FReadPosition := 0;
@@ -1695,17 +1699,17 @@ begin
     lvRemain := len;
     while lvBuf <> nil do
     begin
-      l := lvBuf.Datalen - lvPosition;//±¾¿éÄÚ´æ»¹Ê£ÏÂµÄÄÚ´æÊı¾İ;
+      l := lvBuf.Datalen - lvPosition;//æœ¬å—å†…å­˜è¿˜å‰©ä¸‹çš„å†…å­˜æ•°æ®;
       if l >= lvRemain then
       begin
-        //¶ÁÍê
+        //è¯»å®Œ
         inc(lvReadCount, lvRemain);
         Inc(lvPosition, lvRemain);
         FReadPosition := lvPosition;
         FRead := lvBuf;
         Break;
       end
-      else if l < lvRemain then  //¶ÁÈ¡µÄ±ÈĞèÒª¶ÁµÄ³¤¶ÈĞ¡
+      else if l < lvRemain then  //è¯»å–çš„æ¯”éœ€è¦è¯»çš„é•¿åº¦å°
       begin
         lvRemain := lvRemain - l;
         inc(lvReadCount, l);
@@ -1713,7 +1717,7 @@ begin
         FReadPosition := lvPosition;
         FRead := lvBuf;
         lvBuf := lvBuf.NextEx;
-        if lvBuf <> nil then   //¶ÁÏÂÒ»¸ö
+        if lvBuf <> nil then   //è¯»ä¸‹ä¸€ä¸ª
         begin
           FRead := lvBuf;
           FReadPosition := 0;
@@ -1754,7 +1758,7 @@ begin
   while FUnUses.Count > 0 do
   begin
     TObject(FUnUses[FUnUses.Count - 1]).Free;
-    FUses.Delete(FUnUses.Count - 1);
+    FUnUses.Delete(FUnUses.Count - 1);
   end;
   FUses.Free;
   FUnUses.Free;
@@ -1780,10 +1784,13 @@ begin
   try
     if FUnUses.Count = 0 then
     begin
-      if FObjClass.InheritsFrom(TComponent) then
+      if Assigned(FOnCreateObject) then
+        FOnCreateObject(self,Result)
+      else if FObjClass.InheritsFrom(TComponent) then
         Result := TComponentClass(FObjClass).Create(nil)
       else Result := FObjClass.Create;
-      FUses.Add(Result);
+      if Result <> nil then
+        FUses.Add(Result);
     end
     else
     begin
@@ -1797,7 +1804,7 @@ begin
 end;
 
 procedure FreeObjPool;
-begin 
+begin
   if NormalMPool <> nil then
     NormalMPool.Free;
   if SmallMPool <> nil then
@@ -1906,9 +1913,9 @@ begin
 
     Result := Count;
     p := @Buffer;
-    //ÏÈ¶ÁÈ¡µ±Ç°¿éÊ£ÏÂµÄÇøÓò
+    //å…ˆè¯»å–å½“å‰å—å‰©ä¸‹çš„åŒºåŸŸ
     pBuf := Pointer(NativeUInt(FReadBlock^.Memory) + DWORD(FReadBlockPos));
-    if Count <= MPool.FBlockSize - FReadBlockPos then //×ã¹»Ğ´ÁË
+    if Count <= MPool.FBlockSize - FReadBlockPos then //è¶³å¤Ÿå†™äº†
     begin
       Move(PBuf^,buffer,Count);
       Inc(FReadPosition,Count);
@@ -2138,7 +2145,7 @@ begin
           Offset := -offset;
         if Offset < FSize then
         begin
-          FLastSize := MPool.FBlockSize - FCapacity + FSize; //×îºóÒ»¸ö´óĞ¡
+          FLastSize := MPool.FBlockSize - FCapacity + FSize; //æœ€åä¸€ä¸ªå¤§å°
           if Offset <= FLastSize then
           begin
             if SeekRead then
@@ -2193,7 +2200,7 @@ begin
             end;
           end;
         end
-        else if SeekRead then             
+        else if SeekRead then
         begin
           FReadPosition := 0;
           FReadBlockPos := 0;
@@ -2244,7 +2251,7 @@ begin
     if CurCount <> FMemBlockCount then
     begin
       while CurCount > FMemBlockCount do
-      begin //ÄÚ´æ»ØÊÕ
+      begin //å†…å­˜å›æ”¶
         mBlock := FLast;
         FLast := FLast^.PrevEx;
         MPool.FreeMemoryBlock(mBlock);
@@ -2271,7 +2278,7 @@ begin
         Inc(CurCount);
       end;
       FCapacity := MPool.FBlockSize * FMemBlockCount;
-      if FLast <> nil then //Ö¸ÏòÍ·²¿ĞÎ³ÉÒ»¸ö»·ĞÎ
+      if FLast <> nil then //æŒ‡å‘å¤´éƒ¨å½¢æˆä¸€ä¸ªç¯å½¢
         FLast.NextEx := FHead;
     end;
     if NewSize = 0 then
@@ -2343,9 +2350,9 @@ begin
 
   Result := Count;
   tmpBuf := @Buffer;
-  //ÏÈĞ´Âúµ±Ç°Î´Ğ´ÂúµÄÄÚ´æ¿é¿Õ¼ä
+  //å…ˆå†™æ»¡å½“å‰æœªå†™æ»¡çš„å†…å­˜å—ç©ºé—´
   pBuf := Pointer(NativeUInt(FWriteBlock^.Memory) + DWORD(FWriteBlockPos));
-  if Count <= MPool.FBlockSize - FWriteBlockPos then //×ã¹»Ğ´ÁË
+  if Count <= MPool.FBlockSize - FWriteBlockPos then //è¶³å¤Ÿå†™äº†
   begin
     Move(Buffer,pBuf^,Count);
     inc(FWriteBlockPos,Count);
@@ -2403,8 +2410,8 @@ begin
     MB_Large: LargeMemoryPool.FreeMemoryBlock(Block);
     MB_SPLarge: SuperLargeMemoryPool.FreeMemoryBlock(Block);
     MB_Max: MaxMemoryPool.FreeMemoryBlock(Block);
-    else BigMemoryPool.FreeMemoryBlock(Block);
-    end;
+   else BigMemoryPool.FreeMemoryBlock(Block);
+   end;
 end;
 
 initialization
