@@ -22,6 +22,9 @@ type
   private
     FUDPClient: TDRawSocket;
     FUDPListen: TDRawSocket;
+
+    function ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10; const
+        pvTimeOut: Integer = 30000): String;
   public
     constructor Create(AOwner: TComponent); override;
     { Public declarations }
@@ -60,11 +63,47 @@ begin
   FUDPClient.SendBufTo(s[1], Length(s));
 end;
 
+function TfrmMain.ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10;
+    const pvTimeOut: Integer = 30000): String;
+var
+  len: Integer;
+  buf: array[0..511] of AnsiChar;
+  lveolPtr: PAnsiChar;
+  lvTimeOut:Integer;
+begin
+  Result := '';
+  lveolPtr := nil;
+  lvTimeOut := pvTimeOut;
+  repeat
+    len := pvSocketObj.PeekBuf(buf, sizeof(buf) - 1);
+    if len > 0 then
+    begin
+      buf[len] := #0;
+      lveolPtr := strpos(buf, PAnsiChar(eol));
+      if lveolPtr <> nil then
+        len := lveolPtr - buf + length(eol);
+      pvSocketObj.RecvBuf(buf[0], len);
+      if lveolPtr <> nil then
+        len := len - length(eol);
+      buf[len] := #0;
+      Result := Result + buf;
+    end else
+    begin
+      Sleep(20);
+      Dec(lvTimeOut,20);
+      if lvTimeOut < 0 then
+      begin
+        raise Exception.Create('ReadLn ReadTimeout');
+      end;
+    end;
+  until (len < 1) or (lveolPtr <> nil);
+end;
+
 procedure TfrmMain.tmrRecvTimer(Sender: TObject);
 begin
   if FUDPListen.Readable(100) > 0 then
   begin
-    mmoRecv.Lines.Add('гаЪ§Он');
+    mmoRecv.Lines.Add(ReadLn(FUDPListen, #10#13));
   end;
 end;
 
