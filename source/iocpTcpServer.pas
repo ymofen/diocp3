@@ -841,6 +841,12 @@ type
     ///   extend data
     /// </summary>
     property DataPtr: Pointer read FDataPtr write FDataPtr;
+
+    /// <summary>
+    ///   SERVER Locker
+    /// </summary>
+    property Locker: TIocpLocker read FLocker;
+
     property MaxSendingQueueSize: Integer read FMaxSendingQueueSize;
   published
 
