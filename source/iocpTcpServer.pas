@@ -642,8 +642,6 @@ type
     
     FSafeLogger:TSafeLogger;
 
-    FLocker:TIocpLocker;
-
     FMaxSendingQueueSize:Integer;
 
     FIsDestroying :Boolean;
@@ -678,14 +676,6 @@ type
 
     FActive: Boolean;
 
-  {$IFDEF USE_HASHTABLE}
-    FOnlineContextList : TDHashTable;
-  {$ELSE}
-    // onlinie hash list
-    FClientsHash: array [0..SOCKET_HASH_SIZE] of TIocpClientContext;
-    // online clientcontext list
-    FOnlineContextList: TContextDoublyLinked;
-  {$ENDIF}
 
 
     // acceptEx request mananger
@@ -744,6 +734,17 @@ type
 
     procedure doReceiveData(pvIocpClientContext:TIocpClientContext; pvRequest:TIocpRecvRequest);
   protected
+    FLocker:TIocpLocker;
+  {$IFDEF USE_HASHTABLE}
+    FOnlineContextList : TDHashTable;
+  {$ELSE}
+    // onlinie hash list
+    FClientsHash: array [0..SOCKET_HASH_SIZE] of TIocpClientContext;
+    // online clientcontext list
+    FOnlineContextList: TContextDoublyLinked;
+  {$ENDIF}
+
+
     /// <summary>
     ///   pop sendRequest object
     /// </summary>
@@ -841,6 +842,12 @@ type
     ///   extend data
     /// </summary>
     property DataPtr: Pointer read FDataPtr write FDataPtr;
+
+    /// <summary>
+    ///   SERVER Locker
+    /// </summary>
+    property Locker: TIocpLocker read FLocker;
+
     property MaxSendingQueueSize: Integer read FMaxSendingQueueSize;
   published
 
