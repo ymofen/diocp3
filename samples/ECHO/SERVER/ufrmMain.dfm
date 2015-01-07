@@ -4,7 +4,7 @@ object frmMain: TfrmMain
   BorderIcons = [biSystemMenu]
   Caption = 'diocp3 echo server'
   ClientHeight = 387
-  ClientWidth = 696
+  ClientWidth = 801
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -18,52 +18,54 @@ object frmMain: TfrmMain
   object pgcMain: TPageControl
     Left = 0
     Top = 41
-    Width = 696
+    Width = 801
     Height = 346
     ActivePage = TabSheet1
     Align = alClient
     TabOrder = 0
+    ExplicitWidth = 696
     object TabSheet1: TTabSheet
       Caption = 'moniter'
+      ExplicitWidth = 688
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
-        Width = 688
+        Width = 793
         Height = 318
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 0
+        ExplicitWidth = 688
       end
     end
     object tsLog: TTabSheet
       Caption = 'log'
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 653
-      ExplicitHeight = 0
+      ExplicitWidth = 688
       object mmoLog: TMemo
         Left = 0
         Top = 0
-        Width = 688
+        Width = 793
         Height = 318
         Align = alClient
         Lines.Strings = (
           'mmoLog')
         TabOrder = 0
+        ExplicitWidth = 688
       end
     end
   end
   object pnlTop: TPanel
     Left = 0
     Top = 0
-    Width = 696
+    Width = 801
     Height = 41
     Align = alTop
     Caption = 'pnlTop'
     TabOrder = 1
+    ExplicitWidth = 696
     object btnDisconectAll: TButton
-      Left = 232
+      Left = 216
       Top = 5
       Width = 113
       Height = 25
@@ -72,7 +74,7 @@ object frmMain: TfrmMain
       OnClick = btnDisconectAllClick
     end
     object btnFindContext: TButton
-      Left = 478
+      Left = 462
       Top = 5
       Width = 94
       Height = 25
@@ -81,7 +83,7 @@ object frmMain: TfrmMain
       OnClick = btnFindContextClick
     end
     object btnGetWorkerState: TButton
-      Left = 351
+      Left = 335
       Top = 5
       Width = 121
       Height = 25
@@ -106,13 +108,22 @@ object frmMain: TfrmMain
       Text = '9983'
     end
     object btnPostWSAClose: TButton
-      Left = 578
+      Left = 562
       Top = 5
       Width = 103
       Height = 25
       Caption = 'btnPostWSAClose'
       TabOrder = 5
       OnClick = btnPostWSACloseClick
+    end
+    object Button1: TButton
+      Left = 671
+      Top = 5
+      Width = 75
+      Height = 25
+      Caption = 'Button1'
+      TabOrder = 6
+      OnClick = Button1Click
     end
   end
   object actlstMain: TActionList

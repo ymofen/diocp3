@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls,
-  ComCtrls;
+  ComCtrls, safeLogger;
 
 type
   TfrmMain = class(TForm)
@@ -24,12 +24,14 @@ type
     btnFindContext: TButton;
     pnlTop: TPanel;
     btnPostWSAClose: TButton;
+    Button1: TButton;
     procedure actOpenExecute(Sender: TObject);
     procedure actStopExecute(Sender: TObject);
     procedure btnDisconectAllClick(Sender: TObject);
     procedure btnFindContextClick(Sender: TObject);
     procedure btnGetWorkerStateClick(Sender: TObject);
     procedure btnPostWSACloseClick(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     iCounter:Integer;
     FTcpServer: TIocpTcpServer;
@@ -140,6 +142,11 @@ begin
     lvList.Free;
   end;
 
+end;
+
+procedure TfrmMain.Button1Click(Sender: TObject);
+begin
+  FTcpServer.logMessage('DoHeartBeatChcek', 'DEBUG', lgvDebug);
 end;
 
 procedure TfrmMain.OnAccept(pvSocket: THandle; pvAddr: String; pvPort: Integer;
