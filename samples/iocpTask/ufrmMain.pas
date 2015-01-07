@@ -61,8 +61,8 @@ var
 
 procedure TaskProcGlobal(pvTaskRequest: TIocpTaskRequest);
 begin
-  pvTaskRequest.Remark := '≤‚ ‘µ»¥˝ 10√Î....';
-  Sleep(1000 * 10);
+  // pvTaskRequest.Remark := '≤‚ ‘µ»¥˝ 10√Î....';
+  // Sleep(1000 * 10);
   ShowMessage('TaskProcGlobal invoke');
 end;
 
@@ -103,13 +103,6 @@ end;
 
 procedure TfrmMain.btnPostTaskClick(Sender: TObject);
 begin
-//  iocpTaskManager.PostATask(OnTaskWork, True, rtPostMessage);
-//  iocpTaskManager.PostATask(OnTaskWork, True, rtSync);
-//
-//  iocpTaskManager.PostATask(OnTaskWork, '1');
-//  iocpTaskManager.PostATask(OnTaskWork, '2');
-//  iocpTaskManager.PostATask(OnTaskWork, '3');
-
   iocpTaskManager.PostATask(TaskProcGlobal, nil, True);
 end;
 

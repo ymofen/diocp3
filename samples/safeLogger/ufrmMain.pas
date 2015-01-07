@@ -38,7 +38,7 @@ end;
 
 procedure TForm1.Button1Click(Sender: TObject);
 begin
-  sfLogger.logMessage('记录日志');
+  sfLogger.logMessage('记录日志，你可以查看输出目录的log文件夹的中的日志!');
   FSafeLogger.logMessage('记录日志', 'DEBUG');
 end;
 

@@ -16,63 +16,63 @@ object frmMain: TfrmMain
   object btnPostTask: TButton
     Left = 8
     Top = 8
-    Width = 75
+    Width = 163
     Height = 25
-    Caption = 'btnPostTask'
+    Caption = #25237#36882#19968#20010#20219#21153#22312#20027#32447#31243#25191#34892
     TabOrder = 0
     OnClick = btnPostTaskClick
   end
   object Memo1: TMemo
     Left = 8
-    Top = 39
-    Width = 521
-    Height = 315
+    Top = 136
+    Width = 625
+    Height = 218
     Lines.Strings = (
       'Memo1')
     TabOrder = 1
   end
   object SpeedTester: TButton
-    Left = 89
-    Top = 8
-    Width = 113
+    Left = 8
+    Top = 39
+    Width = 163
     Height = 25
-    Caption = 'SpeedTester'
+    Caption = #36895#24230#27979#35797
     TabOrder = 2
     OnClick = SpeedTesterClick
   end
   object btnState: TButton
-    Left = 424
+    Left = 177
     Top = 8
-    Width = 99
+    Width = 144
     Height = 25
-    Caption = 'get state info'
+    Caption = #33719#21462#24037#20316#32447#31243#29366#24577
     TabOrder = 3
     OnClick = btnStateClick
   end
   object btnSignal: TButton
-    Left = 544
-    Top = 100
-    Width = 89
+    Left = 368
+    Top = 39
+    Width = 129
     Height = 25
-    Caption = 'signal a task'
+    Caption = #35302#21457#19968#20010#20449#21495
     TabOrder = 4
     OnClick = btnSignalClick
   end
   object btnRegister: TButton
-    Left = 544
-    Top = 37
-    Width = 75
+    Left = 368
+    Top = 8
+    Width = 129
     Height = 25
-    Caption = 'btnRegister'
+    Caption = #27880#20876#19968#20010#20449#21495
     TabOrder = 5
     OnClick = btnRegisterClick
   end
   object btnUnRegister: TButton
-    Left = 544
-    Top = 69
-    Width = 75
+    Left = 512
+    Top = 8
+    Width = 129
     Height = 25
-    Caption = 'btnUnRegister'
+    Caption = #21462#28040#27880#20876#19968#20010#20449#21495
     TabOrder = 6
     OnClick = btnUnRegisterClick
   end
