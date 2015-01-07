@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, DRawSocket, StdCtrls, ExtCtrls, u_iocp_api;
+  Dialogs, DRawSocket, StdCtrls, ExtCtrls, u_iocp_api, u_udp_iocp_api;
 
 type
   TfrmMain = class(TForm)
@@ -27,7 +27,7 @@ type
     FUDPListen: TDRawSocket;
     FIOCore   : io_core;
     FIOThreadParam  : io_thread_param;
-
+    FRecvReqeust    : udp_recv_request;
     function ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10; const
         pvTimeOut: Integer = 30000): String;
   public
@@ -70,6 +70,9 @@ procedure TfrmMain.btnIOCPListenClick(Sender: TObject);
 begin
   FUDPListen.bind('', StrToInt(edtListen.Text));
   FIOCore.bindChildHandle(FUDPListen.SocketHandle);
+  FRecvReqeust.overlappedEx.iocpRequest := @FRecvReqeust;
+  FRecvReqeust.postWSARecv(FUDPListen.SocketHandle);
+  
   
   create_iocp_worker(p_io_thread_param(@FIOThreadParam));
 end;
