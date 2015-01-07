@@ -57,6 +57,8 @@ type
     function SendBuf(const data; const len: Cardinal): Integer;
     function SendBufTo(const data; const len: Integer): Integer;
     function Connect(const pvAddr: string; pvPort: Integer): Boolean;
+    function RecvdCount: Integer;
+
 
     procedure SetConnectInfo(const pvAddr: string; pvPort: Integer);
 
@@ -70,7 +72,13 @@ type
     ///   check can recv
     ///    unit usec
     /// </summary>
-    function Readable(pvTimeOut:Integer): Integer;
+    function Readable(pvTimeOut:Integer): Boolean;
+
+    /// <summary>
+    ///   Peer Info
+    ///    no test
+    /// </summary>
+    function GetPeerInfo(var vIp: longword; var vPort: Integer): Integer;
 
     /// <summary>
     ///   set NonBlock mode
@@ -289,7 +297,7 @@ begin
   FSocketHandle := socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 end;
 
-function TDRawSocket.Readable(pvTimeOut: Integer): Integer;
+function TDRawSocket.Readable(pvTimeOut:Integer): Boolean;
 {$IFDEF POSIX}
 var
   lvFDSet:fd_set;
@@ -307,14 +315,14 @@ begin
 
   lvTime_val.tv_sec := pvTimeOut div 1000;
   lvTime_val.tv_usec :=  1000 * (pvTimeOut mod 1000);
-  Result := select(0, @lvFDSet, nil, nil, @lvTime_val);
+  Result := select(0, @lvFDSet, nil, nil, @lvTime_val) > 0;
 {$ELSE}
   FD_ZERO(lvFDSet);
   FD_SET(FSocketHandle, lvFDSet);
 
   lvTime_val.tv_sec := pvTimeOut div 1000;
   lvTime_val.tv_usec :=  1000 * (pvTimeOut mod 1000);
-  Result := select(0, @lvFDSet, nil, nil, @lvTime_val);
+  Result := select(0, @lvFDSet, nil, nil, @lvTime_val) > 0;
 {$ENDIF}
 end;
 
@@ -410,6 +418,25 @@ begin
 {$ENDIF}
 end;
 
+function TDRawSocket.GetPeerInfo(var vIp: longword; var vPort: Integer):
+    Integer;
+{$IFDEF POSIX}
+{$ELSE}
+var
+  SockAddrIn: TSockAddrIn;
+  Size: Integer;
+{$ENDIF}
+begin
+{$IFDEF POSIX}
+{$ELSE}
+  
+  Size := SizeOf(SockAddrIn);
+  result := getpeername(FSocketHandle, TSockAddr(SockAddrIn), Size);
+  vIp := SockAddrIn.sin_addr.S_addr;
+  vPort := ntohs(SockAddrIn.sin_port);
+{$ENDIF}
+end;
+
 function TDRawSocket.IsValidSocketHandle: Boolean;
 begin
    Result := FSocketHandle <> INVALID_HANDLE_VALUE;
@@ -418,6 +445,26 @@ end;
 function TDRawSocket.PeekBuf(var data; const len:Cardinal): Integer;
 begin
   Result := recv(FSocketHandle, data, len, MSG_PEEK);
+end;
+
+function TDRawSocket.RecvdCount: Integer;
+var
+  Temp : u_long;
+begin
+{$IFDEF POSIX}
+  // nonthing... reserved!
+  Temp := 0;
+  Result := Temp;
+
+{$ELSE}
+  if ioctlsocket(FSocketHandle, FIONREAD, Temp) = SOCKET_ERROR then
+  begin
+    Result := -1;
+  end else
+  begin
+    Result := Temp;
+  end;
+{$ENDIF}
 end;
 
 procedure TDRawSocket.SetConnectInfo(const pvAddr: string; pvPort: Integer);

@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, DRawSocket, StdCtrls, ExtCtrls;
+  Dialogs, DRawSocket, StdCtrls, ExtCtrls, u_iocp_api;
 
 type
   TfrmMain = class(TForm)
@@ -16,12 +16,17 @@ type
     edtListen: TEdit;
     btnListen: TButton;
     tmrRecv: TTimer;
+    btnIOCPListen: TButton;
+    Button1: TButton;
+    procedure btnIOCPListenClick(Sender: TObject);
     procedure btnListenClick(Sender: TObject);
     procedure btnSendClick(Sender: TObject);
-    procedure tmrRecvTimer(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     FUDPClient: TDRawSocket;
     FUDPListen: TDRawSocket;
+    FIOCore   : io_core;
+    FIOThreadParam  : io_thread_param;
 
     function ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10; const
         pvTimeOut: Integer = 30000): String;
@@ -37,6 +42,11 @@ implementation
 
 {$R *.dfm}
 
+function doResponse(pv_io_request:p_io_request):integer;
+begin
+  
+end;
+
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -46,6 +56,22 @@ begin
   FUDPListen := TDRawSocket.Create();
   FUDPListen.CreateUdpSocket();
   FUDPListen.SetNonBlock(False);
+
+  if not FIOCore.CreateHandle then
+  begin
+    RaiseLastOSError();
+  end;
+
+  FIOThreadParam.ioresponse_callback := @doResponse;
+  FIOThreadParam.iocore := @FIOCore;                   
+end;
+
+procedure TfrmMain.btnIOCPListenClick(Sender: TObject);
+begin
+  FUDPListen.bind('', StrToInt(edtListen.Text));
+  FIOCore.bindChildHandle(FUDPListen.SocketHandle);
+  
+  create_iocp_worker(p_io_thread_param(@FIOThreadParam));
 end;
 
 procedure TfrmMain.btnListenClick(Sender: TObject);
@@ -61,6 +87,12 @@ begin
   s := Memo1.Lines.Text;
   FUDPClient.SetConnectInfo(edtHost.Text, StrToInt(edtPort.Text));
   FUDPClient.SendBufTo(s[1], Length(s));
+end;
+
+procedure TfrmMain.Button1Click(Sender: TObject);
+begin
+
+  FIOCore.PostAIOExitReqeust();
 end;
 
 function TfrmMain.ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10;
@@ -97,14 +129,6 @@ begin
       end;
     end;
   until (len < 1) or (lveolPtr <> nil);
-end;
-
-procedure TfrmMain.tmrRecvTimer(Sender: TObject);
-begin
-  if FUDPListen.Readable(100) > 0 then
-  begin
-    mmoRecv.Lines.Add(ReadLn(FUDPListen, #10#13));
-  end;
 end;
 
 end.

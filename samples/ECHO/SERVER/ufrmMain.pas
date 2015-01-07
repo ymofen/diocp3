@@ -57,6 +57,7 @@ uses
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+
   FTcpServer := TIocpTcpServer.Create(Self);
   FTcpServer.Name := 'iocpSVR';
   FTcpServer.OnDataReceived := self.OnRecvBuffer;

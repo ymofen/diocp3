@@ -71,10 +71,27 @@ object frmMain: TfrmMain
     TabOrder = 6
     OnClick = btnListenClick
   end
+  object btnIOCPListen: TButton
+    Left = 270
+    Top = 169
+    Width = 75
+    Height = 25
+    Caption = 'btnIOCPListen'
+    TabOrder = 7
+    OnClick = btnIOCPListenClick
+  end
+  object Button1: TButton
+    Left = 456
+    Top = 168
+    Width = 75
+    Height = 25
+    Caption = 'Button1'
+    TabOrder = 8
+    OnClick = Button1Click
+  end
   object tmrRecv: TTimer
     Enabled = False
-    OnTimer = tmrRecvTimer
-    Left = 328
-    Top = 160
+    Left = 568
+    Top = 88
   end
 end
