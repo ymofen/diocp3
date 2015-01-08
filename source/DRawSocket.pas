@@ -448,14 +448,16 @@ begin
 end;
 
 function TDRawSocket.RecvdCount: Integer;
+{$IFDEF POSIX}
+{$ELSE}
 var
   Temp : u_long;
+{$ENDIF}
+
 begin
 {$IFDEF POSIX}
   // nonthing... reserved!
-  Temp := 0;
-  Result := Temp;
-
+  Result := 0;
 {$ELSE}
   if ioctlsocket(FSocketHandle, FIONREAD, Temp) = SOCKET_ERROR then
   begin
