@@ -91,6 +91,7 @@ object frmMain: TfrmMain
   end
   object tmrRecv: TTimer
     Enabled = False
+    OnTimer = tmrRecvTimer
     Left = 568
     Top = 88
   end

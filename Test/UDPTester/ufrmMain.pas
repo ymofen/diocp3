@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, DRawSocket, StdCtrls, ExtCtrls, u_iocp_api, u_udp_iocp_api;
+  Dialogs, DRawWinSocket, StdCtrls, ExtCtrls, u_iocp_api, u_udp_iocp_api;
 
 type
   TfrmMain = class(TForm)
@@ -22,14 +22,17 @@ type
     procedure btnListenClick(Sender: TObject);
     procedure btnSendClick(Sender: TObject);
     procedure Button1Click(Sender: TObject);
+    procedure tmrRecvTimer(Sender: TObject);
   private
-    FUDPClient: TDRawSocket;
-    FUDPListen: TDRawSocket;
+    FUDPClient: TDRawWinSocket;
+    FUDPListen: TDRawWinSocket;
     FIOCore   : io_core;
     FIOThreadParam  : io_thread_param;
     FRecvReqeust    : udp_recv_request;
-    function ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10; const
+    function ReadLn(pvSocketObj: TDRawWinSocket; const eol: AnsiString = #10; const
         pvTimeOut: Integer = 30000): String;
+
+    procedure DoRead4UDPListen;
   public
     constructor Create(AOwner: TComponent); override;
     { Public declarations }
@@ -39,6 +42,9 @@ var
   frmMain: TfrmMain;
 
 implementation
+
+uses
+  DWinSocket2;
 
 {$R *.dfm}
 
@@ -50,11 +56,11 @@ end;
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FUDPClient := TDRawSocket.Create();
+  FUDPClient := TDRawWinSocket.Create();
   FUDPClient.CreateUdpSocket();
 
-  FUDPListen := TDRawSocket.Create();
-  FUDPListen.CreateUdpSocket();
+  FUDPListen := TDRawWinSocket.Create();
+  FUDPListen.CreateOverlappedUdpSocket();
   FUDPListen.SetNonBlock(False);
 
   if not FIOCore.CreateHandle then
@@ -66,11 +72,30 @@ begin
   FIOThreadParam.iocore := @FIOCore;                   
 end;
 
+procedure TfrmMain.DoRead4UDPListen;
+var
+    bFlag: Boolean;
+    dFlag: DWord;
+    FSendBufferSize: DWORD;
+    FRecvBufferSize: DWORD;
+begin
+  bFlag:=true;
+
+  FRecvBufferSize:= $80000000; //1024*100;
+  FSendBufferSize:= $80000000; //1024*100;
+
+  setsockopt(FUDPListen.SocketHandle,SOL_SOCKET,SO_REUSEADDR,PAnsiChar(@bFlag),sizeof(bFlag));
+  setsockopt(FUDPListen.SocketHandle,SOL_SOCKET,SO_SNDBUF,PAnsiChar(@FSendBufferSize),sizeof(FSendBufferSize));
+  setsockopt(FUDPListen.SocketHandle,SOL_SOCKET,SO_RCVBUF,PAnsiChar(@FRecvBufferSize),sizeof(FRecvBufferSize));
+end;
+
 procedure TfrmMain.btnIOCPListenClick(Sender: TObject);
 begin
+  DoRead4UDPListen;
+
   FUDPListen.bind('', StrToInt(edtListen.Text));
   FIOCore.bindChildHandle(FUDPListen.SocketHandle);
-  FRecvReqeust.overlappedEx.iocpRequest := @FRecvReqeust;
+  FRecvReqeust._overlapped.iocpRequest := @FRecvReqeust;
   FRecvReqeust.postWSARecv(FUDPListen.SocketHandle);
   
   
@@ -98,8 +123,8 @@ begin
   FIOCore.PostAIOExitReqeust();
 end;
 
-function TfrmMain.ReadLn(pvSocketObj: TDRawSocket; const eol: AnsiString = #10;
-    const pvTimeOut: Integer = 30000): String;
+function TfrmMain.ReadLn(pvSocketObj: TDRawWinSocket; const eol: AnsiString =
+    #10; const pvTimeOut: Integer = 30000): String;
 var
   len: Integer;
   buf: array[0..511] of AnsiChar;
@@ -132,6 +157,16 @@ begin
       end;
     end;
   until (len < 1) or (lveolPtr <> nil);
+end;
+
+procedure TfrmMain.tmrRecvTimer(Sender: TObject);
+begin
+  if FUDPListen.Readable(100) then
+  begin
+    mmoRecv.Lines.Add(ReadLn(FUDPListen));
+  end;
+  
+
 end;
 
 end.
