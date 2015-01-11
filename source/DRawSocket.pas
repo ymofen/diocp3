@@ -515,7 +515,7 @@ end;
 
 initialization
 {$IFDEF MSWINDOWS}
-
+   __CheckWSAStartup();
 {$ENDIF}
 
 end.
