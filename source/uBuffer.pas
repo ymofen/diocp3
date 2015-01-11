@@ -18,6 +18,12 @@ interface
 uses
   Windows, SyncObjs, SysUtils, Classes;
 
+{$if CompilerVersion < 23}
+type
+     NativeUInt = Cardinal;
+     IntPtr = Cardinal;
+{$ifend}
+
 type
   TDxMemBlockType = (MB_Small,MB_Normal,MB_Big,MB_SpBig,MB_Large,MB_SPLarge,MB_Max); //内存块模式
   PMemoryBlock = ^TMemoryBlock;
@@ -1386,7 +1392,8 @@ begin
     MB_Max: BlockSize := MaxMemoryPool.FBlockSize;
     else BlockSize := BigMemoryPool.FBlockSize;
     end;
-    if FLast^.DataLen <> BlockSize then
+
+    if (FLast^.DataLen <> BlockSize) then
     begin
       WSize := BlockSize - FLast^.DataLen;
       pBuf := FLast^.Memory;
@@ -1683,7 +1690,7 @@ end;
 function TBufferLink.Skip(len: Cardinal): Cardinal;
 var
   lvBuf: PMemoryBlock;
-  lvPosition, l, lvReadCount, lvRemain, lvValidCount:Cardinal;
+  lvPosition, l, lvReadCount, lvRemain:Cardinal;
 begin
   lvReadCount := 0;
   lvBuf := FRead;
