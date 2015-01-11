@@ -923,6 +923,7 @@ resourcestring
   strRecvZero      = '[%d]接收到0字节的数据,该连接将断开!';
   strRecvError     = '[%d]响应接收请求时出现了错误。错误代码:%d!';
   strRecvEngineOff = '[%d]响应接收请求时发现IOCP服务关闭';
+  strRecvPostError = '[%d]投递接收请求时出现了错误。错误代码:%d!'; //'TIocpRecvRequest.PostRequest Error:%d'
 
   strSendEngineOff = '[%d]响应发送数据请求时发现IOCP服务关闭';
   strSendErr       = '[%d]响应发送数据请求时出现了错误。错误代码:%d!';
@@ -2880,8 +2881,7 @@ begin
       if not Result then
       begin
         {$IFDEF DEBUG_ON}
-         if FOwner.logCanWrite then
-          FOwner.FSafeLogger.logMessage('TIocpRecvRequest.PostRequest Error:%d',  [lvRet]);
+        FOwner.logMessage(strRecvPostError, [FClientContext.SocketHandle, lvRet]);
 
         InterlockedDecrement(FOverlapped.refCount);
         {$ENDIF}
@@ -2995,8 +2995,7 @@ begin
     begin
       FReponseState := 4;
       {$IFDEF DEBUG_ON}
-       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage(
+      FOwner.logMessage(
           Format(strSendEngineOff, [FClientContext.FSocketHandle])
           );
       {$ENDIF}
@@ -3008,14 +3007,13 @@ begin
     begin
       FReponseState := 3;
       {$IFDEF DEBUG_ON}
-       if FOwner.logCanWrite then
-        FOwner.FSafeLogger.logMessage(
-          Format(strSendEngineOff, [FClientContext.FSocketHandle, FErrorCode])
+      FOwner.logMessage(
+          Format(strSendErr, [FClientContext.FSocketHandle, FErrorCode])
           );
       {$ENDIF}
       FOwner.DoClientContextError(FClientContext, FErrorCode);
       FClientContext.RequestDisconnect(
-         Format(strSendEngineOff, [FClientContext.FSocketHandle, FErrorCode])
+         Format(strSendErr, [FClientContext.FSocketHandle, FErrorCode])
           , Self);
     end else
     begin
