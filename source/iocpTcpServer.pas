@@ -991,7 +991,11 @@ resourcestring
 
 
 
-
+/// <summary>
+///   计算两个TickCount时间差，避免超出49天后，溢出
+///      感谢 [佛山]沧海一笑  7041779 提供
+///      copy自 qsl代码 
+/// </summary>
 function tick_diff(tick_start, tick_end: Cardinal): Cardinal;
 begin
   if tick_end >= tick_start then
