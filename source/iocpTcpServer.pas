@@ -4,7 +4,7 @@
  *	       blog: http://www.cnblogs.com/dksoft
 
  *   2015-01-13 22:35:44
-       + TIocpClientContext 添加LastRecvTimeTickCount属性
+       + TIocpClientContext 添加LastActivity属性
           记录最后接收数据的时间
        + TIocpTcpServer 添加KickOut(pvTimeOut:Cardinal) 函数
           可以进行超时检测在线的连接超时状态，如果超过时间就请求关闭连接
@@ -98,8 +98,8 @@ type
     // current socket handle
     FSocketHandle:TSocket;
 
-    // 最后接收数据的时间点
-    FLastRecvTickount: Cardinal;
+    // 最后交互数据的时间点
+    FLastActivity: Cardinal;
 
     FDebugStrings:TStrings;
     {$IFDEF SOCKET_REUSE}
@@ -327,9 +327,9 @@ type
     property ContextDNA: Integer read FContextDNA;
 
     /// <summary>
-    ///   最后接收数据的时间记录
+    ///   最后交互数据的时间点
     /// </summary>
-    property LastRecvTickount: Cardinal read FLastRecvTickount;
+    property LastActivity: Cardinal read FLastActivity;
 
     property Owner: TIocpTcpServer read FOwner write SetOwner;
 
@@ -1431,8 +1431,8 @@ end;
 
 procedure TIocpClientContext.DoCleanUp;
 begin
-  FLastRecvTickount := 0;
-  
+  FLastActivity := 0;
+
   FOwner := nil;
   FRequestDisconnect := false;
   FSending := false;
@@ -1456,8 +1456,8 @@ end;
 
 procedure TIocpClientContext.DoConnected;
 begin
-  FLastRecvTickount := GetTickCount;
-  
+  FLastActivity := GetTickCount;
+
   FContextLocker.lock('DoConnected');
   try
     FSocketHandle := FRawSocket.SocketHandle;
@@ -1507,8 +1507,8 @@ end;
 
 procedure TIocpClientContext.DoReceiveData;
 begin
-  FLastRecvTickount := GetTickCount;
-  
+  FLastActivity := GetTickCount;
+
   OnRecvBuffer(FRecvRequest.FRecvBuffer.buf,
     FRecvRequest.FBytesTransferred,
     FRecvRequest.FErrorCode);
@@ -1525,6 +1525,8 @@ end;
 procedure TIocpClientContext.DoSendRequestRespnonse(
   pvRequest: TIocpSendRequest);
 begin
+  FLastActivity := GetTickCount;
+  
   if Assigned(FOwner.FOnSendRequestResponse) then
   begin
     FOwner.FOnSendRequestResponse(Self, pvRequest);
@@ -2564,9 +2566,9 @@ begin
         if lvBucket.Data <> nil then
         begin
           lvContext := TIocpClientContext(lvBucket.Data);
-          if lvContext.FLastRecvTickount <> 0 then
+          if lvContext.FLastActivity <> 0 then
           begin
-            if tick_diff(lvContext.FLastRecvTickount, lvNowTickCount) > pvTimeOut then
+            if tick_diff(lvContext.FLastActivity, lvNowTickCount) > pvTimeOut then
             begin
               // 请求关闭
               lvContext.PostWSACloseRequest();
@@ -2588,9 +2590,9 @@ begin
     while lvContext <> nil do
     begin
       lvNextContext := lvContext.FNext;
-      if lvContext.FLastRecvTickount <> 0 then
+      if lvContext.FLastActivity <> 0 then
       begin
-        if tick_diff(lvContext.FLastRecvTickount, lvNowTickCount) > pvTimeOut then
+        if tick_diff(lvContext.FLastActivity, lvNowTickCount) > pvTimeOut then
         begin
           // 请求关闭
           lvContext.PostWSACloseRequest();
