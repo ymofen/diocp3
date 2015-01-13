@@ -107,3 +107,15 @@ DIOCP 3.5.04
   2014-12-31 12:36:31   
  *       请求关闭连接<等待前面的数据发送请求进行关闭后，然后进行断开操作>
  *       <吕宏庆  171958445>提出：使用在http协议时, 发生完成数据后进行关闭
+
+6.添加发送数据响应通知
+ *   2015-01-13 12:08:44
+ *     + 给TIocpRequest添加Tag和Data属性
+ 
+ *   2015-01-13 12:08:44
+ *     + TIocpTcpServer 添加OnSendRequestResponse事件,响应WSASend时执行
+ *       可以用来判断投递出去的发送请求是否完成
+ *           <可以用request.ErrorCode来判断是否存在错误>
+ *     * TIocpTcpServer的PostWSASendBuffer添加两个参数Tag和TagData，
+ *         可以在响应OnSendRequestResponse事件中获取到该参数
+ 

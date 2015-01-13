@@ -855,7 +855,7 @@ end;
 
 procedure TIocpBaseContext.Close;
 begin
-  RequestDisconnect;
+  RequestDisconnect('TIocpBaseContext.Close');
 end;
 
 constructor TIocpBaseContext.Create;
@@ -916,7 +916,13 @@ begin
     
   FContextLocker.unLock; 
 
-  if lvCloseContext then InnerCloseContext;
+  if lvCloseContext then
+  begin
+    {$IFDEF DEBUG_ON}
+    FOwner.LogMessage('(%d)断开调试信息:%s', [self.SocketHandle, FDebugStrings.Text], 'RequestDisconnect');
+    {$ENDIF}
+    InnerCloseContext;
+  end;
 end;
 
 procedure TIocpBaseContext.decReferenceCounterAndRequestDisconnect(pvDebugInfo:
@@ -1203,6 +1209,11 @@ var
   lvCloseContext:Boolean;
 begin
   if not FActive then exit;
+{$IFDEF DEBUG_ON}
+  FOwner.logMessage('(%d)断开请求信息:%s', [SocketHandle,pvDebugInfo],
+      'RequestDisconnectDEBUG');
+{$ENDIF}
+
   lvCloseContext := false;
   FContextLocker.lock('RequestDisconnect');
  
@@ -2460,7 +2471,7 @@ begin
     if not Result then
     begin
       FContext.DoError(lvErrCode);
-      FContext.RequestDisconnect;
+      FContext.RequestDisconnect('TIocpConnectExRequest.PostRequest');
     end;
   end else
   begin
@@ -2521,8 +2532,7 @@ begin
           lvRequest.UnBindingSendBuffer;
 
           {$IFDEF DEBUG_ON}
-          if FOwner.logCanWrite then
-            FOwner.FSafeLogger.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
+          FOwner.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
              [FSendRequestLink.Count]);
           {$ENDIF}
           Self.RequestDisconnect('TIocpBaseContext.PostWSASendRequest Post Fail',

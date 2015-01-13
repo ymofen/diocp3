@@ -2,6 +2,10 @@
  *	 Unit owner: D10.Mofen
  *	       blog: http://www.cnblogs.com/dksoft
  *
+ *   2015-01-13 12:08:44
+ *     + 给TIocpRequest添加Tag和Data属性
+ *       
+ *
  *	 v3.0.1(2014-7-16 21:36:30)
  *     + first release
  *
@@ -56,6 +60,7 @@ type
   TIocpRequest = class(TObject)
   private
 
+    FData: Pointer;
     /// io request response info
     FiocpWorker: TIocpWorker;
 
@@ -67,6 +72,7 @@ type
     FNext: TIocpRequest;
     
     FOnResponse: TNotifyEvent;
+    FTag: Integer;
   protected
     FResponding: Boolean;
     FRespondStartTickCount:Cardinal;
@@ -102,6 +108,7 @@ type
 
     property OnResponse: TNotifyEvent read FOnResponse write FOnResponse;
 
+
     property ErrorCode: Integer read FErrorCode;
     
 
@@ -114,7 +121,9 @@ type
     //
     property Responding: Boolean read FResponding;
 
-
+    property Data: Pointer read FData write FData;
+    
+    property Tag: Integer read FTag write FTag;
   end;
 
   /// <summary>

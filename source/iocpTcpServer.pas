@@ -2,14 +2,24 @@
  *	 Unit owner: D10.Mofen
  *         homePage: http://www.diocp.org
  *	       blog: http://www.cnblogs.com/dksoft
+
+ *   2015-01-13 12:08:44
+ *     + TIocpTcpServer 添加OnSendRequestResponse事件,响应WSASend时执行
+ *       可以用来判断投递出去的发送请求是否完成
+ *           <可以用request.ErrorCode来判断是否存在错误>
+ *     * TIocpTcpServer的PostWSASendBuffer添加两个参数Tag和TagData，
+ *         可以在响应OnSendRequestResponse事件中获取到该参数
  *
- *	 v3.0.1(2014-7-16 21:36:30)
- *     + first release
- *
+
  *   2014-12-31 12:36:31
  *     Context连接上下文添加PostWSACloseRequest函数，
  *       请求关闭连接<等待前面的数据发送请求进行关闭后，然后进行断开操作>
  *       <吕宏庆  171958445>提出：使用在http协议时, 发生完成数据后进行关闭
+
+ *	 v3.0.1(2014-7-16 21:36:30)
+ *     + first release
+ *
+
  *
  *
  *
@@ -54,6 +64,9 @@ type
 
   TOnClientContextError = procedure(pvClientContext: TIocpClientContext; errCode:
       Integer) of object;
+
+  TOnSendRequestResponse = procedure(pvContext:TIocpClientContext;
+      pvRequest:TIocpSendRequest) of object;
 
   TOnDataReceived = procedure(pvClientContext:TIocpClientContext;
       buf:Pointer; len:cardinal; errCode:Integer) of object;
@@ -170,6 +183,8 @@ type
     /// </summary>
     procedure DoSendRequestCompleted(pvRequest: TIocpSendRequest);
 
+
+
     /// <summary>
     ///   post next sendRequest
     ///    must single thread operator
@@ -228,6 +243,12 @@ type
     procedure PostNextSendRequest; virtual;
 
 
+    /// <summary>
+    ///   投递的发送请求响应时执行，一响应，马上执行，Errcode <> 0也会响应
+    /// </summary>
+    procedure DoSendRequestRespnonse(pvRequest: TIocpSendRequest); virtual;
+
+
     procedure lock();{$IFDEF HAVE_INLINE} inline;{$ENDIF}
     procedure unLock();{$IFDEF HAVE_INLINE} inline;{$ENDIF}
   protected
@@ -272,7 +293,7 @@ type
     ///    if request is completed, will call DoSendRequestCompleted procedure
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean =
-        true): Boolean; overload;
+        true; pvTag: Integer = 0; pvTagData: Pointer = nil): Boolean; overload;
 
     /// <summary>
     ///    post send request to iocp queue, if post successful return true.
@@ -280,8 +301,8 @@ type
     ///    如果 长度为0，则在处理请求时进行关闭
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal; pvBufReleaseType:
-        TDataReleaseType): Boolean; overload;
-
+        TDataReleaseType; pvTag: Integer = 0; pvTagData: Pointer = nil): Boolean;
+        overload;
 
 
     property Active: Boolean read FActive;
@@ -433,8 +454,7 @@ type
     /// <summary>
     ///   on entire buf send completed
     /// </summary>
-    property OnDataRequestCompleted: TOnDataRequestCompleted read
-        FOnDataRequestCompleted write FOnDataRequestCompleted;
+    property OnDataRequestCompleted: TOnDataRequestCompleted read FOnDataRequestCompleted write FOnDataRequestCompleted;
   end;
 
   TIocpDisconnectExRequest = class(TIocpRequest)
@@ -696,6 +716,7 @@ type
 
     FOnClientContextError: TOnClientContextError;
     FOnContextAccept: TOnContextAcceptEvent;
+    FOnSendRequestResponse: TOnSendRequestResponse;
 
     FPort: Integer;
 
@@ -867,6 +888,9 @@ type
     /// </summary>
     property OnContextAccept: TOnContextAcceptEvent read FOnContextAccept write
         FOnContextAccept;
+
+    property OnSendRequestResponse: TOnSendRequestResponse read
+        FOnSendRequestResponse write FOnSendRequestResponse;
     /// <summary>
     ///   listen port
     /// </summary>
@@ -901,6 +925,8 @@ type
     /// </summary>
     property OnDataReceived: TOnDataReceived read FOnDataReceived write
         FOnDataReceived;
+
+
   end;
 
 
@@ -1455,6 +1481,15 @@ begin
   ;
 end;
 
+procedure TIocpClientContext.DoSendRequestRespnonse(
+  pvRequest: TIocpSendRequest);
+begin
+  if Assigned(FOwner.FOnSendRequestResponse) then
+  begin
+    FOwner.FOnSendRequestResponse(Self, pvRequest);
+  end;
+end;
+
 function TIocpClientContext.GetSendQueueSize: Integer;
 begin
   Result := FSendRequestLink.Count;
@@ -1573,7 +1608,9 @@ end;
 
 
 
-function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal; pvCopyBuf: Boolean = true): Boolean;
+function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
+    pvCopyBuf: Boolean = true; pvTag: Integer = 0; pvTagData: Pointer = nil):
+    Boolean;
 var
   lvBuf: PAnsiChar;
 begin
@@ -1582,7 +1619,7 @@ begin
   begin
     GetMem(lvBuf, len);
     Move(buf^, lvBuf^, len);
-    Result := PostWSASendRequest(lvBuf, len, dtFreeMem);
+    Result := PostWSASendRequest(lvBuf, len, dtFreeMem, pvTag, pvTagData);
     if not Result then
     begin            //post fail
       FreeMem(lvBuf);
@@ -1590,13 +1627,14 @@ begin
   end else
   begin
     lvBuf := buf;
-    Result := PostWSASendRequest(lvBuf, len, dtNone);
+    Result := PostWSASendRequest(lvBuf, len, dtNone, pvTag, pvTagData);
   end;
 
 end;
 
 function TIocpClientContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
-    pvBufReleaseType: TDataReleaseType): Boolean;
+    pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0; pvTagData: Pointer
+    = nil): Boolean;
 var
   lvRequest:TIocpSendRequest;
 begin
@@ -1608,6 +1646,8 @@ begin
       try
         lvRequest := GetSendRequest;
         lvRequest.SetBuffer(buf, len, pvBufReleaseType);
+        lvRequest.Tag := pvTag;
+        lvRequest.Data := pvTagData;
         Result := InnerPostSendRequestAndCheckStart(lvRequest);
         if not Result then
         begin
@@ -2991,6 +3031,10 @@ begin
       FOwner.FDataMoniter.incSentSize(FBytesTransferred);
       FOwner.FDataMoniter.incResponseWSASendCounter;
     end;
+
+    // 响应完成事件
+    lvContext.DoSendRequestRespnonse(Self);
+
     if not FOwner.Active then
     begin
       FReponseState := 4;
