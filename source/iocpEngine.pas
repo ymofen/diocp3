@@ -4,7 +4,9 @@
  *
  *   2015-01-13 12:08:44
  *     + 给TIocpRequest添加Tag和Data属性
- *       
+ *     + iocpWorker添加附加数据Data属性
+         可以通过当前IocpRequest.iocpWorker.Data获取到当前执行线程的附加数据
+ *
  *
  *	 v3.0.1(2014-7-16 21:36:30)
  *     + first release
@@ -229,6 +231,7 @@ type
     FIocpCore: TIocpCore;
 
     FCoInitialized:Boolean;
+    FData: Pointer;
 
     FLastRequest:TIocpRequest;
   public
@@ -250,9 +253,16 @@ type
     procedure CheckCoInitializeEx(pvReserved: Pointer = nil; coInit: Longint = 0);
 
     /// <summary>
+    ///   附加数据，可以通过当前IocpRequest.iocpWorker.Data获取到当前执行线程的附加数据
+    /// </summary>
+    property Data: Pointer read FData write FData;
+
+    /// <summary>
     ///   the last handle respond iocp request
     /// </summary>
     property LastRequest: TIocpRequest read FLastRequest;
+
+
   end;
 
 

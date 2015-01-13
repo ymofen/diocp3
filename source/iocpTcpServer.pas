@@ -9,6 +9,7 @@
  *           <可以用request.ErrorCode来判断是否存在错误>
  *     * TIocpTcpServer的PostWSASendBuffer添加两个参数Tag和TagData，
  *         可以在响应OnSendRequestResponse事件中获取到该参数
+ *     * TIocpSendRequest 映射WSABuf信息，可以读取最后一次发送的数据信息
  *
 
  *   2014-12-31 12:36:31
@@ -392,6 +393,8 @@ type
     FOwner: TIocpTcpServer;
 
     procedure CheckClearSendBuffer();
+    
+    function GetWSABuf: PWsaBuf;
  protected
     FClientContext:TIocpClientContext;
 
@@ -414,8 +417,6 @@ type
 
 
     procedure ResponseDone; override;
-
-
 
     /// <summary>
     ///   give back to sendRequest ObjectPool
@@ -450,6 +451,15 @@ type
     property ClientContext: TIocpClientContext read FClientContext;
 
     property Owner: TIocpTcpServer read FOwner;
+
+    /// <summary>
+    ///   获取最后一次操作的Buff信息
+    /// </summary>
+    property WSABuf: PWsaBuf read GetWSABuf;
+
+    
+
+    
 
     /// <summary>
     ///   on entire buf send completed
@@ -3247,6 +3257,11 @@ begin
         FormatDateTime('MM-dd hh:nn:ss.zzz', FRespondEndTime),
         FWSABuf.len, FMaxSize]);
   end;
+end;
+
+function TIocpSendRequest.GetWSABuf: PWsaBuf;
+begin
+  Result := @FWSABuf;
 end;
 
 procedure TIocpDataMonitor.Clear;
