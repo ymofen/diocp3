@@ -3,6 +3,12 @@
  *         homePage: http://www.diocp.org
  *	       blog: http://www.cnblogs.com/dksoft
 
+ *   2015-01-13 22:35:44
+       + TIocpClientContext 添加LastRecvTimeTickCount属性
+          记录最后接收数据的时间
+       + TIocpTcpServer 添加KickOut(pvTimeOut:Cardinal) 函数
+          可以进行超时检测在线的连接超时状态，如果超过时间就请求关闭连接
+
  *   2015-01-13 12:08:44
  *     + TIocpTcpServer 添加OnSendRequestResponse事件,响应WSASend时执行
  *       可以用来判断投递出去的发送请求是否完成
@@ -91,7 +97,10 @@ type
   private
     // current socket handle
     FSocketHandle:TSocket;
-    
+
+    // 最后接收数据的时间点
+    FLastRecvTickount: Cardinal;
+
     FDebugStrings:TStrings;
     {$IFDEF SOCKET_REUSE}
     FDisconnectExRequest:TIocpDisconnectExRequest;
@@ -316,6 +325,11 @@ type
     ///  连接时进行 +1
     /// </summary>
     property ContextDNA: Integer read FContextDNA;
+
+    /// <summary>
+    ///   最后接收数据的时间记录
+    /// </summary>
+    property LastRecvTickount: Cardinal read FLastRecvTickount;
 
     property Owner: TIocpTcpServer read FOwner write SetOwner;
 
@@ -755,13 +769,9 @@ type
     /// </summary>
     function releaseClientContext(pvObject:TIocpClientContext): Boolean;
 
-
-
     procedure AddToOnlineList(pvObject:TIocpClientContext);
 
     procedure RemoveFromOnOnlineList(pvObject:TIocpClientContext);
-
-
 
     procedure doReceiveData(pvIocpClientContext:TIocpClientContext; pvRequest:TIocpRecvRequest);
   protected
@@ -791,6 +801,14 @@ type
 
     function GetClientCount: Integer;
   public
+
+    /// <summary>
+    ///   超时检测, 如果超过Timeout指定的时间还没有任何数据交换数据记录，
+    ///     就进行关闭连接
+    ///   使用循环检测，如果你有好的方案，欢迎提交您的宝贵意见
+    /// </summary>
+    procedure KickOut(pvTimeOut:Cardinal = 60000);
+
     procedure LogMessage(pvMsg: string; pvMsgType: string = ''; pvLevel: TLogLevel
         = lgvMessage); overload;
         
@@ -974,6 +992,13 @@ resourcestring
 
 
 
+function tick_diff(tick_start, tick_end: Cardinal): Cardinal;
+begin
+  if tick_end >= tick_start then
+    result := tick_end - tick_start
+  else
+    result := High(Cardinal) - tick_start + tick_end;
+end;
 
 
 
@@ -1406,6 +1431,8 @@ end;
 
 procedure TIocpClientContext.DoCleanUp;
 begin
+  FLastRecvTickount := 0;
+  
   FOwner := nil;
   FRequestDisconnect := false;
   FSending := false;
@@ -1429,6 +1456,8 @@ end;
 
 procedure TIocpClientContext.DoConnected;
 begin
+  FLastRecvTickount := GetTickCount;
+  
   FContextLocker.lock('DoConnected');
   try
     FSocketHandle := FRawSocket.SocketHandle;
@@ -1478,6 +1507,8 @@ end;
 
 procedure TIocpClientContext.DoReceiveData;
 begin
+  FLastRecvTickount := GetTickCount;
+  
   OnRecvBuffer(FRecvRequest.FRecvBuffer.buf,
     FRecvRequest.FBytesTransferred,
     FRecvRequest.FErrorCode);
@@ -1559,7 +1590,7 @@ end;
 procedure TIocpClientContext.OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode:
     WORD);
 begin
-  
+    
 end;
 
 procedure TIocpClientContext.PostNextSendRequest;
@@ -2508,6 +2539,71 @@ begin
   end;
 end;
 
+procedure TIocpTcpServer.KickOut(pvTimeOut:Cardinal = 60000);
+var
+  lvNowTickCount:Cardinal;
+  I:Integer;
+  lvContext:TIocpClientContext;
+{$IFDEF USE_HASHTABLE}
+var    
+  lvBucket, lvNextBucket: PDHashData;
+{$ELSE}
+  lvNextContext :TIocpClientContext;
+{$ENDIF}
+begin
+  lvNowTickCount := GetTickCount;
+  {$IFDEF USE_HASHTABLE}
+  FLocker.lock('KickOut');
+  try
+    for I := 0 to FOnlineContextList.BucketSize - 1 do
+    begin
+      lvBucket := FOnlineContextList.Buckets[I];
+      while lvBucket<>nil do
+      begin
+        lvNextBucket := lvBucket.Next;
+        if lvBucket.Data <> nil then
+        begin
+          lvContext := TIocpClientContext(lvBucket.Data);
+          if lvContext.FLastRecvTickount <> 0 then
+          begin
+            if tick_diff(lvContext.FLastRecvTickount, lvNowTickCount) > pvTimeOut then
+            begin
+              // 请求关闭
+              lvContext.PostWSACloseRequest();
+            end;
+          end;
+        end;
+        lvBucket:= lvNextBucket;
+      end;
+    end;
+  finally
+    FLocker.unLock;
+  end;
+  {$ELSE}
+  FLocker.lock('KickOut');
+  try
+    lvContext := FOnlineContextList.FHead;
+
+    // request all context discounnt
+    while lvContext <> nil do
+    begin
+      lvNextContext := lvContext.FNext;
+      if lvContext.FLastRecvTickount <> 0 then
+      begin
+        if tick_diff(lvContext.FLastRecvTickount, lvNowTickCount) > pvTimeOut then
+        begin
+          // 请求关闭
+          lvContext.PostWSACloseRequest();
+        end;
+      end;
+      lvContext := lvNextContext;
+    end;
+  finally
+    FLocker.unLock;
+  end;
+  {$ENDIF}
+end;
+
 procedure TIocpTcpServer.SetWSARecvBufferSize(const Value: cardinal);
 begin
   FWSARecvBufferSize := Value;
@@ -2543,7 +2639,7 @@ begin
     c := FOnlineContextList.Count;
   end;
 
-  Result := FOnlineContextList.Count = 0;  
+  Result := FOnlineContextList.Count = 0;
 end;
 
 procedure TIocpAcceptorMgr.CheckPostRequest;
