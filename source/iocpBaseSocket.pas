@@ -163,8 +163,9 @@ type
     /// <summary>
     ///   post reqeust to sending queue,
     ///    fail, push back to pool
+    ///  准备抛弃
     /// </summary>
-    function postSendRequest(pvSendRequest:TIocpSendRequest):Boolean;
+    function PostSendRequestDelete(pvSendRequest:TIocpSendRequest): Boolean;
 
 
     /// <summary>
@@ -760,6 +761,7 @@ resourcestring
   strSendErr       = '[%d]响应发送数据请求时出现了错误。错误代码:%d!';
   strSendPostError = '[%d]投递发送数据请求时出现了错误。错误代码:%d';
   strSendZero      = '[%d]投递发送请求数据时遇到0长度数据。进行关闭处理'; 
+  strSendPushFail  = '[%d]投递发送请求数据包超出队列允许的最大长度[%d/%d]。';
 
   strBindingIocpError = '[%d]绑定到IOCP句柄时出现了异常, 错误代码:%d, (%s)';
 
@@ -918,9 +920,6 @@ begin
 
   if lvCloseContext then
   begin
-    {$IFDEF DEBUG_ON}
-    FOwner.LogMessage('(%d)断开调试信息:%s', [self.SocketHandle, FDebugStrings.Text], 'RequestDisconnect');
-    {$ENDIF}
     InnerCloseContext;
   end;
 end;
@@ -931,7 +930,10 @@ var
   lvCloseContext:Boolean;
 begin
   lvCloseContext := false;
-
+{$IFDEF DEBUG_ON}
+  FOwner.logMessage('(%d)断开请求信息*:%s', [SocketHandle, pvDebugInfo],
+      'RequestDisconnect');
+{$ENDIF}
   FContextLocker.lock('decReferenceCounter');
   FRequestDisconnect := true;
   Dec(FReferenceCounter);
@@ -1055,7 +1057,12 @@ procedure TIocpBaseContext.InnerCloseContext;
 begin
   Assert(FOwner <> nil);
   Assert(FReferenceCounter = 0);
-  if not FActive then  
+  
+  {$IFDEF DEBUG_ON}
+  FOwner.LogMessage('(%d)断开调试信息:%s', [self.SocketHandle, FDebugStrings.Text], 'RequestDisconnect');
+  {$ENDIF}
+
+  if not FActive then
     Assert(FActive);
   FContextLocker.lock('closeContext');
   try
@@ -1122,11 +1129,11 @@ begin
   end;
 end;
 
-function TIocpBaseContext.postSendRequest(
-  pvSendRequest: TIocpSendRequest): Boolean;
+function TIocpBaseContext.PostSendRequestDelete(
+    pvSendRequest:TIocpSendRequest): Boolean;
 begin
   Result := false;
-  if incReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest) then
+  if incReferenceCounter('TIocpClientContext.PostSendRequestDelete', pvSendRequest) then
   begin
     try
       FContextLocker.lock();   
@@ -1165,7 +1172,7 @@ begin
            [FSendRequestLink.Count]), Self);
       end;
     finally
-      decReferenceCounter('TIocpClientContext.postSendRequest', pvSendRequest);
+      decReferenceCounter('TIocpClientContext.PostSendRequestDelete', pvSendRequest);
     end;
   end else
   begin
@@ -1210,8 +1217,8 @@ var
 begin
   if not FActive then exit;
 {$IFDEF DEBUG_ON}
-  FOwner.logMessage('(%d)断开请求信息:%s', [SocketHandle,pvDebugInfo],
-      'RequestDisconnectDEBUG');
+  FOwner.logMessage('(%d)断开请求信息:%s', [SocketHandle, pvDebugInfo],
+      'RequestDisconnect');
 {$ENDIF}
 
   lvCloseContext := false;
@@ -2501,6 +2508,14 @@ begin
     FContextLocker.unLock;
   end;
 
+  {$IFDEF DEBUG_ON}
+  if not Result then
+  begin
+    FOwner.logMessage(
+      strSendPushFail, [FSocketHandle, FSendRequestLink.Count, FSendRequestLink.MaxSize]);
+  end;
+  {$ENDIF}
+
   if lvStart then
   begin      // start send work
     if (FOwner<> nil) and (FOwner.FDataMoniter <> nil) then
@@ -2515,6 +2530,7 @@ function TIocpBaseContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
     pvBufReleaseType: TDataReleaseType): Boolean;
 var
   lvRequest:TIocpSendRequest;
+  lvErrStr:String;
 begin
   Result := false;
   if len = 0 then raise Exception.Create('PostWSASendRequest::request buf is zero!');
@@ -2532,11 +2548,13 @@ begin
           lvRequest.UnBindingSendBuffer;
 
           {$IFDEF DEBUG_ON}
-          FOwner.logMessage('Push sendRequest to Sending Queue fail, queue size:%d',
-             [FSendRequestLink.Count]);
-          {$ENDIF}
-          Self.RequestDisconnect('TIocpBaseContext.PostWSASendRequest Post Fail',
+          lvErrStr := Format(strSendPushFail, [SocketHandle,
+            FSendRequestLink.Count, FSendRequestLink.MaxSize]);
+          Self.RequestDisconnect(lvErrStr,
             lvRequest);
+          {$ELSE}
+          Self.RequestDisconnect('', lvRequest);
+          {$ENDIF}
 
           lvRequest.CancelRequest;
           FOwner.ReleaseSendRequest(lvRequest);

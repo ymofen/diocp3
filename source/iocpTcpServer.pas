@@ -964,7 +964,8 @@ resourcestring
   strSendEngineOff = '[%d]响应发送数据请求时发现IOCP服务关闭';
   strSendErr       = '[%d]响应发送数据请求时出现了错误。错误代码:%d!';
   strSendPostError = '[%d]投递发送数据请求时出现了错误。错误代码:%d';
-  strSendZero      = '[%d]投递发送请求数据时遇到0长度数据。进行关闭处理'; 
+  strSendZero      = '[%d]投递发送请求数据时遇到0长度数据。进行关闭处理';
+  strSendPushFail  = '[%d]投递发送请求数据包超出队列允许的最大长度[%d/%d]。';
 
   strBindingIocpError = '[%d]绑定到IOCP句柄时出现了异常, 错误代码:%d, (%s)';
 
@@ -1592,7 +1593,7 @@ begin
   if not Result then
   begin
     FOwner.logMessage(
-      strPushFail, [FSocketHandle, FSendRequestLink.Count, FSendRequestLink.MaxSize]);
+      strSendPushFail, [FSocketHandle, FSendRequestLink.Count, FSendRequestLink.MaxSize]);
   end;
   {$ENDIF}
 
