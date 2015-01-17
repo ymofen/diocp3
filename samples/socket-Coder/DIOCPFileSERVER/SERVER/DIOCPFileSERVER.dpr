@@ -12,7 +12,7 @@ uses
   SimpleMsgPack in '..\Common\SimpleMsgPack.pas',
   uFileOperaHandler in 'Service\uFileOperaHandler.pas',
   uCRCTools in '..\..\diocpCoders\uCRCTools.pas',
-  uDIOCPDxStreamCoder in '..\..\diocpCoders\uDIOCPDxStreamCoder.pas';
+  uDIOCPStreamCoder in '..\..\diocpCoders\uDIOCPStreamCoder.pas';
 
 {$R *.res}
 

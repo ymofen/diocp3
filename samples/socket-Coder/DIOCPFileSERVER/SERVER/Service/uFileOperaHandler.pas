@@ -233,7 +233,7 @@ end;
 
 class procedure TFileOperaHandler.downFileData(pvDataObject:TSimpleMsgPack);
 const
-  SEC_SIZE = 1024 * 4;  //4K
+  SEC_SIZE = 1024 * 50;  //50K
 var
   lvFileStream:TFileStream;
   lvFileName, lvRealFileName:String;
