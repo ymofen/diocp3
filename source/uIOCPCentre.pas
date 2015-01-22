@@ -355,7 +355,7 @@ begin
   except
    on E:Exception do
     begin
-      TIOCPFileLogger.logErrMessage('截获处理逻辑异常!' + e.Message);
+      FOwner.LogMessage('截获处理逻辑异常:' + e.Message);
     end;
   end;
 end;
