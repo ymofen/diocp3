@@ -2,6 +2,9 @@
  *	 Unit owner: D10.Mofen
  *	       blog: http://www.cnblogs.com/dksoft
  *
+ *   2015-01-22 14:13:21
+ *     * 修复暴力测试重复开关IocpEngine时DecAliveWorker可能出现AV错误
+ *
  *   2015-01-13 12:08:44
  *     + 给TIocpRequest添加Tag和Data属性
  *     + iocpWorker添加附加数据Data属性
@@ -661,11 +664,11 @@ begin
   InterlockedDecrement(workerCounter);
 {$ENDIF}
 
-  //try
+  try
     FIocpEngine.decAliveWorker(Self);
-//  except
-//    Assert(False, ('iocpEngine name:' + FIocpEngine.Name));
-//  end;
+  except
+    //Assert(False, ('iocpEngine name:' + FIocpEngine.Name));
+  end;
 end;
 
 procedure TIocpWorker.RemoveFlag(pvFlag:Integer);
@@ -757,18 +760,21 @@ begin
 end;
 
 procedure TIocpEngine.DecAliveWorker(const pvWorker: TIocpWorker);
+var
+  lvCount:Integer;
 begin
   FWorkerLocker.lock;
   try
     FWorkerList.Remove(pvWorker);
-    InterlockedDecrement(FActiveWorkerCount);
-    if FActiveWorkerCount = 0 then
-    begin
-      // all workers offline
-      FSafeStopSign.SetEvent;
-    end;
+    lvCount := InterlockedDecrement(FActiveWorkerCount);
   finally
     FWorkerLocker.unLock;
+  end;
+
+  if lvCount = 0 then
+  begin
+    // 移除到外面避免 在关闭时提前释放了资源
+    if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
   end;
 end;
 
@@ -783,6 +789,7 @@ begin
   FIocpCore.Free;
   FreeAndNil(FWorkerList);
   FWorkerLocker.Free;
+  FWorkerLocker := nil;
   inherited Destroy;
 end;
 
@@ -950,6 +957,8 @@ function TIocpEngine.StopWorkers(pvTimeOut: Cardinal): Boolean;
 var
   l:Cardinal;
   i:Integer;
+  lvEvent:TEvent;
+  lvWrited:Boolean;
 begin
   Result := False;
   if not FActive then
@@ -974,8 +983,10 @@ begin
     if FSafeStopSign <> nil then FSafeStopSign.SetEvent;
   end;
 
+  lvWrited := false;
   if FSafeStopSign <> nil then
   begin
+    lvEvent := FSafeStopSign; 
     l := GetTickCount;
     while True do
     begin
@@ -987,13 +998,22 @@ begin
 
       Sleep(10);
 
+      // 继续投递，避免响应失败的工作线程
+      FIocpCore.PostIOExitRequest;
+
       // wait all works down
-      if FSafeStopSign.WaitFor(1000)=wrSignaled then
+      if lvEvent.WaitFor(1000) = wrSignaled then
       begin
         FSafeStopSign.Free;
         FSafeStopSign := nil;
         Result := true;
         Break;
+      end;
+
+      if not lvWrited then
+      begin
+        lvWrited := True;
+        SafeWriteFileMsg(GetStateINfo, Name + '_STOP');
       end;
 
       if tick_diff(l, GetTickCount) > pvTimeOut then

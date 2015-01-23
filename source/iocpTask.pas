@@ -528,12 +528,17 @@ begin
   if Active then
   begin
     SetActive(False);
+    Sleep(100);
     FIocpEngine.setWorkerCount(pvCounter);
+
     SetActive(True);
+    Sleep(100);
   end else
   begin
     FIocpEngine.setWorkerCount(pvCounter);
   end;
+
+
 end;
 
 procedure TIocpTaskMananger.SignalATask(pvSignalID: Integer; pvTaskData:

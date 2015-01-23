@@ -121,4 +121,10 @@ DIOCP 3.5.04
  *     * TIocpTcpServer的PostWSASendBuffer添加两个参数Tag和TagData，
  *         可以在响应OnSendRequestResponse事件中获取到该参数
  *     * TIocpSendRequest 映射WSABuf信息，可以读取最后一次发送的数据信息
+
+7.修复暴力测试重复开关IocpEngine时DecAliveWorker可能出现AV错误
+  2015-01-22 14:18:24
+
+8.优化SafeStop代码，在无法停止时，安全输出工作线程日志。
+  2015-01-23 12:28:37  
  
