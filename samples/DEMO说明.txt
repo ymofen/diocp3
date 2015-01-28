@@ -53,12 +53,25 @@ samples\socket-Coder\StreamCoder
 samples\socket-Coder\DataModuleDEMO-Andriod
   手机Andriod客户端与diocp服务器交换数据的例子
   可以学习到如何在andriod中请求diocp执行sql语句返回一个TClientDataSet的数据，并在手机上进行显示
+  ==============================================
+  * 注意 不知道从那个版本开始 XE中就存在一个对ClientDataSet.Data赋值出现AV异常的bug
+    你可以进行简单的测试
+    datasetProvider1.DataSet := adoDataSet;
+    clientDataSet.Data := datasetProvider1.Data;  //进行打包的时候出现非法访问异常
+    如果出现类似的错误, 需要你修正DBClient.pas才能正确运行。
   
 samples\socket-Coder\DataModuleDEMO
   三层数据演示
   可以学习到如何在客户端中请求diocp执行sql语句返回一个TClientDataSet的数据，并在客户端进行显示
 samples\socket-Coder\DataModuleDEMO-SimpleMsgPack
   使用simpleMsgPack代替QMsgPack，可以在D7中使用
+  ==============================================
+  * 注意 不知道从那个版本开始 XE中就存在一个对ClientDataSet.Data赋值出现AV异常的bug
+    你可以进行简单的测试
+    datasetProvider1.DataSet := adoDataSet;
+    clientDataSet.Data := datasetProvider1.Data;  //进行打包的时候出现非法访问异常
+    如果出现类似的错误, 需要你修正DBClient.pas才能正确运行。
+  
   
 samples\socket-Coder\DIOCPFileSERVER
   演示DIOCP如何作为文件服务器使用
