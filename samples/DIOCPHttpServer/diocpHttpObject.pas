@@ -21,9 +21,11 @@ type
   TDiocpHttpRequest = class(TObject)
   private
     FHeadMethod : string;
+    FUrlPath: String;
+    FRequestParams: String;
     FRawHttpData: TMemoryStream;
 
-    FRequestHeader: TStringList
+    FRequestHeader: TStringList;
 
     FResponse: TDiocpHttpResponse;
 
@@ -124,6 +126,75 @@ type
 
 implementation
 
+//delphi 最快速编码 URLDecode URLEncode
+
+function URLDecode(const S: string): string;
+var
+  Idx: Integer;   // loops thru chars in string
+  Hex: string;    // string of hex characters
+  Code: Integer; // hex character code (-1 on error)
+begin
+  // Intialise result and string index
+  Result := '';
+  Idx := 1;
+  // Loop thru string decoding each character
+  while Idx <= Length(S) do
+  begin
+    case S[Idx] of
+      '%':
+      begin
+        // % should be followed by two hex digits - exception otherwise
+        if Idx <= Length(S) - 2 then
+        begin
+          // there are sufficient digits - try to decode hex digits
+          Hex := S[Idx+1] + S[Idx+2];
+          Code := SysUtils.StrToIntDef('$' + Hex, -1);
+          Inc(Idx, 2);
+        end
+        else
+          // insufficient digits - error
+          Code := -1;
+        // check for error and raise exception if found
+        if Code = -1 then
+          raise SysUtils.EConvertError.Create(
+            'Invalid hex digit in URL'
+          );
+        // decoded OK - add character to result
+        Result := Result + Chr(Code);
+      end;
+      '+':
+        // + is decoded as a space
+        Result := Result + ' '
+      else
+        // All other characters pass thru unchanged
+        Result := Result + S[Idx];
+    end;
+    Inc(Idx);
+  end;
+end;
+
+
+function URLEncode(const S: string; const InQueryString: Boolean): string;
+var
+  Idx: Integer; // loops thru characters in string
+begin
+  Result := '';
+  for Idx := 1 to Length(S) do
+  begin
+    case S[Idx] of
+      'A'..'Z', 'a'..'z', '0'..'9', '-', '_', '.':
+        Result := Result + S[Idx];
+      ' ':
+        if InQueryString then
+          Result := Result + '+'
+        else
+          Result := Result + '%20';
+      else
+        Result := Result + '%' + SysUtils.IntToHex(Ord(S[Idx]), 2);
+    end;
+  end;
+end;
+
 procedure TDiocpHttpRequest.Clear;
 begin
   FRawHttpData.Clear;
@@ -194,9 +265,10 @@ end;
 function TDiocpHttpRequest.DecodeHttpContext: Integer;
 var
   lvRawString: AnsiString;
-  lvRequestCmdLine, lvMethod, lvTempStr:String;
+  lvRequestCmdLine, lvMethod, lvTempStr, lvRawTemp:String;
   i, j:Integer;
 begin
+  Result := 1;
   SetLength(lvRawString, FRawHttpdata.Size);
   FRawHttpData.Read(lvRawString[1], FRawHttpdata.Size);
   FRequestHeader.Text := lvRawString;
@@ -221,24 +293,22 @@ begin
   lvTempStr := Copy(lvRequestCmdLine, J, I - J);
   // 解析参数
   J := Pos('?', lvTempStr);
-//
-//  if (J <= 0) then
-//  begin
-//    FRawPath := FRawPathAndParams;
-//    FRawParams := '';
-//
-//    FPath := URLDecode(FRawPath);
-//    FParams := '';
-//    FPathAndParams := FPath;
-//  end else
-//  begin
-//    FRawPath := Copy(FRawPathAndParams, 1, J - 1);
-//    FRawParams := Copy(FRawPathAndParams, J + 1, MaxInt);
-//
-//    FPath := URLDecode(FRawPath);
-//    FParams := URLDecode(FRawParams);
-//    FPathAndParams := FPath + '?' + FParams;
-//  end;
+
+  if (J <= 0) then
+  begin
+    FUrlPath := lvTempStr;
+    lvRawTemp := '';
+
+    FUrlPath := URLDecode(FUrlPath);
+    FRequestParams := '';
+  end else
+  begin
+    FUrlPath := Copy(lvTempStr, 1, J - 1);
+    lvRawTemp := Copy(lvTempStr, J + 1, MaxInt);
+
+    FUrlPath := URLDecode(FUrlPath);
+    FRequestParams := URLDecode(lvRawTemp);
+  end;
 end;
 
 procedure TDiocpHttpRequest.WriteRawBuffer(const Buffer: Pointer; len: Integer);
