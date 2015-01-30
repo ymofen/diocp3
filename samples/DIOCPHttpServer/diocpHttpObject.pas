@@ -16,14 +16,40 @@ uses
   iocpTcpServer;
 
 type
-  TDiocpHttpState = (hsCompleted, hsRequest);
+  TDiocpHttpState = (hsCompleted, hsRequest{接收请求}, hsRecvingPost{接收数据});
   TDiocpHttpResponse = class;
+  TDiocpHttpClientContext = class;
   TDiocpHttpRequest = class(TObject)
   private
-    FHeadMethod : string;
-    FUrlPath: String;
+    FDiocpContext:TDiocpHttpClientContext;
+
+    /// 头信息
+    FHttpVersion: Word;  // 10, 11
+
+    FRequestMethod: string;
+    FRequestUrl: String;
     FRequestParams: String;
+
+    FContextType  : string;
+    FContextLength: Int64;
+    FKeepAlive    : Boolean;
+    FRequestAccept: String;
+    FRequestReferer:String;
+    FRequestAcceptLanguage:string;
+    FRequestAcceptEncoding:string;
+    FRequestUserAgent:string;
+    FRequestAuth:string;
+    FRequestCookies:string;
+    FRequestHostName:string;
+    FRequestHostPort:string;
+    FXForwardedFor:string;
+
+
+
     FRawHttpData: TMemoryStream;
+
+    FRawPostData : TMemoryStream;
+    FPostDataLen :Integer;
 
     FRequestHeader: TStringList;
 
@@ -31,23 +57,22 @@ type
 
 
     /// <summary>
-    ///   是否有效的Http头
+    ///   是否有效的Http 请求方法
     /// </summary>
     /// <returns>
     ///   0: 数据不足够进行解码
     ///   1: 有效的数据头
     ///   2: 无效的请求数据头
     /// </returns>
-    function DecodeHeadRequest: Integer;
+    function DecodeHttpRequestMethod: Integer;
 
     /// <summary>
-    ///   解码Http内容, 接受完整的Http数据后执行
+    ///   解码Http请求参数信息
     /// </summary>
     /// <returns>
-    ///   1: 有效的Http数据
-    ///   0: 有效的Http数据
+    ///   1: 有效的Http参数数据
     /// </returns>
-    function DecodeHttpContext: Integer;
+    function DecodeHttpRequestParams: Integer;
 
     /// <summary>
     ///   接收到的Buffer,写入数据
@@ -198,23 +223,28 @@ end;
 procedure TDiocpHttpRequest.Clear;
 begin
   FRawHttpData.Clear;
+  FRawPostData.Clear;
+  FContextLength := 0;
+  FPostDataLen := 0;
 end;
 
 constructor TDiocpHttpRequest.Create;
 begin
   inherited Create;
   FRawHttpData := TMemoryStream.Create();
+  FRawPostData := TMemoryStream.Create();
   FResponse := TDiocpHttpResponse.Create();
 end;
 
 destructor TDiocpHttpRequest.Destroy;
 begin
   FreeAndNil(FResponse);
+  FRawPostData.Free;
   FRawHttpData.Free;
   inherited Destroy;
 end;
 
-function TDiocpHttpRequest.DecodeHeadRequest: Integer;
+function TDiocpHttpRequest.DecodeHttpRequestMethod: Integer;
 var
   lvBuf:Pointer;
 begin
@@ -223,50 +253,64 @@ begin
 
   lvBuf := FRawHttpData.Memory;
 
-  if FHeadMethod <> '' then
+  if FRequestMethod <> '' then
   begin
     Result := 1;  // 已经解码
     Exit;
   end;
 
+  //请求方法（所有方法全为大写）有多种，各个方法的解释如下：
+  //GET     请求获取Request-URI所标识的资源
+  //POST    在Request-URI所标识的资源后附加新的数据
+  //HEAD    请求获取由Request-URI所标识的资源的响应消息报头
+  //PUT     请求服务器存储一个资源，并用Request-URI作为其标识
+  //DELETE  请求服务器删除Request-URI所标识的资源
+  //TRACE   请求服务器回送收到的请求信息，主要用于测试或诊断
+  //CONNECT 保留将来使用
+  //OPTIONS 请求查询服务器的性能，或者查询与资源相关的选项和需求
+  //应用举例：
+  //GET方法：在浏览器的地址栏中输入网址的方式访问网页时，浏览器采用GET方法向服务器获取资源，eg:GET /form.html HTTP/1.1 (CRLF)
+  //
+  //POST方法要求被请求服务器接受附在请求后面的数据，常用于提交表单。
 
   Result := 1;
   // HTTP 1.1 支持8种请求
   if (StrLIComp(lvBuf, 'GET', 3) = 0) then
   begin
-    FHeadMethod := 'GET';
+    FRequestMethod := 'GET';
   end else if (StrLIComp(lvBuf, 'POST', 4) = 0) then
   begin
-    FHeadMethod := 'POST';
+    FRequestMethod := 'POST';
   end else if (StrLIComp(lvBuf, 'PUT', 3) = 0) then
   begin
-    FHeadMethod := 'PUT';
+    FRequestMethod := 'PUT';
   end else if (StrLIComp(lvBuf, 'HEAD', 3) = 0) then
   begin
-    FHeadMethod := 'HEAD';
+    FRequestMethod := 'HEAD';
   end else if (StrLIComp(lvBuf, 'OPTIONS', 7) = 0) then
   begin
-    FHeadMethod := 'OPTIONS';
+    FRequestMethod := 'OPTIONS';
   end else if (StrLIComp(lvBuf, 'DELETE', 6) = 0) then
   begin
-    FHeadMethod := 'DELETE';
+    FRequestMethod := 'DELETE';
   end else if (StrLIComp(lvBuf, 'TRACE', 5) = 0) then
   begin
-    FHeadMethod := 'TRACE';
+    FRequestMethod := 'TRACE';
   end else if (StrLIComp(lvBuf, 'CONNECT', 7) = 0) then
   begin
-    FHeadMethod := 'CONNECT';
+    FRequestMethod := 'CONNECT';
   end else
   begin
     Result := 2;
   end;
 end;
 
-function TDiocpHttpRequest.DecodeHttpContext: Integer;
+function TDiocpHttpRequest.DecodeHttpRequestParams: Integer;
 var
   lvRawString: AnsiString;
   lvRequestCmdLine, lvMethod, lvTempStr, lvRawTemp:String;
   i, j:Integer;
+
 begin
   Result := 1;
   SetLength(lvRawString, FRawHttpdata.Size);
@@ -296,18 +340,114 @@ begin
 
   if (J <= 0) then
   begin
-    FUrlPath := lvTempStr;
+    FRequestUrl := lvTempStr;
     lvRawTemp := '';
 
-    FUrlPath := URLDecode(FUrlPath);
+    FRequestUrl := URLDecode(FRequestUrl);
     FRequestParams := '';
   end else
   begin
-    FUrlPath := Copy(lvTempStr, 1, J - 1);
+    FRequestUrl := Copy(lvTempStr, 1, J - 1);
     lvRawTemp := Copy(lvTempStr, J + 1, MaxInt);
 
-    FUrlPath := URLDecode(FUrlPath);
+    FRequestUrl := URLDecode(FRequestUrl);
     FRequestParams := URLDecode(lvRawTemp);
+  end;
+
+
+  Inc(I);
+  while (I <= Length(lvRequestCmdLine)) and (lvRequestCmdLine[I] = ' ') do
+    Inc(I);
+  J := I;
+  while (I <= Length(lvRequestCmdLine)) and (lvRequestCmdLine[I] <> ' ') do
+    Inc(I);
+
+  // 请求的HTTP版本
+  lvTempStr := Trim(UpperCase(Copy(lvRequestCmdLine, J, I - J)));
+
+  if (lvTempStr = '') then
+    lvTempStr := 'HTTP/1.0';
+  if (lvTempStr = 'HTTP/1.0') then
+  begin
+    FHttpVersion := 10;
+    FKeepAlive := false;  // 默认为false
+  end else
+  begin
+    FHttpVersion := 11;    
+    FKeepAlive := true;    // 默认为true
+  end;                     
+
+  FContextLength := 0;
+
+
+  //eg：POST /reg.jsp HTTP/ (CRLF)
+  //Accept:image/gif,image/x-xbit,... (CRLF)
+  //...
+  //HOST:www.guet.edu.cn (CRLF)
+  //Content-Length:22 (CRLF)
+  //Connection:Keep-Alive (CRLF)
+  //Cache-Control:no-cache (CRLF)
+  //(CRLF)         //该CRLF表示消息报头已经结束，在此之前为消息报头
+  //user=jeffrey&pwd=1234  //此行以下为提交的数据
+  //
+  //HEAD方法与GET方法几乎是一样的，对于HEAD请求的回应部分来说，它的HTTP头部中包含的信息与通过GET请求所得到的信息是相同的。利用这个方法，不必传输整个资源内容，就可以得到Request-URI所标识的资源的信息。该方法常用于测试超链接的有效性，是否可以访问，以及最近是否更新。
+  //2、请求报头后述
+  //3、请求正文(略)
+
+  for i := 0 to FRequestHeader.Count -1 do
+  begin
+    lvRequestCmdLine := FRequestHeader[i];
+    if (lvRequestCmdLine = '') then Continue;
+
+    // 空格之后的第一个字符位置
+    j := Pos(' ', lvRequestCmdLine) + 1;
+
+    if StrLIComp(@lvRequestCmdLine[1], 'Content-Type:', 13) = 0 then
+      FContextType := Copy(lvRequestCmdLine, j, Length(lvRequestCmdLine))
+    else if StrLIComp(@lvRequestCmdLine[1], 'Content-Length:', 15) = 0 then
+    begin
+      FContextLength := StrToInt64Def(Copy(lvRequestCmdLine, j, MaxInt), -1);
+    end
+    else if StrLIComp(@lvRequestCmdLine[1], 'Accept:', 7) = 0 then
+      FRequestAccept:= Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'Referer:', 8) = 0 then
+      FRequestReferer := Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'Accept-Language:', 16) = 0 then
+      FRequestAcceptLanguage := Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'Accept-Encoding:', 16) = 0 then
+      FRequestAcceptEncoding := Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'User-Agent:', 11) = 0 then
+      FRequestUserAgent := Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'Authorization:', 14) = 0 then
+      FRequestAuth := Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'Cookie:', 7) = 0 then
+      FRequestCookies := Copy(lvRequestCmdLine, j, MaxInt)
+    else if StrLIComp(@lvRequestCmdLine[1], 'Host:', 5) = 0 then
+    begin
+      lvTempStr := Copy(lvRequestCmdLine, j, MaxInt);
+      J := Pos(':', lvTempStr);
+      if J > 0 then
+      begin
+        FRequestHostName := Copy(lvTempStr, 1, J - 1);
+        FRequestHostPort := Copy(lvTempStr, J + 1, 100);
+      end else
+      begin
+        FRequestHostName := lvTempStr;
+        FRequestHostPort := IntToStr((FDiocpContext).Owner.Port);
+      end;
+    end
+    else if StrLIComp(@lvRequestCmdLine[1], 'Connection:', 11) = 0 then
+    begin
+      lvTempStr := Copy(lvRequestCmdLine, j, MaxInt);
+      // HTTP/1.0 默认KeepAlive=False，只有显示指定了Connection: keep-alive才认为KeepAlive=True
+      // HTTP/1.1 默认KeepAlive=True，只有显示指定了Connection: close才认为KeepAlive=False
+      if FHttpVersion = 10 then
+        FKeepAlive := SameText(lvTempStr, 'keep-alive')
+      else if SameText(lvTempStr, 'close') then
+        FKeepAlive := False;
+    end
+    else if StrLIComp(@lvRequestCmdLine[1], 'X-Forwarded-For:', 16) = 0 then
+      FXForwardedFor := Copy(lvRequestCmdLine, j, MaxInt);
   end;
 end;
 
@@ -332,6 +472,7 @@ constructor TDiocpHttpClientContext.Create;
 begin
   inherited Create;
   FRequest := TDiocpHttpRequest.Create();
+  FRequest.FDiocpContext := Self;
 end;
 
 destructor TDiocpHttpClientContext.Destroy;
@@ -354,18 +495,18 @@ var
   lvRemain:Cardinal;
 begin
   inherited;
-  if FHttpState = hsCompleted then
-  begin
-    FRequest.Clear;
-    FHttpState := hsRequest;
-  end;
-
   lvTmpBuf := buf;
   CR := 0;
   LF := 0;
   lvRemain := len;
   while (lvRemain > 0) do
   begin
+    if FHttpState = hsCompleted then
+    begin  // 完成后重置，重新处理下一个包
+      FRequest.Clear;
+      FHttpState := hsRequest;
+    end;
+
     if (FHttpState = hsRequest) then
     begin
       case lvTmpBuf^ of
@@ -379,7 +520,7 @@ begin
       // 写入请求数据
       FRequest.WriteRawBuffer(lvTmpBuf, 1);
 
-      if FRequest.DecodeHeadRequest = 2 then
+      if FRequest.DecodeHttpRequestMethod = 2 then
       begin    // 无效的Http请求
         self.RequestDisconnect('无效的Http请求', Self);
         Exit;
@@ -388,52 +529,30 @@ begin
       // 请求数据已接收完毕(#13#10#13#10是HTTP请求结束的标志)
       if (CR = 2) and (LF = 2) then
       begin
-        if FRequest.DecodeHttpContext = 0 then
+        if FRequest.DecodeHttpRequestParams = 0 then
         begin
           Self.RequestDisconnect('无效的Http协议数据', Self);
           Exit;
         end;
 
-        // 响应事件
-        TDiocpHttpServer(FOwner).DoRequest(FRequest);        
 
-        // 改变Http状态
-        FHttpState := hsCompleted;
+        // 改变Http状态, 进入接受数据状态
+        FHttpState := hsRecvingPost;
       end;
-
-      Dec(lvRemain);
-      Inc(lvTmpBuf);
+    end else if (FHttpState = hsRecvingPost) then
+    begin
+      Inc(FRequest.FPostDataLen);
+      FRequest.FRawPostData.Write(buf^, 1);
+      if FRequest.FPostDataLen >= FRequest.FContextLength then
+      begin
+        FHttpState := hsCompleted;
+        // 触发事件
+        TDiocpHttpServer(FOwner).DoRequest(FRequest);
+      end;
     end;
-
-//    if (Client.FHttpState = hcPostData) then
-//    begin
-//      Inc(Client.FPostDataSize, len);
-//      if Client.FAcceptPostData then
-//        Client.FRequestPostData.Write(pch^, len);
-//
-//      if (Client.FPostDataSize >= Client.FRequestContentLength) then
-//        Client.FHttpState := hcDone;
-//
-//      // Post数据直接剩余部分整段处理，到这里就已经全部处理完了，直接跳出循环
-//      Break;
-//    end;
-  end;
-
-//  // 在解析完请求数据之后再调用线程池
-//  if (Client.FHttpState = hcDone) then
-//  begin
-//    {$ifdef __IOCP_HTTP_SERVER_LOGIC_THREAD_POOL__}
-//    if (Client.AddRef = 1) then Exit;
-//    FJobThreadPool.AddRequest(TIocpHttpRequest.Create(Client));
-//    {$else}
-//    DoOnRequest(Client);
-//    {$endif}
-//  end;
-
-
-
-
-
+    Dec(lvRemain);
+    Inc(lvTmpBuf);
+  end; 
 end;
 
 
