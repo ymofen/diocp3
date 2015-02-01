@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls, safeLogger,
-  ComCtrls;
+  ComCtrls, diocpHttpObject;
 
 type
   TfrmMain = class(TForm)
@@ -32,10 +32,6 @@ type
     iCounter:Integer;
     FTcpServer: TIocpTcpServer;
     procedure refreshState;
-    procedure OnRecvBuffer(pvClientContext:TIocpClientContext; buf:Pointer;
-        len:cardinal; errCode:Integer);
-    procedure OnAccept(pvSocket: THandle; pvAddr: String; pvPort: Integer; var
-        vAllowAccept: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -55,10 +51,8 @@ uses
 constructor TfrmMain.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FTcpServer := TIocpTcpServer.Create(Self);
-  FTcpServer.Name := 'iocpSVR';
-  FTcpServer.OnDataReceived := self.OnRecvBuffer;
-  FTcpServer.OnContextAccept := OnAccept;
+  FTcpServer := TDiocpHttpServer.Create(Self);
+  FTcpServer.Name := 'HttpSVR';
   FTcpServer.createDataMonitor;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
   
@@ -85,7 +79,6 @@ end;
 procedure TfrmMain.actOpenExecute(Sender: TObject);
 begin
   FTcpServer.Port := StrToInt(edtPort.Text);
-  FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.Active := true;
   refreshState;
 end;
@@ -122,38 +115,6 @@ end;
 procedure TfrmMain.btnGetWorkerStateClick(Sender: TObject);
 begin
   ShowMessage(FTcpServer.IocpEngine.getWorkerStateInfo(0));
-end;
-
-procedure TfrmMain.OnAccept(pvSocket: THandle; pvAddr: String; pvPort: Integer;
-    var vAllowAccept: Boolean);
-begin
-//  if pvAddr = '127.0.0.1' then
-//    vAllowAccept := false;
-
-end;
-
-procedure TfrmMain.OnRecvBuffer(pvClientContext:TIocpClientContext;
-    buf:Pointer; len:cardinal; errCode:Integer);
-var
-  j, i:Integer;
-  lvhttpEnd:array[0..3] of Byte;
-begin
-  lvhttpEnd[0] := 13;
-  lvhttpEnd[1] := 10;
-  lvhttpEnd[2] := 13;
-  lvhttpEnd[3] := 10;
-
-
-
-  if errCode = 0 then
-  begin
-    sfLogger.logMessage(PAnsiChar(buf));
-    pvClientContext.PostWSASendRequest(PAnsiChar('abcd'), 4);
-    pvClientContext.PostWSASendRequest(@lvhttpEnd[0], 4);
-  end else
-  begin
-    pvClientContext.RequestDisconnect;
-  end;
 end;
 
 end.

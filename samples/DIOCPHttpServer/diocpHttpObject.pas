@@ -233,6 +233,7 @@ begin
   inherited Create;
   FRawHttpData := TMemoryStream.Create();
   FRawPostData := TMemoryStream.Create();
+  FRequestHeader := TStringList.Create();
   FResponse := TDiocpHttpResponse.Create();
 end;
 
@@ -241,6 +242,7 @@ begin
   FreeAndNil(FResponse);
   FRawPostData.Free;
   FRawHttpData.Free;
+  FRequestHeader.Free;
   inherited Destroy;
 end;
 
@@ -314,6 +316,7 @@ var
 begin
   Result := 1;
   SetLength(lvRawString, FRawHttpdata.Size);
+  FRawHttpdata.Position := 0;
   FRawHttpData.Read(lvRawString[1], FRawHttpdata.Size);
   FRequestHeader.Text := lvRawString;
 
