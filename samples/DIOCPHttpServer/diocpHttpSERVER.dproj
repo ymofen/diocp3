@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <DCC_DCCCompiler>DCC32</DCC_DCCCompiler>
-    <DCC_DependencyCheckOutputName>..\BIN\diocpHttpSERVER.exe</DCC_DependencyCheckOutputName>
+    <DCC_DependencyCheckOutputName>BIN\diocpHttpSERVER.exe</DCC_DependencyCheckOutputName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Version>7.0</Version>
@@ -17,7 +17,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Version>7.0</Version>
     <DCC_Define>DEBUG</DCC_Define>
-    <DCC_ExeOutput>..\BIN</DCC_ExeOutput>
+    <DCC_ExeOutput>BIN</DCC_ExeOutput>
     <DCC_UnitSearchPath>$(DIOCP3_HOME)\Source</DCC_UnitSearchPath>
     <DCC_ResourcePath>$(DIOCP3_HOME)\Source</DCC_ResourcePath>
     <DCC_ObjPath>$(DIOCP3_HOME)\Source</DCC_ObjPath>

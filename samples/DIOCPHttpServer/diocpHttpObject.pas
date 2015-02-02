@@ -101,6 +101,10 @@ type
     ///   应答完毕，发送会客户端
     /// </summary>
     procedure ResponseEnd;
+
+
+    procedure CloseContext;
+
   end;
 
   TDiocpHttpResponse = class(TObject)
@@ -260,6 +264,11 @@ begin
   FRawPostData.Clear;
   FContextLength := 0;
   FPostDataLen := 0;
+end;
+
+procedure TDiocpHttpRequest.CloseContext;
+begin
+  FDiocpContext.RequestDisconnect('TDiocpHttpRequest.CloseContext');
 end;
 
 constructor TDiocpHttpRequest.Create;

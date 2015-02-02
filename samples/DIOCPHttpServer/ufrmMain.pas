@@ -71,6 +71,8 @@ begin
 
   // 应答完毕，发送会客户端
   pvRequest.ResponseEnd;
+
+  pvRequest.CloseContext;
 end;
 
 destructor TfrmMain.Destroy;
