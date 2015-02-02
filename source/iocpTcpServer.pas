@@ -990,6 +990,25 @@ resourcestring
   strPushFail      = '[%d]压入到待发送队列失败, 队列信息: %d/%d';
 
 
+  /// =========== 服务端状态信息============
+  strState_Active      = '服务状态: 开启';
+  strState_MonitorNull = '没有创建监控器';
+  strState_ObjectNull  = '没有监控对象';    //'iocp server is null'
+  strState_Off         = '服务状态: 关闭';
+  strRecv_SizeInfo     = '接收数据: %s';
+  strSend_SizeInfo     = '发送数据: %s';
+  strRecv_PostInfo     = '接收信息: 投递:%d, 回应:%d, 剩余:%d';  //post:%d, response:%d, remain:%d
+  strSend_Info         = '发送信息: 投递:%d, 回应:%d, 剩余:%d';  //post:%d, response:%d, remain:%d
+  strSendQueue_Info    = '发送队列: 压入/弹出/完成/终止:%d, %d, %d, %d';//push/pop/complted/abort:%d, %d, %d, %d
+  strSendRequest_Info  = '发送对象: 创建:%d, 借出:%d, 还回:%d';  //'create:%d, out:%d, return:%d'
+  strAcceptEx_Info     = 'AcceptEx: 投递:%d, 回应:%d';      //'post:%d, response:%d'
+  strSocketHandle_Info = '套接字句柄: 创建:%d, 销毁:%d';  //'create:%d, destroy:%d'
+  strContext_Info      = '连接对象: 创建:%d, 借出:%d, 还回:%d';  //'create:%d, out:%d, return:%d'
+  strOnline_Info       = '在线信息: %d';
+  strWorkers_Info      = '工作线程: %d';
+  strRunTime_Info      = '运行信息: %s';
+  /// =========== 服务端状态信息============
+
 
 
 /// <summary>
@@ -2453,24 +2472,24 @@ begin
   try
     if Active then
     begin
-      lvStrings.Add('running');
+      lvStrings.Add(strState_Active);
     end else
     begin
-      lvStrings.Add('stop');
+      lvStrings.Add(strState_Off);
     end;
 
 
-    lvStrings.Add(Format('RecvInfo: post:%d, response:%d, remain:%d',
-       [
-         DataMoniter.PostWSARecvCounter,
-         DataMoniter.ResponseWSARecvCounter,
-         DataMoniter.PostWSARecvCounter -
-         DataMoniter.ResponseWSARecvCounter
-       ]
-      ));
+    lvStrings.Add(Format(strRecv_PostInfo,
+         [
+           DataMoniter.PostWSARecvCounter,
+           DataMoniter.ResponseWSARecvCounter,
+           DataMoniter.PostWSARecvCounter -
+           DataMoniter.ResponseWSARecvCounter
+         ]
+        ));
 
-    lvStrings.Add('Recv size:' +
-       TransByteSize(DataMoniter.RecvSize));
+
+    lvStrings.Add(Format(strRecv_SizeInfo, [TransByteSize(DataMoniter.RecvSize)]));
 
 
     //  Format('post:%d, response:%d, recvd:%d',
@@ -2481,7 +2500,7 @@ begin
     //     ]
     //    );
 
-    lvStrings.Add(Format('SendInfo: post:%d, response:%d, remain:%d',
+    lvStrings.Add(Format(strSend_Info,
        [
          DataMoniter.PostWSASendCounter,
          DataMoniter.ResponseWSASendCounter,
@@ -2490,7 +2509,7 @@ begin
        ]
       ));
 
-    lvStrings.Add(Format('SendRequest: create:%d, out:%d, return:%d',
+    lvStrings.Add(Format(strSendRequest_Info,
        [
          DataMoniter.SendRequestCreateCounter,
          DataMoniter.SendRequestOutCounter,
@@ -2498,7 +2517,7 @@ begin
        ]
       ));
 
-    lvStrings.Add(Format('SendQueue: push/pop/complted/abort:%d, %d, %d, %d',
+    lvStrings.Add(Format(strSendQueue_Info,
        [
          DataMoniter.PushSendQueueCounter,
          DataMoniter.PostSendObjectCounter,
@@ -2506,26 +2525,24 @@ begin
          DataMoniter.SendRequestAbortCounter
        ]
       ));
-      
-    lvStrings.Add('Send Size:' +
-       transByteSize(DataMoniter.SentSize));
 
+    lvStrings.Add(Format(strSend_SizeInfo, [TransByteSize(DataMoniter.SentSize)]));
 
-    lvStrings.Add(Format('AcceptExInfo: post:%d, response:%d',
+    lvStrings.Add(Format(strAcceptEx_Info,
        [
          DataMoniter.PostWSAAcceptExCounter,
          DataMoniter.ResponseWSAAcceptExCounter
        ]
       ));
 
-    lvStrings.Add(Format('SocketHandleInfo: create:%d, destroy:%d',
+    lvStrings.Add(Format(strSocketHandle_Info,
        [
          DataMoniter.HandleCreateCounter,
          DataMoniter.HandleDestroyCounter
        ]
       ));
 
-    lvStrings.Add(Format('contextInfo: create:%d, out:%d, return:%d',
+    lvStrings.Add(Format(strContext_Info,
        [
          DataMoniter.ContextCreateCounter,
          DataMoniter.ContextOutCounter,
@@ -2533,11 +2550,11 @@ begin
        ]
       ));
 
-    lvStrings.Add(Format('online count: %d', [ClientCount]));
+    lvStrings.Add(Format(strOnline_Info, [ClientCount]));
   
-    lvStrings.Add(Format('worker count: %d', [WorkerCount]));
+    lvStrings.Add(Format(strWorkers_Info, [WorkerCount]));
 
-    lvStrings.Add('run info:' + GetRunTimeINfo);
+    lvStrings.Add(Format(strRunTime_Info, [GetRunTimeINfo]));
 
     Result := lvStrings.Text;
   finally
