@@ -55,6 +55,7 @@ begin
   inherited Create(AOwner);
   FTcpServer := TDiocpHttpServer.Create(Self);
   FTcpServer.Name := 'HttpSVR';
+  FTcpServer.SetMaxSendingQueueSize(10000);
   FTcpServer.createDataMonitor;
   FTcpServer.OnDiocpHttpRequest := OnHttpSvrRequest;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);

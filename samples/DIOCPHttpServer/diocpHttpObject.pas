@@ -264,11 +264,13 @@ begin
   FRawPostData.Clear;
   FContextLength := 0;
   FPostDataLen := 0;
+  FResponse.FData.Clear;
+  FResponse.FResponseHeader := '';
 end;
 
 procedure TDiocpHttpRequest.CloseContext;
 begin
-  FDiocpContext.RequestDisconnect('TDiocpHttpRequest.CloseContext');
+  FDiocpContext.PostWSACloseRequest();
 end;
 
 constructor TDiocpHttpRequest.Create;
@@ -688,6 +690,7 @@ end;
 constructor TDiocpHttpServer.Create(AOwner: TComponent);
 begin
   inherited;
+  KeepAlive := false;
   registerContextClass(TDiocpHttpClientContext);
 end;
 
