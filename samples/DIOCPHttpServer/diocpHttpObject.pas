@@ -92,6 +92,7 @@ type
     /// </summary>
     procedure Clear;
 
+    property RequestHeader: TStringList read FRequestHeader;
     /// <summary>
     ///  Http响应对象，回写数据
     /// </summary>
@@ -110,12 +111,16 @@ type
   TDiocpHttpResponse = class(TObject)
   private
     FResponseHeader:string;
-    FData: TMemoryStream;    
+    FContentType: String;
+    FData: TMemoryStream;
   public
+    procedure Clear;
     constructor Create;
     destructor Destroy; override;
     procedure WriteBuf(pvBuf:Pointer; len:Cardinal);
     procedure WriteString(pvString:string);
+
+    property ContentType: String read FContentType write FContentType;
   end;
 
   /// <summary>
@@ -537,7 +542,7 @@ var
   lvFixedHeader: AnsiString;
   Len: Integer;
 begin
-  lvFixedHeader := MakeHeader('', '', FResponse.FResponseHeader, FResponse.FData.Size);
+  lvFixedHeader := MakeHeader('', FResponse.FContentType, FResponse.FResponseHeader, FResponse.FData.Size);
 
   // FResponseSize必须准确指定发送的数据包大小
   // 用于在发送完之后(Owner.TriggerClientSentData)断开客户端连接
@@ -558,6 +563,13 @@ end;
 procedure TDiocpHttpRequest.WriteRawBuffer(const Buffer: Pointer; len: Integer);
 begin
   FRawHttpData.WriteBuffer(Buffer^, len);
+end;
+
+procedure TDiocpHttpResponse.Clear;
+begin
+  FContentType := '';
+  FData.Clear;
+  FResponseHeader := '';
 end;
 
 constructor TDiocpHttpResponse.Create;

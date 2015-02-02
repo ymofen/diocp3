@@ -2,10 +2,20 @@ unit ufrmMain;
 
 interface
 
+{$DEFINE JSON}
+
+{$IFDEF JSON}
+  {$DEFINE USE_SuperObject}
+{$ENDIF}
+
+
+
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls, safeLogger,
-  ComCtrls, diocpHttpObject;
+  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls, safeLogger, StrUtils,
+  ComCtrls, diocpHttpObject
+  {$IFDEF USE_SuperObject},superobject{$ENDIF}
+  ;
 
 type
   TfrmMain = class(TForm)
@@ -65,10 +75,40 @@ begin
 end;
 
 procedure TfrmMain.OnHttpSvrRequest(pvRequest:TDiocpHttpRequest);
+var
+  lvJSon:ISuperObject;
+  s:String;
 begin
+  // Context Type
+  pvRequest.Response.ContentType := 'utf-8';
+
   // 回写数据
   pvRequest.Response.WriteString('北京时间:' + DateTimeToStr(Now()) + '<br>');
-  pvRequest.Response.WriteString('<a href="http://www.diocp.org">DIOCP/MyBean官方社区</a>');
+  pvRequest.Response.WriteString('<a href="http://www.diocp.org">DIOCP/MyBean官方社区</a><br>');
+  pvRequest.Response.WriteString('<br>');
+
+  pvRequest.Response.WriteString('<div>');
+
+  // 获取头信息
+  s := pvRequest.RequestHeader.Text;
+  s := ReplaceText(s, sLineBreak, '<br>');
+  pvRequest.Response.WriteString('头信息<br>');
+  pvRequest.Response.WriteString('请求Url:' + pvRequest.RequestUrl + '<br>');
+
+
+  pvRequest.Response.WriteString(s);
+  pvRequest.Response.WriteString('<br>');
+
+
+  // 返回json
+  lvJSon := SO();
+  lvJSon.S['title'] := 'DIOCP3 Http 服务演示';
+  lvJSon.S['author'] := 'D10.天地弦';
+  lvJSon.S['date'] := DateTimeToStr(Now());
+  s := lvJSon.AsJSon(True, False);
+  s := ReplaceText(s, sLineBreak, '<br>');
+  pvRequest.Response.WriteString(s);
+  pvRequest.Response.WriteString('</div>');
 
   // 应答完毕，发送会客户端
   pvRequest.ResponseEnd;
