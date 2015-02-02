@@ -80,7 +80,7 @@ var
   s:String;
 begin
   // Context Type
-  pvRequest.Response.ContentType := 'utf-8';
+  //pvRequest.Response.ContentType := 'utf-8';
 
   // 回写数据
   pvRequest.Response.WriteString('北京时间:' + DateTimeToStr(Now()) + '<br>');

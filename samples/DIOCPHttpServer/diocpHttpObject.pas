@@ -93,6 +93,7 @@ type
     procedure Clear;
 
     property RequestHeader: TStringList read FRequestHeader;
+    property RequestUrl: String read FRequestUrl;
     /// <summary>
     ///  Http响应对象，回写数据
     /// </summary>
@@ -189,6 +190,7 @@ var
   Idx: Integer;   // loops thru chars in string
   Hex: string;    // string of hex characters
   Code: Integer; // hex character code (-1 on error)
+
 begin
   // Intialise result and string index
   Result := '';
@@ -227,13 +229,17 @@ begin
     end;
     Inc(Idx);
   end;
+
+  // 进行utf8解码
+  Result := Utf8Decode(Result);
 end;
 
 
-function URLEncode(const S: string; const InQueryString: Boolean): string;
+function URLEncode(S: string; const InQueryString: Boolean): string;
 var
   Idx: Integer; // loops thru characters in string
 begin
+  S := UTF8Encode(S);
   Result := '';
   for Idx := 1 to Length(S) do
   begin
