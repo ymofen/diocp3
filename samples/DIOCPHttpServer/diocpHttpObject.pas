@@ -19,12 +19,14 @@ type
   TDiocpHttpState = (hsCompleted, hsRequest{接收请求}, hsRecvingPost{接收数据});
   TDiocpHttpResponse = class;
   TDiocpHttpClientContext = class;
+
   TDiocpHttpRequest = class(TObject)
   private
     FDiocpContext:TDiocpHttpClientContext;
 
     /// 头信息
     FHttpVersion: Word;  // 10, 11
+    FRequestVersionStr:string;
 
     FRequestMethod: string;
     FRequestUrl: String;
@@ -78,6 +80,9 @@ type
     ///   接收到的Buffer,写入数据
     /// </summary>
     procedure WriteRawBuffer(const Buffer: Pointer; len: Integer);
+  protected
+    function MakeHeader(const Status, ContType, Header: string; pvContextLength:
+        Integer): string;
   public
     constructor Create;
     destructor Destroy; override;
@@ -91,14 +96,22 @@ type
     ///  Http响应对象，回写数据
     /// </summary>
     property Response: TDiocpHttpResponse read FResponse;
+
+    /// <summary>
+    ///   应答完毕，发送会客户端
+    /// </summary>
+    procedure ResponseEnd;
   end;
 
   TDiocpHttpResponse = class(TObject)
   private
+    FResponseHeader:string;
     FData: TMemoryStream;    
   public
     constructor Create;
     destructor Destroy; override;
+    procedure WriteBuf(pvBuf:Pointer; len:Cardinal);
+    procedure WriteString(pvString:string);
   end;
 
   /// <summary>
@@ -123,10 +136,19 @@ type
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrCode: WORD); override;
   end;
 
+
+  {$IFDEF UNICODE}
+  /// <summary>
+  ///  响应请求
+  /// </summary>
+  TOnDiocpHttpRequest = reference to procedure (pvRequest:TDiocpHttpRequest);
+  {$ELSE}
   /// <summary>
   ///  响应请求
   /// </summary>
   TOnDiocpHttpRequest = procedure(pvRequest:TDiocpHttpRequest) of object;
+  {$ENDIF}
+
 
   /// <summary>
   ///   Http 解析服务
@@ -217,6 +239,18 @@ begin
       else
         Result := Result + '%' + SysUtils.IntToHex(Ord(S[Idx]), 2);
     end;
+  end;
+end;
+
+function FixHeader(const Header: string): string;
+begin
+  Result := Header;
+  if (RightStr(Header, 4) <> #13#10#13#10) then
+  begin
+    if (RightStr(Header, 2) = #13#10) then
+      Result := Result + #13#10
+    else
+      Result := Result + #13#10#13#10;
   end;
 end;
 
@@ -366,10 +400,10 @@ begin
     Inc(I);
 
   // 请求的HTTP版本
-  lvTempStr := Trim(UpperCase(Copy(lvRequestCmdLine, J, I - J)));
+  FRequestVersionStr := Trim(UpperCase(Copy(lvRequestCmdLine, J, I - J)));
 
-  if (lvTempStr = '') then
-    lvTempStr := 'HTTP/1.0';
+  if (FRequestVersionStr = '') then
+    FRequestVersionStr := 'HTTP/1.0';
   if (lvTempStr = 'HTTP/1.0') then
   begin
     FHttpVersion := 10;
@@ -454,6 +488,62 @@ begin
   end;
 end;
 
+function TDiocpHttpRequest.MakeHeader(const Status, ContType, Header: string;
+    pvContextLength: Integer): string;
+begin
+  Result := '';
+
+  if (Status = '') then
+    Result := Result + FRequestVersionStr + ' 200 OK' + #13#10
+  else
+    Result := Result + FRequestVersionStr + ' ' + Status + #13#10;
+
+  if (ContType = '') then
+    Result := Result + 'Content-Type: text/html' + #13#10
+  else
+    Result := Result + 'Content-Type: ' + ContType + #13#10;
+
+
+  if (pvContextLength > 0) then
+    Result := Result + 'Content-Length: ' + IntToStr(pvContextLength) + #13#10;
+//    Result := Result + 'Cache-Control: no-cache'#13#10;
+
+  if FKeepAlive then
+    Result := Result + 'Connection: keep-alive'#13#10
+  else
+    Result := Result + 'Connection: close'#13#10;
+
+  Result := Result + 'Server: DIOCP3/1.0'#13#10;
+
+  if (Header <> '') then
+    Result := Result + FixHeader(Header)
+  else
+    Result := Result + #13#10;
+end;
+
+procedure TDiocpHttpRequest.ResponseEnd;
+var
+  lvFixedHeader: AnsiString;
+  Len: Integer;
+begin
+  lvFixedHeader := MakeHeader('', '', FResponse.FResponseHeader, FResponse.FData.Size);
+
+  // FResponseSize必须准确指定发送的数据包大小
+  // 用于在发送完之后(Owner.TriggerClientSentData)断开客户端连接
+  if lvFixedHeader <> '' then
+  begin
+    Len := Length(lvFixedHeader);
+    FDiocpContext.PostWSASendRequest(PAnsiChar(lvFixedHeader), Len);
+  end;
+  
+  FDiocpContext.PostWSASendRequest(FResponse.FData.Memory, FResponse.FData.Size);
+  
+  if not FKeepAlive then
+  begin
+    FDiocpContext.PostWSACloseRequest;
+  end;
+end;
+
 procedure TDiocpHttpRequest.WriteRawBuffer(const Buffer: Pointer; len: Integer);
 begin
   FRawHttpData.WriteBuffer(Buffer^, len);
@@ -469,6 +559,16 @@ destructor TDiocpHttpResponse.Destroy;
 begin
   FreeAndNil(FData);
   inherited Destroy;
+end;
+
+procedure TDiocpHttpResponse.WriteBuf(pvBuf: Pointer; len: Cardinal);
+begin
+  FData.Write(pvBuf^, len);
+end;
+
+procedure TDiocpHttpResponse.WriteString(pvString:string);
+begin
+  FData.WriteBuffer(PChar(pvString)^, Length(pvString) * SizeOf(Char));
 end;
 
 constructor TDiocpHttpClientContext.Create;
@@ -538,9 +638,24 @@ begin
           Exit;
         end;
 
-
-        // 改变Http状态, 进入接受数据状态
-        FHttpState := hsRecvingPost;
+        if SameText(FRequest.FRequestMethod, 'POST') or
+          SameText(FRequest.FRequestMethod, 'PUT') then
+        begin
+          // 无效的Post请求直接断开
+          if (FRequest.FContextLength <= 0) then
+          begin
+            Self.RequestDisconnect('无效的POST/PUT请求数据', Self);
+            Exit;
+          end;
+          // 改变Http状态, 进入接受数据状态
+          FHttpState := hsRecvingPost;
+        end else
+        begin
+          FHttpState := hsCompleted;
+          // 触发事件
+          TDiocpHttpServer(FOwner).DoRequest(FRequest);
+          Break;
+        end;
       end;
     end else if (FHttpState = hsRecvingPost) then
     begin

@@ -30,8 +30,10 @@ type
     procedure btnGetWorkerStateClick(Sender: TObject);
   private
     iCounter:Integer;
-    FTcpServer: TIocpTcpServer;
+    FTcpServer: TDiocpHttpServer;
     procedure refreshState;
+
+    procedure OnHttpSvrRequest(pvRequest:TDiocpHttpRequest);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -54,10 +56,21 @@ begin
   FTcpServer := TDiocpHttpServer.Create(Self);
   FTcpServer.Name := 'HttpSVR';
   FTcpServer.createDataMonitor;
+  FTcpServer.OnDiocpHttpRequest := OnHttpSvrRequest;
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
   
   sfLogger.setAppender(TStringsAppender.Create(mmoLog.Lines));
   sfLogger.AppendInMainThread := true;
+end;
+
+procedure TfrmMain.OnHttpSvrRequest(pvRequest:TDiocpHttpRequest);
+begin
+  // 回写数据
+  pvRequest.Response.WriteString('北京时间:' + DateTimeToStr(Now()) + '<br>');
+  pvRequest.Response.WriteString('<a href="http://www.diocp.org">DIOCP/MyBean官方社区</a>');
+
+  // 应答完毕，发送会客户端
+  pvRequest.ResponseEnd;
 end;
 
 destructor TfrmMain.Destroy;
@@ -116,5 +129,7 @@ procedure TfrmMain.btnGetWorkerStateClick(Sender: TObject);
 begin
   ShowMessage(FTcpServer.IocpEngine.getWorkerStateInfo(0));
 end;
+
+
 
 end.
