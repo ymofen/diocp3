@@ -12,9 +12,10 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls, safeLogger, StrUtils,
-  ComCtrls, diocpHttpObject
+  Dialogs, StdCtrls, ActnList, iocpTcpServer, ExtCtrls
   {$IFDEF USE_SuperObject},superobject{$ENDIF}
+  , safeLogger, StrUtils,
+  ComCtrls, diocpHttpObject
   ;
 
 type

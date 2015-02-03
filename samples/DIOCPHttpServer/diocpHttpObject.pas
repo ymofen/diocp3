@@ -304,7 +304,7 @@ end;
 
 function TDiocpHttpRequest.DecodeHttpRequestMethod: Integer;
 var
-  lvBuf:Pointer;
+  lvBuf:PAnsiChar;
 begin
   Result := 0;
   if FRawHttpData.Size <= 7 then Exit;
