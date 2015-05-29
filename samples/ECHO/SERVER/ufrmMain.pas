@@ -89,12 +89,13 @@ begin
   FTcpServer.Port := StrToInt(edtPort.Text);
   FTcpServer.OnDataReceived := self.OnRecvBuffer;
   FTcpServer.Active := true;
+
   refreshState;
 end;
 
 procedure TfrmMain.actStopExecute(Sender: TObject);
 begin
-  FTcpServer.safeStop;
+  FTcpServer.SafeStop;
   refreshState;
 end;
 

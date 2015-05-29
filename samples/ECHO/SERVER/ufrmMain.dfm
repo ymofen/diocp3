@@ -23,10 +23,8 @@ object frmMain: TfrmMain
     ActivePage = TabSheet1
     Align = alClient
     TabOrder = 0
-    ExplicitWidth = 696
     object TabSheet1: TTabSheet
       Caption = 'moniter'
-      ExplicitWidth = 688
       object pnlMonitor: TPanel
         Left = 0
         Top = 0
@@ -35,13 +33,15 @@ object frmMain: TfrmMain
         Align = alClient
         BevelOuter = bvNone
         TabOrder = 0
-        ExplicitWidth = 688
       end
     end
     object tsLog: TTabSheet
       Caption = 'log'
       ImageIndex = 1
+      ExplicitLeft = 0
+      ExplicitTop = 0
       ExplicitWidth = 688
+      ExplicitHeight = 0
       object mmoLog: TMemo
         Left = 0
         Top = 0
@@ -51,7 +51,6 @@ object frmMain: TfrmMain
         Lines.Strings = (
           'mmoLog')
         TabOrder = 0
-        ExplicitWidth = 688
       end
     end
   end
@@ -63,7 +62,6 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'pnlTop'
     TabOrder = 1
-    ExplicitWidth = 696
     object btnDisconectAll: TButton
       Left = 216
       Top = 5

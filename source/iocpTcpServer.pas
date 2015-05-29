@@ -38,6 +38,9 @@ unit iocpTcpServer;
 
 {$I 'diocp.inc'}
 
+// ÊÍ·Å×ÊÔ´
+{.$DEFINE RELEASE_RES}
+
 interface 
 
 uses
@@ -145,6 +148,11 @@ type
     /// </summary>
     procedure OnDisconnectExResponse(pvObject:TObject);
   {$ENDIF}
+
+    procedure CheckCreateObjects;
+
+
+    procedure FreeObjects;
   private
     FAlive:Boolean;
     
@@ -818,6 +826,8 @@ type
 
     constructor Create(AOwner: TComponent); override;
 
+    procedure ClearAllRes;
+
     procedure SetMaxSendingQueueSize(pvSize:Integer);
 
     destructor Destroy; override;
@@ -1211,6 +1221,24 @@ begin
   end;
 end;
 
+procedure TIocpClientContext.CheckCreateObjects;
+begin
+  if FContextLocker = nil then
+    FContextLocker := TIocpLocker.Create('contextLocker');
+
+  if FRawSocket = nil then
+    FRawSocket := TRawSocket.Create();
+
+  if FSendRequestLink = nil then
+    FSendRequestLink := TIocpRequestSingleLink.Create(100);
+
+  if FRecvRequest = nil then
+  begin
+    FRecvRequest := TIocpRecvRequest.Create;
+    FRecvRequest.FClientContext := self;
+  end;
+end;
+
 procedure TIocpClientContext.checkReleaseRes;
 var
   lvRequest:TIocpSendRequest;
@@ -1239,13 +1267,12 @@ begin
   inherited Create;
   FDebugStrings := TStringList.Create;
   FReferenceCounter := 0;
-  FContextLocker := TIocpLocker.Create('contextLocker');
+
   FAlive := False;
-  FRawSocket := TRawSocket.Create();
   FActive := false;
-  FSendRequestLink := TIocpRequestSingleLink.Create(100);
-  FRecvRequest := TIocpRecvRequest.Create;
-  FRecvRequest.FClientContext := self;
+
+  CheckCreateObjects;
+
 
   {$IFDEF SOCKET_REUSE}
   FDisconnectExRequest:=TIocpDisconnectExRequest.Create;
@@ -1433,22 +1460,17 @@ begin
     end;
   end;
 
-  FRawSocket.close;
-  FRawSocket.Free;
-
-  FRecvRequest.Free;
-  
   if IsDebugMode then
   begin
     Assert(FSendRequestLink.Count = 0);
   end;
 
+  FreeObjects;
+
   {$IFDEF SOCKET_REUSE}
   FDisconnectExRequest.Free;
   {$ENDIF}
 
-  FSendRequestLink.Free;
-  FContextLocker.Free;
   FDebugStrings.Free;
   inherited Destroy;
 end;
@@ -1555,6 +1577,22 @@ begin
   begin
     FOwner.FOnSendRequestResponse(Self, pvRequest);
   end;
+end;
+
+procedure TIocpClientContext.FreeObjects;
+begin
+  FreeAndNil(FContextLocker);
+
+  if FRawSocket <> nil then
+  begin
+    FRawSocket.close;
+    FreeAndNil(FRawSocket);
+  end;
+
+  FreeAndNil(FSendRequestLink);
+
+  FreeAndNil(FRecvRequest);
+
 end;
 
 function TIocpClientContext.GetSendQueueSize: Integer;
@@ -1798,6 +1836,12 @@ end;
 function TIocpTcpServer.checkClientContextValid(const pvClientContext: TIocpClientContext): Boolean;
 begin
   Result := (pvClientContext.FOwner = Self);
+end;
+
+procedure TIocpTcpServer.ClearAllRes;
+begin
+  FContextPool.FreeDataObject;
+  FSendRequestPool.FreeDataObject;
 end;
 
 procedure TIocpTcpServer.close;
@@ -2122,6 +2166,8 @@ begin
     Result.FSendRequestLink.setMaxSize(FMaxSendingQueueSize);
   end;
   Result.FAlive := True;
+  
+  Result.CheckCreateObjects;
   Result.DoCleanUp;
   Result.Owner := Self;
   if (FDataMoniter <> nil) then
@@ -2168,6 +2214,12 @@ begin
   if lock_cmp_exchange(True, False, pvObject.FAlive) = true then
   begin
     pvObject.DoCleanUp;
+
+    {$IFDEF RELEASE_RES}
+    pvObject.FreeObjects;
+    {$ENDIF}
+
+
     FContextPool.Push(pvObject);
     if (FDataMoniter <> nil) then
     begin
@@ -2307,6 +2359,10 @@ begin
 
     // engine stop
     FIocpEngine.SafeStop();
+
+    {$IFDEF RELEASE_RES}
+    ClearAllRes;
+    {$ENDIF}    
   end; 
 end;
 
@@ -2320,9 +2376,11 @@ begin
       
       // engine start
       FIocpEngine.checkStart;
-      
+
+
       // create listen socket
       FListenSocket.createTcpOverlappedSocket;
+
 
       // bind to listen port
       if not FListenSocket.bind('', FPort) then
@@ -2339,11 +2397,11 @@ begin
       FIocpEngine.IocpCore.bind2IOCPHandle(FListenSocket.SocketHandle, 0);
 
 //
-//      FIocpAcceptorMgr.FMinRequest := 10;
-//      FIocpAcceptorMgr.FMaxRequest := 100;
+      FIocpAcceptorMgr.FMinRequest := 1;
+      FIocpAcceptorMgr.FMaxRequest := 1;
 
       // post AcceptEx request
-      FIocpAcceptorMgr.checkPostRequest;
+      FIocpAcceptorMgr.CheckPostRequest;
 
       FActive := True;
     end else
